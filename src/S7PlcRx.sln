@@ -5,15 +5,18 @@ VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ProjectConfig", "ProjectConfig", "{62ECE40E-CA31-4602-8670-35BAF2C83672}"
 	ProjectSection(SolutionItems) = preProject
-		..\..\.editorconfig = ..\..\.editorconfig
-		..\..\.gitignore = ..\..\.gitignore
-		..\..\.github\workflows\BuildOnly.yml = ..\..\.github\workflows\BuildOnly.yml
-		..\..\.github\dependabot.yml = ..\..\.github\dependabot.yml
-		..\..\Directory.Build.props = ..\..\Directory.Build.props
-		..\..\.github\workflows\dotnet.yml = ..\..\.github\workflows\dotnet.yml
-		..\..\README.md = ..\..\README.md
-		..\..\stylecop.json = ..\..\stylecop.json
-		..\..\Version.json = ..\..\Version.json
+		..\.editorconfig = ..\.editorconfig
+		..\.gitignore = ..\.gitignore
+		..\.github\workflows\BuildOnly.yml = ..\.github\workflows\BuildOnly.yml
+		..\.github\dependabot.yml = ..\.github\dependabot.yml
+		..\Directory.Build.props = ..\Directory.Build.props
+		..\.github\workflows\dotnet.yml = ..\.github\workflows\dotnet.yml
+		..\LICENSE = ..\LICENSE
+		..\README.md = ..\README.md
+		..\Images\S7PlcRx.ico = ..\Images\S7PlcRx.ico
+		..\Images\S7PlcRx.png = ..\Images\S7PlcRx.png
+		..\stylecop.json = ..\stylecop.json
+		..\Version.json = ..\Version.json
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "S7PlcRx", "S7PlcRx\S7PlcRx.csproj", "{1F953491-ABF8-4BF3-BEB9-1AE00996DE49}"

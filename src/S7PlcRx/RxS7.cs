@@ -23,7 +23,6 @@ namespace S7PlcRx
         private readonly ISubject<string> _lastError = new Subject<string>();
         private readonly ISubject<ErrorCode> _lastErrorCode = new Subject<ErrorCode>();
         private readonly ISubject<PLCRequest> _pLCRequestSubject = new Subject<PLCRequest>();
-        private readonly ISubject<bool> _pLCstatus = new Subject<bool>();
         private readonly ISubject<Unit> _restartReadCycle = new Subject<Unit>();
         private readonly ISubject<string> _status = new Subject<string>();
         private readonly SemaphoreSlim _lock = new SemaphoreSlim(1);
@@ -59,7 +58,7 @@ namespace S7PlcRx
                 }
 
                 _isConnected = x;
-                _pLCstatus.OnNext(x);
+                _status.OnNext($"{DateTime.Now} - PLC Connected Status: {x}");
             }));
 
             if (!string.IsNullOrWhiteSpace(watchDogAddress))
@@ -129,14 +128,6 @@ namespace S7PlcRx
         /// The last error code.
         /// </value>
         public IObservable<ErrorCode> LastErrorCode => _lastErrorCode.AsObservable();
-
-        /// <summary>
-        /// Gets the PLC status.
-        /// </summary>
-        /// <value>
-        /// The PLC status.
-        /// </value>
-        public IObservable<bool> PLCStatus => _pLCstatus.AsObservable();
 
         /// <summary>
         /// Gets the type of the PLC.
@@ -315,6 +306,7 @@ namespace S7PlcRx
             {
                 if (disposing)
                 {
+                    _lock.Wait();
                     _lock.Dispose();
                     _disposables.Dispose();
                     _socketRx?.Dispose();

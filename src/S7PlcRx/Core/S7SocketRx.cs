@@ -209,7 +209,7 @@ namespace S7PlcRx.Core
                 });
 
                 return new SingleAssignmentDisposable { Disposable = tim };
-            }).Retry().Publish(false).RefCount();
+            }).Retry().Publish(false).RefCount().DistinctUntilChanged();
 
         /// <summary>
         /// Gets the type of the PLC.

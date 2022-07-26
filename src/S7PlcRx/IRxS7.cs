@@ -53,14 +53,6 @@ namespace S7PlcRx
         IObservable<Tag> ObserveAll { get; }
 
         /// <summary>
-        /// Gets the PLC status.
-        /// </summary>
-        /// <value>
-        /// The PLC status.
-        /// </value>
-        IObservable<bool> PLCStatus { get; }
-
-        /// <summary>
         /// Gets the type of the PLC.
         /// </summary>
         /// <value>
