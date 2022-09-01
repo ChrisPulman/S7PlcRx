@@ -257,9 +257,9 @@ namespace S7PlcRx
         /// Adds the update tag item.
         /// </summary>
         /// <param name="tag">The tag.</param>
-        internal void AddUpdateTagItem(Tag tag!!)
+        internal void AddUpdateTagItem(Tag tag)
         {
-            if (string.IsNullOrWhiteSpace(tag.Address))
+            if (string.IsNullOrWhiteSpace(tag?.Address))
             {
                 throw new TagAddressOutOfRangeException(tag);
             }
@@ -280,7 +280,7 @@ namespace S7PlcRx
             _lock.Release();
         }
 
-        internal void RemoveTagItem(string tagName!!)
+        internal void RemoveTagItem(string tagName)
         {
             if (string.IsNullOrWhiteSpace(tagName))
             {
