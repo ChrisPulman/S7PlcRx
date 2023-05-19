@@ -11,16 +11,14 @@ namespace S7PlcRx
     /// <seealso cref="System.ArgumentOutOfRangeException" />
     [Serializable]
 #pragma warning disable RCS1194 // Implement exception constructors.
-#pragma warning disable CA1032 // Implement standard exception constructors
     public class TagAddressOutOfRangeException : ArgumentOutOfRangeException
-#pragma warning restore CA1032 // Implement standard exception constructors
 #pragma warning restore RCS1194 // Implement exception constructors.
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="TagAddressOutOfRangeException"/> class.
         /// </summary>
         /// <param name="tag">The Tag that caused the exception.</param>
-        public TagAddressOutOfRangeException(Tag tag)
+        public TagAddressOutOfRangeException(Tag? tag)
             : base(nameof(tag.Address))
         {
         }
