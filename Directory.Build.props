@@ -10,11 +10,12 @@
     <LangVersion>preview</LangVersion>
     <Configuration>$(TargetFramework)</Configuration>
     <Company>ChrisPulman</Company>
-    <NoWarn>CS1591</NoWarn>
+    <NoWarn>CS1591;RCS1198;CA2208</NoWarn>
     <Nullable>enable</Nullable>
     <PackageIcon>S7PlcRx.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Configurations>Debug;Release;PreRelease</Configurations>
-    <PackageReleaseNotes>Compatability with Net 6 and netstandard2.0</PackageReleaseNotes>
+    <PackageReleaseNotes>Compatability with Net 6 / 7 and netstandard2.0</PackageReleaseNotes>
     <PackageTags>S7;Siemens;PLC;S7-200;S7-300;S7-400;S7-1200;S7-1500;rx;reactive;extensions;observable;LINQ;net;netstandard</PackageTags>
     <EnableNETAnalyzers>True</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
@@ -48,6 +49,7 @@
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)images\S7PlcRx.png" Pack="true" PackagePath="\"/>
     <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="LICENSE" />
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
   
   <ItemGroup Condition="'$(IsTestProject)' == 'true'">
@@ -66,9 +68,9 @@
 
   <ItemGroup>
     <!--<Compile Update="**\*.cs" DependentUpon="I%(Filename).cs" />-->
-    <PackageReference Include="Nerdbank.GitVersioning" Version="3.5.119" PrivateAssets="all" />
+    <PackageReference Include="Nerdbank.GitVersioning" Version="3.6.132" PrivateAssets="all" />
     <PackageReference Include="stylecop.analyzers" Version="1.2.0-beta.435" PrivateAssets="all" />
-    <PackageReference Include="Roslynator.Analyzers" Version="4.2.0" PrivateAssets="All" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.3.0" PrivateAssets="All" />
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Link="stylecop.json" />
   </ItemGroup>
 </Project>

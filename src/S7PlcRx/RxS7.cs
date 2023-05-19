@@ -25,7 +25,7 @@ namespace S7PlcRx
         private readonly ISubject<PLCRequest> _pLCRequestSubject = new Subject<PLCRequest>();
         private readonly ISubject<Unit> _restartReadCycle = new Subject<Unit>();
         private readonly ISubject<string> _status = new Subject<string>();
-        private readonly SemaphoreSlim _lock = new SemaphoreSlim(1);
+        private readonly SemaphoreSlim _lock = new(1);
         private bool _isConnected;
 
         /// <summary>
@@ -36,7 +36,8 @@ namespace S7PlcRx
         /// <param name="rack">The rack.</param>
         /// <param name="slot">The slot.</param>
         /// <param name="watchDogAddress">The watch dog address.</param>
-        public RxS7(CpuType type, string ip, short rack, short slot, string? watchDogAddress = null)
+        /// <param name="interval">The interval to observe on.</param>
+        public RxS7(CpuType type, string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100)
         {
             PLCType = type;
             IP = ip;
@@ -66,7 +67,7 @@ namespace S7PlcRx
                 _disposables.Add(WatchDogObservable().Subscribe());
             }
 
-            _disposables.Add(TagReaderObservable().Subscribe());
+            _disposables.Add(TagReaderObservable(interval).Subscribe());
 
             _disposables.Add(_pLCRequestSubject.Subscribe(request =>
             {
@@ -265,7 +266,7 @@ namespace S7PlcRx
             }
 
             _lock.Wait();
-            if (TagList[tag.Name!] is Tag tagExists)
+            if (TagList[tag!.Name!] is Tag tagExists)
             {
                 tagExists.Name = tag.Name;
                 tagExists.Value = tag.Value;
@@ -936,12 +937,12 @@ namespace S7PlcRx
             return resultBytes;
         }
 
-        private IObservable<Unit> TagReaderObservable() =>
+        private IObservable<Unit> TagReaderObservable(double interval) =>
             Observable.Create<Unit>(__ =>
                 {
                     var isReading = false;
                     var tim = _restartReadCycle
-                        .Throttle(TimeSpan.FromMilliseconds(100))
+                        .Throttle(TimeSpan.FromMilliseconds(interval))
                         .StartWith(default(Unit))
                         .Subscribe(async _ =>
                     {

@@ -8,3 +8,43 @@
 
 # S7PlcRx
 S7 PLC Communications Library
+
+## Introduction
+S7PlcRx is a library that provides a simple interface to communicate with Siemens S7 PLCs.
+
+## Features
+- Read and Write to PLC
+- Read and Write to PLC with Subscription
+
+
+## Getting Started
+### Installation
+S7PlcRx is available on [NuGet](https://www.nuget.org/packages/S7PlcRx/).
+
+#### Package Manager
+```powershell
+Install-Package S7PlcRx
+```
+
+#### .NET CLI
+```powershell  
+dotnet add package S7PlcRx
+```
+
+### Usage
+#### Setup Tags and Observe values in PLC
+```csharp
+using S7PlcRx;
+
+var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, "", 0, 1);
+plc.AddUpdateTagItem<double>("Tag0", "DB500.DBD0");
+plc.AddUpdateTagItem<double>("Tag1", "DB500.DBD8");
+
+plc.Observe<double>("Tag0").Subscribe(x => Console.WriteLine($"Tag0: {x}"));
+plc.Observe<double>("Tag1").Subscribe(x => Console.WriteLine($"Tag1: {x}"));
+```
+
+#### Write to PLC
+```csharp
+plc.Value<double>("Tag0", 1.0);
+```
