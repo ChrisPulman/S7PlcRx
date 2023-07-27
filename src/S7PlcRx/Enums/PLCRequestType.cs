@@ -1,21 +1,20 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace S7PlcRx.Enums
+namespace S7PlcRx.Enums;
+
+/// <summary>
+/// PLC Request Type.
+/// </summary>
+internal enum PLCRequestType
 {
     /// <summary>
-    /// PLC Request Type.
+    /// The read.
     /// </summary>
-    internal enum PLCRequestType
-    {
-        /// <summary>
-        /// The read.
-        /// </summary>
-        Read,
+    Read,
 
-        /// <summary>
-        /// The write.
-        /// </summary>
-        Write,
-    }
+    /// <summary>
+    /// The write.
+    /// </summary>
+    Write,
 }

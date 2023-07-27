@@ -3,82 +3,81 @@
 
 using System;
 
-namespace S7PlcRx.PlcTypes
+namespace S7PlcRx.PlcTypes;
+
+/// <summary>
+/// Word.
+/// </summary>
+internal static class Word
 {
     /// <summary>
-    /// Word.
+    /// From the byte array. bytes[0] -&gt; HighByte, bytes[1] -&gt; LowByte.
     /// </summary>
-    internal static class Word
+    /// <param name="bytes">The bytes.</param>
+    /// <returns>A ushort.</returns>
+    public static ushort FromByteArray(byte[] bytes) => FromBytes(bytes[1], bytes[0]);
+
+    /// <summary>
+    /// From the bytes.
+    /// </summary>
+    /// <param name="loVal">The lo value.</param>
+    /// <param name="hiVal">The hi value.</param>
+    /// <returns>A ushort.</returns>
+    public static ushort FromBytes(byte loVal, byte hiVal) => (ushort)((hiVal * 256) + loVal);
+
+    /// <summary>
+    /// To the array.
+    /// </summary>
+    /// <param name="bytes">The bytes.</param>
+    /// <returns>A ushort array.</returns>
+    public static ushort[] ToArray(byte[] bytes)
     {
-        /// <summary>
-        /// From the byte array. bytes[0] -&gt; HighByte, bytes[1] -&gt; LowByte.
-        /// </summary>
-        /// <param name="bytes">The bytes.</param>
-        /// <returns>A ushort.</returns>
-        public static ushort FromByteArray(byte[] bytes) => FromBytes(bytes[1], bytes[0]);
+        var values = new ushort[bytes.Length / 2];
 
-        /// <summary>
-        /// From the bytes.
-        /// </summary>
-        /// <param name="loVal">The lo value.</param>
-        /// <param name="hiVal">The hi value.</param>
-        /// <returns>A ushort.</returns>
-        public static ushort FromBytes(byte loVal, byte hiVal) => (ushort)((hiVal * 256) + loVal);
-
-        /// <summary>
-        /// To the array.
-        /// </summary>
-        /// <param name="bytes">The bytes.</param>
-        /// <returns>A ushort array.</returns>
-        public static ushort[] ToArray(byte[] bytes)
+        var counter = 0;
+        for (var cnt = 0; cnt < bytes.Length / 2; cnt++)
         {
-            var values = new ushort[bytes.Length / 2];
-
-            var counter = 0;
-            for (var cnt = 0; cnt < bytes.Length / 2; cnt++)
-            {
-                values[cnt] = FromByteArray(new byte[] { bytes[counter++], bytes[counter++] });
-            }
-
-            return values;
+            values[cnt] = FromByteArray(new byte[] { bytes[counter++], bytes[counter++] });
         }
 
-        /// <summary>
-        /// To the byte array.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns>A byte array.</returns>
-        public static byte[] ToByteArray(ushort value)
+        return values;
+    }
+
+    /// <summary>
+    /// To the byte array.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns>A byte array.</returns>
+    public static byte[] ToByteArray(ushort value)
+    {
+        var bytes = new byte[2];
+        var x = 2;
+        long valLong = value;
+        for (var cnt = 0; cnt < x; cnt++)
         {
-            var bytes = new byte[2];
-            var x = 2;
-            long valLong = value;
-            for (var cnt = 0; cnt < x; cnt++)
-            {
-                var x1 = (long)Math.Pow(256, cnt);
+            var x1 = (long)Math.Pow(256, cnt);
 
-                var x3 = valLong / x1;
-                bytes[x - cnt - 1] = (byte)(x3 & 255);
-                valLong -= bytes[x - cnt - 1] * x1;
-            }
-
-            return bytes;
+            var x3 = valLong / x1;
+            bytes[x - cnt - 1] = (byte)(x3 & 255);
+            valLong -= bytes[x - cnt - 1] * x1;
         }
 
-        /// <summary>
-        /// To the byte array.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns>A byte array.</returns>
-        public static byte[] ToByteArray(ushort[] value)
-        {
-            var arr = new ByteArray();
-            foreach (var val in value)
-            {
-                arr.Add(ToByteArray(val));
-            }
+        return bytes;
+    }
 
-            return arr.Array;
+    /// <summary>
+    /// To the byte array.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns>A byte array.</returns>
+    public static byte[] ToByteArray(ushort[] value)
+    {
+        var arr = new ByteArray();
+        foreach (var val in value)
+        {
+            arr.Add(ToByteArray(val));
         }
+
+        return arr.Array;
     }
 }

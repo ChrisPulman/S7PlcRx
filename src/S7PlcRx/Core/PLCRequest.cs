@@ -3,34 +3,33 @@
 
 using S7PlcRx.Enums;
 
-namespace S7PlcRx.Core
+namespace S7PlcRx.Core;
+
+/// <summary>
+/// PLC Request.
+/// </summary>
+internal class PLCRequest
 {
     /// <summary>
-    /// PLC Request.
+    /// Initializes a new instance of the <see cref="PLCRequest"/> class.
     /// </summary>
-    internal class PLCRequest
+    /// <param name="request">The request.</param>
+    /// <param name="tag">The tag.</param>
+    public PLCRequest(PLCRequestType request, Tag? tag)
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="PLCRequest"/> class.
-        /// </summary>
-        /// <param name="request">The request.</param>
-        /// <param name="tag">The tag.</param>
-        public PLCRequest(PLCRequestType request, Tag? tag)
-        {
-            Request = request;
-            Tag = tag;
-        }
-
-        /// <summary>
-        /// Gets the request.
-        /// </summary>
-        /// <value>The request.</value>
-        public PLCRequestType Request { get; }
-
-        /// <summary>
-        /// Gets the tag.
-        /// </summary>
-        /// <value>The tag.</value>
-        public Tag? Tag { get; }
+        Request = request;
+        Tag = tag;
     }
+
+    /// <summary>
+    /// Gets the request.
+    /// </summary>
+    /// <value>The request.</value>
+    public PLCRequestType Request { get; }
+
+    /// <summary>
+    /// Gets the tag.
+    /// </summary>
+    /// <value>The tag.</value>
+    public Tag? Tag { get; }
 }
