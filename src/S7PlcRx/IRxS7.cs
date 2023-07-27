@@ -50,7 +50,7 @@ namespace S7PlcRx
         /// <value>
         /// The observe all.
         /// </value>
-        IObservable<Tag> ObserveAll { get; }
+        IObservable<Tag?> ObserveAll { get; }
 
         /// <summary>
         /// Gets the type of the PLC.
@@ -115,6 +115,14 @@ namespace S7PlcRx
         /// </summary>
         /// <value>The watch dog writing time. (Sec).</value>
         int WatchDogWritingTime { get; set; }
+
+        /// <summary>
+        /// Gets the read time.
+        /// </summary>
+        /// <value>
+        /// The read time.
+        /// </value>
+        IObservable<long> ReadTime { get; }
 
         /// <summary>
         /// Observes the specified variable.

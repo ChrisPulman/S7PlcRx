@@ -15,7 +15,7 @@ namespace S7PlcRx.Core
         /// </summary>
         /// <param name="request">The request.</param>
         /// <param name="tag">The tag.</param>
-        public PLCRequest(PLCRequestType request, Tag tag)
+        public PLCRequest(PLCRequestType request, Tag? tag)
         {
             Request = request;
             Tag = tag;
@@ -31,6 +31,6 @@ namespace S7PlcRx.Core
         /// Gets the tag.
         /// </summary>
         /// <value>The tag.</value>
-        public Tag Tag { get; }
+        public Tag? Tag { get; }
     }
 }

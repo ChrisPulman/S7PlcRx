@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
+using System.Diagnostics;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
@@ -18,14 +19,15 @@ namespace S7PlcRx
     public class RxS7 : IRxS7
     {
         private readonly S7SocketRx _socketRx;
-        private readonly ISubject<Tag> _dataRead = new Subject<Tag>();
+        private readonly ISubject<Tag?> _dataRead = new Subject<Tag?>();
         private readonly CompositeDisposable _disposables = new();
         private readonly ISubject<string> _lastError = new Subject<string>();
         private readonly ISubject<ErrorCode> _lastErrorCode = new Subject<ErrorCode>();
         private readonly ISubject<PLCRequest> _pLCRequestSubject = new Subject<PLCRequest>();
-        private readonly ISubject<Unit> _restartReadCycle = new Subject<Unit>();
         private readonly ISubject<string> _status = new Subject<string>();
+        private readonly ISubject<long> _readTime = new Subject<long>();
         private readonly SemaphoreSlim _lock = new(1);
+        private readonly Stopwatch _stopwatch = new();
         private bool _isConnected;
 
         /// <summary>
@@ -53,11 +55,6 @@ namespace S7PlcRx
             // Get the PLC connection status
             _disposables.Add(IsConnected.Subscribe(x =>
             {
-                if (x)
-                {
-                    _restartReadCycle.OnNext(default);
-                }
-
                 _isConnected = x;
                 _status.OnNext($"{DateTime.Now} - PLC Connected Status: {x}");
             }));
@@ -83,13 +80,6 @@ namespace S7PlcRx
                         GetTagValue(request.Tag);
                         _dataRead.OnNext(request.Tag);
                         break;
-
-                    case PLCRequestType.Restart:
-
-                        // Finished Reading list - restart
-                        _dataRead.OnNext(request.Tag);
-                        _restartReadCycle.OnNext(default);
-                        break;
                 }
             }));
         }
@@ -98,7 +88,7 @@ namespace S7PlcRx
         /// Gets the data read.
         /// </summary>
         /// <value>The data read.</value>
-        public IObservable<Tag> ObserveAll => _dataRead.AsObservable();
+        public IObservable<Tag?> ObserveAll => _dataRead.AsObservable();
 
         /// <summary>
         /// Gets the ip address.
@@ -181,9 +171,9 @@ namespace S7PlcRx
         public ushort WatchDogValueToWrite { get; set; } = 4500;
 
         /// <summary>
-        /// Gets or sets the watch dog writing time. (Sec).
+        /// Gets or sets the watch dog writing time. (Seconds).
         /// </summary>
-        /// <value>The watch dog writing time. (Sec).</value>
+        /// <value>The watch dog writing time. (Seconds).</value>
         public int WatchDogWritingTime { get; set; } = 10;
 
         /// <summary>
@@ -192,13 +182,21 @@ namespace S7PlcRx
         public bool IsDisposed { get; private set; }
 
         /// <summary>
+        /// Gets the read time.
+        /// </summary>
+        /// <value>
+        /// The read time.
+        /// </value>
+        public IObservable<long> ReadTime => _readTime.AsObservable();
+
+        /// <summary>
         /// Observes the specified variable.
         /// </summary>
         /// <typeparam name="T">The type.</typeparam>
         /// <param name="variable">The variable.</param>
         /// <returns>An Observable of T.</returns>
         public IObservable<T?> Observe<T>(string? variable) =>
-            ObserveAll.Where(t => t.Name == variable && t.Value.GetType() == typeof(T)).Select(t => (T?)t.Value).Retry();
+            ObserveAll.Where(t => t?.Name == variable && t?.Value.GetType() == typeof(T)).Select(t => (T?)t?.Value).Retry();
 
         /// <summary>
         /// Values the specified variable.
@@ -272,6 +270,7 @@ namespace S7PlcRx
                 tagExists.Value = tag.Value;
                 tagExists.Address = tag.Address;
                 tagExists.Type = tag.Type;
+                tagExists.ArrayLength = tag.ArrayLength;
             }
             else
             {
@@ -532,10 +531,10 @@ namespace S7PlcRx
             }
         }
 
-        private void GetTagValue(Tag tag)
+        private void GetTagValue(Tag? tag)
         {
             var result = Read(tag);
-            if (result == null || result is ErrorCode)
+            if (tag == null || result == null || result is ErrorCode)
             {
                 return;
             }
@@ -678,9 +677,9 @@ namespace S7PlcRx
         /// </summary>
         /// <param name="tag">The tag.</param>
         /// <returns>An object.</returns>
-        private object? Read(Tag tag)
+        private object? Read(Tag? tag)
         {
-            if (string.IsNullOrWhiteSpace(tag.Address))
+            if (string.IsNullOrWhiteSpace(tag?.Address))
             {
                 throw new ArgumentNullException(nameof(tag.Address));
             }
@@ -713,15 +712,35 @@ namespace S7PlcRx
                         switch (dbType)
                         {
                             case "DBB":
+                                if (tag.Type == typeof(byte[]))
+                                {
+                                    return Read<byte>(tag, DataType.DataBlock, dB, dbIndex, VarType.Byte, tag.ArrayLength!.Value);
+                                }
+
                                 return Read<byte>(tag, DataType.DataBlock, dB, dbIndex, VarType.Byte, 1);
 
                             case "DBW":
+                                if (tag.Type == typeof(ushort[]))
+                                {
+                                    return Read<ushort>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word, tag.ArrayLength!.Value);
+                                }
+
                                 return Read<ushort>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word, 1);
 
                             case "DBD":
                                 if (tag.Type == typeof(double))
                                 {
                                     return Read<double>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real, 1);
+                                }
+
+                                if (tag.Type == typeof(double[]))
+                                {
+                                    return Read<double[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real, tag.ArrayLength!.Value);
+                                }
+
+                                if (tag.Type == typeof(uint[]))
+                                {
+                                    return Read<uint>(tag, DataType.DataBlock, dB, dbIndex, VarType.DWord, tag.ArrayLength!.Value);
                                 }
 
                                 return Read<uint>(tag, DataType.DataBlock, dB, dbIndex, VarType.DWord, 1);
@@ -871,8 +890,8 @@ namespace S7PlcRx
                     return default;
                 }
 
-                var bReceive = new byte[512];
-                var result = _socketRx.Receive(tag, bReceive, 512);
+                var bReceive = new byte[1024];
+                var result = _socketRx.Receive(tag, bReceive, 1024);
                 if (bReceive[21] != 0xff)
                 {
                     throw new Exception(nameof(ErrorCode.WrongNumberReceivedBytes));
@@ -940,41 +959,37 @@ namespace S7PlcRx
         private IObservable<Unit> TagReaderObservable(double interval) =>
             Observable.Create<Unit>(__ =>
                 {
-                    var isReading = false;
-                    var tim = _restartReadCycle
-                        .Throttle(TimeSpan.FromMilliseconds(interval))
-                        .StartWith(default(Unit))
+                    var tim = Observable.Interval(TimeSpan.FromMilliseconds(interval))
                         .Subscribe(async _ =>
-                    {
-                        if (_isConnected && !isReading)
                         {
-                            _lock.Wait();
-                            isReading = true;
-                            foreach (Tag tag in TagList.Values)
+                            if (_isConnected)
                             {
-                                try
+                                _lock.Wait();
+                                _stopwatch.Restart();
+                                foreach (Tag tag in TagList.Values)
                                 {
-                                    while (!_isConnected)
+                                    try
                                     {
-                                        await Task.Delay(10);
+                                        while (!_isConnected)
+                                        {
+                                            await Task.Delay(10);
+                                        }
+
+                                        _pLCRequestSubject.OnNext(new PLCRequest(PLCRequestType.Read, tag));
                                     }
+                                    catch (Exception ex)
+                                    {
+                                        _lastError.OnNext(ex.Message);
+                                        _status.OnNext($"{tag.Name} could not be read from {tag.Address}. Error: " + ex.ToString());
+                                    }
+                                }
 
-                                    _pLCRequestSubject.OnNext(new PLCRequest(PLCRequestType.Read, tag));
-                                }
-                                catch (Exception ex)
-                                {
-                                    _lastError.OnNext(ex.Message);
-                                    _status.OnNext($"{tag.Name} could not be read from {tag.Address}. Error: " + ex.ToString());
-                                }
+                                _stopwatch.Stop();
+                                _readTime.OnNext(_stopwatch.ElapsedTicks);
+                                _lock.Release();
                             }
+                        });
 
-                            _lock.Release();
-                            await Task.Delay(10);
-                            isReading = false;
-                            _pLCRequestSubject.OnNext(new PLCRequest(PLCRequestType.Restart, default!));
-                        }
-                    });
-                    _restartReadCycle.OnNext(default);
                     return new SingleAssignmentDisposable { Disposable = tim };
                 }).Retry().Publish().RefCount();
 
@@ -1038,14 +1053,14 @@ namespace S7PlcRx
             }
 
             byte[] package;
-            switch (value.GetType().Name)
+            switch (tag.Type.Name)
             {
                 case "Byte":
-                    package = new byte[] { (byte)value };
+                    package = new byte[] { (byte)Convert.ChangeType(tag.NewValue, typeof(byte))! };
                     break;
 
                 case "Int16":
-                    package = Int.ToByteArray((short)value);
+                    package = Int.ToByteArray((short)tag.NewValue!);
                     break;
 
                 case "UInt16":
@@ -1055,15 +1070,15 @@ namespace S7PlcRx
                     break;
 
                 case "ushort":
-                    package = Word.ToByteArray((ushort)value);
+                    package = Word.ToByteArray((ushort)Convert.ChangeType(tag.NewValue, typeof(ushort))!);
                     break;
 
                 case "Int32":
-                    package = DInt.ToByteArray((int)value);
+                    package = DInt.ToByteArray((int)tag.NewValue!);
                     break;
 
                 case "uint":
-                    package = DWord.ToByteArray((uint)value);
+                    package = DWord.ToByteArray((uint)Convert.ChangeType(tag.NewValue, typeof(uint))!);
                     break;
 
                 case "Double":
@@ -1075,7 +1090,7 @@ namespace S7PlcRx
                     break;
 
                 case "Int16[]":
-                    package = Int.ToByteArray((short[])value);
+                    package = Int.ToByteArray((short[])tag.NewValue!);
                     break;
 
                 case "ushort[]":
@@ -1134,8 +1149,13 @@ namespace S7PlcRx
             return errCode;
         }
 
-        private bool WriteString(Tag tag)
+        private bool WriteString(Tag? tag)
         {
+            if (tag == null)
+            {
+                return false;
+            }
+
             DataType mDataType;
             int mDB;
             int mByte;
@@ -1143,17 +1163,17 @@ namespace S7PlcRx
 
             string addressLocation;
             byte @byte;
-            object objValue;
+            object? objValue;
 
-            var txt = tag.Address!.ToUpper();
-            txt = txt.Replace(" ", string.Empty); // Remove spaces
+            var tagAddress = tag.Address!.ToUpper();
+            tagAddress = tagAddress.Replace(" ", string.Empty); // Remove spaces
 
             try
             {
-                switch (txt.Substring(0, 2))
+                switch (tagAddress.Substring(0, 2))
                 {
                     case "DB":
-                        var strings = txt.Split(new char[] { '.' });
+                        var strings = tagAddress.Split(new char[] { '.' });
                         if (strings.Length < 2)
                         {
                             throw new Exception();
@@ -1166,35 +1186,34 @@ namespace S7PlcRx
                         switch (dbType)
                         {
                             case "DBB":
-                                objValue = Convert.ChangeType(tag.NewValue!, typeof(byte));
-                                return Write(tag, DataType.DataBlock, mDB, dbIndex, (byte)objValue);
+                                return Write(tag, DataType.DataBlock, mDB, dbIndex, "/"); // byte.
 
                             case "DBW":
-
-                                if (tag.Value is short @int)
-                                {
-                                    return Write(tag, DataType.DataBlock, mDB, dbIndex, @int);
-                                }
-
-                                objValue = Convert.ChangeType(tag.NewValue!, typeof(ushort));
-
-                                return Write(tag, DataType.DataBlock, mDB, dbIndex, (ushort)objValue);
+                                return Write(tag, DataType.DataBlock, mDB, dbIndex, "null");
 
                             case "DBD":
                                 if (tag.NewValue is int int1)
                                 {
                                     return Write(tag, DataType.DataBlock, mDB, dbIndex, int1);
                                 }
+                                else if (tag.NewValue is int[] int1a)
+                                {
+                                    return Write(tag, DataType.DataBlock, mDB, dbIndex, int1a);
+                                }
                                 else if (tag.NewValue is double dbl1)
                                 {
                                     return Write(tag, DataType.DataBlock, mDB, dbIndex, dbl1);
                                 }
+                                else if (tag.NewValue is double[] dbl1a)
+                                {
+                                    return Write(tag, DataType.DataBlock, mDB, dbIndex, dbl1a);
+                                }
                                 else
                                 {
-                                    objValue = Convert.ChangeType(tag.NewValue!, typeof(uint));
+                                    objValue = Convert.ChangeType(tag.NewValue, typeof(uint));
                                 }
 
-                                return Write(tag, DataType.DataBlock, mDB, dbIndex, (uint)objValue);
+                                return Write(tag, DataType.DataBlock, mDB, dbIndex, (uint)objValue!);
 
                             case "DBX":
                                 mByte = dbIndex;
@@ -1228,58 +1247,58 @@ namespace S7PlcRx
                     case "EB":
 
                         // Input Byte
-                        objValue = Convert.ChangeType(tag.NewValue!, typeof(byte));
-                        return Write(tag, DataType.Input, 0, int.Parse(txt.Substring(2)), (byte)objValue);
+                        objValue = Convert.ChangeType(tag.NewValue, typeof(byte));
+                        return Write(tag, DataType.Input, 0, int.Parse(tagAddress.Substring(2)), (byte)objValue!);
 
                     case "EW":
 
                         // Input Word
-                        objValue = Convert.ChangeType(tag.NewValue!, typeof(ushort));
-                        return Write(tag, DataType.Input, 0, int.Parse(txt.Substring(2)), (ushort)objValue);
+                        objValue = Convert.ChangeType(tag.NewValue, typeof(ushort));
+                        return Write(tag, DataType.Input, 0, int.Parse(tagAddress.Substring(2)), (ushort)objValue!);
 
                     case "ED":
 
                         // Input Double-Word
-                        objValue = Convert.ChangeType(tag.NewValue!, typeof(uint));
-                        return Write(tag, DataType.Input, 0, int.Parse(txt.Substring(2)), (uint)objValue);
+                        objValue = Convert.ChangeType(tag.NewValue, typeof(uint));
+                        return Write(tag, DataType.Input, 0, int.Parse(tagAddress.Substring(2)), (uint)objValue!);
 
                     case "AB":
 
                         // Output Byte
-                        objValue = Convert.ChangeType(tag.NewValue!, typeof(byte));
-                        return Write(tag, DataType.Output, 0, int.Parse(txt.Substring(2)), (byte)objValue);
+                        objValue = Convert.ChangeType(tag.NewValue, typeof(byte));
+                        return Write(tag, DataType.Output, 0, int.Parse(tagAddress.Substring(2)), (byte)objValue!);
 
                     case "AW":
 
                         // Output Word
-                        objValue = Convert.ChangeType(tag.NewValue!, typeof(ushort));
-                        return Write(tag, DataType.Output, 0, int.Parse(txt.Substring(2)), (ushort)objValue);
+                        objValue = Convert.ChangeType(tag.NewValue, typeof(ushort));
+                        return Write(tag, DataType.Output, 0, int.Parse(tagAddress.Substring(2)), (ushort)objValue!);
 
                     case "AD":
 
                         // Output Double-Word
-                        objValue = Convert.ChangeType(tag.NewValue!, typeof(uint));
-                        return Write(tag, DataType.Output, 0, int.Parse(txt.Substring(2)), (uint)objValue);
+                        objValue = Convert.ChangeType(tag.NewValue, typeof(uint));
+                        return Write(tag, DataType.Output, 0, int.Parse(tagAddress.Substring(2)), (uint)objValue!);
 
                     case "MB":
 
                         // Memory Byte
-                        objValue = Convert.ChangeType(tag.NewValue!, typeof(byte));
-                        return Write(tag, DataType.Memory, 0, int.Parse(txt.Substring(2)), (byte)objValue);
+                        objValue = Convert.ChangeType(tag.NewValue, typeof(byte));
+                        return Write(tag, DataType.Memory, 0, int.Parse(tagAddress.Substring(2)), (byte)objValue!);
 
                     case "MW":
 
                         // Memory Word
-                        objValue = Convert.ChangeType(tag.NewValue!, typeof(ushort));
-                        return Write(tag, DataType.Memory, 0, int.Parse(txt.Substring(2)), (ushort)objValue);
+                        objValue = Convert.ChangeType(tag.NewValue, typeof(ushort));
+                        return Write(tag, DataType.Memory, 0, int.Parse(tagAddress.Substring(2)), (ushort)objValue!);
 
                     case "MD":
 
                         // Memory Double-Word
-                        return Write(tag, DataType.Memory, 0, int.Parse(txt.Substring(2)), tag.NewValue!);
+                        return Write(tag, DataType.Memory, 0, int.Parse(tagAddress.Substring(2)), tag.NewValue!);
 
                     default:
-                        switch (txt.Substring(0, 1))
+                        switch (tagAddress.Substring(0, 1))
                         {
                             case "E":
                             case "I":
@@ -1304,19 +1323,19 @@ namespace S7PlcRx
                             case "T":
 
                                 // Timer
-                                return Write(tag, DataType.Timer, 0, int.Parse(txt.Substring(1)), (double)tag.NewValue!);
+                                return Write(tag, DataType.Timer, 0, int.Parse(tagAddress.Substring(1)), (double)tag.NewValue!);
 
                             case "Z":
                             case "C":
 
                                 // Counter
-                                return Write(tag, DataType.Counter, 0, int.Parse(txt.Substring(1)), (short)tag.NewValue!);
+                                return Write(tag, DataType.Counter, 0, int.Parse(tagAddress.Substring(1)), (short)tag.NewValue!);
 
                             default:
-                                throw new Exception(string.Format("Unknown variable type {0}.", txt.Substring(0, 1)));
+                                throw new Exception(string.Format("Unknown variable type {0}.", tagAddress.Substring(0, 1)));
                         }
 
-                        addressLocation = txt.Substring(1);
+                        addressLocation = tagAddress.Substring(1);
                         var decimalPointIndex = addressLocation.IndexOf(".");
                         if (decimalPointIndex == -1)
                         {
@@ -1352,7 +1371,7 @@ namespace S7PlcRx
                         {
                             if (parsedInt == 1)
                             {
-                                @byte = (byte)(@byte | (byte)Math.Pow(2, mBit));      // Set bit
+                                @byte = (byte)(@byte | (byte)Math.Pow(2, mBit)); // Set bit
                             }
                             else
                             {

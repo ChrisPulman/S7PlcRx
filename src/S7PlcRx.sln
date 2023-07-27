@@ -7,10 +7,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ProjectConfig", "ProjectCon
 	ProjectSection(SolutionItems) = preProject
 		..\.editorconfig = ..\.editorconfig
 		..\.gitignore = ..\.gitignore
-		..\.github\workflows\BuildOnly.yml = ..\.github\workflows\BuildOnly.yml
 		..\.github\dependabot.yml = ..\.github\dependabot.yml
 		..\Directory.Build.props = ..\Directory.Build.props
-		..\.github\workflows\dotnet.yml = ..\.github\workflows\dotnet.yml
 		..\LICENSE = ..\LICENSE
 		..\README.md = ..\README.md
 		..\Images\S7PlcRx.ico = ..\Images\S7PlcRx.ico
@@ -21,19 +19,26 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ProjectConfig", "ProjectCon
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "S7PlcRx", "S7PlcRx\S7PlcRx.csproj", "{1F953491-ABF8-4BF3-BEB9-1AE00996DE49}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "_build", "..\build\_build.csproj", "{15D2D29D-6ACC-4459-9C5D-9FFCB2E7841C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "S7PlcRx.TestApp", "S7PlcRx.TestApp\S7PlcRx.TestApp.csproj", "{D1917CA7-680D-4161-AE8C-AF343E1006B5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
-		PreRelease|Any CPU = PreRelease|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{1F953491-ABF8-4BF3-BEB9-1AE00996DE49}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1F953491-ABF8-4BF3-BEB9-1AE00996DE49}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1F953491-ABF8-4BF3-BEB9-1AE00996DE49}.PreRelease|Any CPU.ActiveCfg = PreRelease|Any CPU
-		{1F953491-ABF8-4BF3-BEB9-1AE00996DE49}.PreRelease|Any CPU.Build.0 = PreRelease|Any CPU
 		{1F953491-ABF8-4BF3-BEB9-1AE00996DE49}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1F953491-ABF8-4BF3-BEB9-1AE00996DE49}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15D2D29D-6ACC-4459-9C5D-9FFCB2E7841C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15D2D29D-6ACC-4459-9C5D-9FFCB2E7841C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D1917CA7-680D-4161-AE8C-AF343E1006B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D1917CA7-680D-4161-AE8C-AF343E1006B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D1917CA7-680D-4161-AE8C-AF343E1006B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D1917CA7-680D-4161-AE8C-AF343E1006B5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
