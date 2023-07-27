@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Net;
 
 namespace S7PlcRx
 {
@@ -25,14 +26,29 @@ namespace S7PlcRx
         /// <summary>
         /// Initializes a new instance of the <see cref="Tag" /> class.
         /// </summary>
-        /// <param name="name">The name.</param>
+        /// <param name="address">The address.</param>
         /// <param name="type">The type.</param>
-        public Tag(string name, Type type)
+        public Tag(string address, Type type)
         {
-            Name = name;
-            Address = name;
+            Name = address;
+            Address = address;
             Value = new();
             Type = type;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Tag"/> class.
+        /// </summary>
+        /// <param name="address">The address.</param>
+        /// <param name="type">The type.</param>
+        /// <param name="arrayLength">Length of the array.</param>
+        public Tag(string address, Type type, int arrayLength)
+        {
+            Name = address;
+            Address = address;
+            Value = new();
+            Type = type;
+            ArrayLength = arrayLength;
         }
 
         /// <summary>
@@ -47,6 +63,22 @@ namespace S7PlcRx
             Address = address;
             Value = new();
             Type = type;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Tag"/> class.
+        /// </summary>
+        /// <param name="name">The name.</param>
+        /// <param name="address">The address.</param>
+        /// <param name="type">The type.</param>
+        /// <param name="arrayLength">Length of the array.</param>
+        public Tag(string name, string address, Type type, int arrayLength)
+        {
+            Name = name;
+            Address = address;
+            Value = new();
+            Type = type;
+            ArrayLength = arrayLength;
         }
 
         /// <summary>
@@ -83,12 +115,12 @@ namespace S7PlcRx
         public object Value { get; set; }
 
         /// <summary>
-        /// Gets or sets the value.
+        /// Gets the value.
         /// </summary>
         /// <value>
         /// The new value.
         /// </value>
-        public object? NewValue { get; set; }
+        public object? NewValue { get; internal set; }
 
         /// <summary>
         /// Gets the type.
@@ -97,5 +129,13 @@ namespace S7PlcRx
         /// The type.
         /// </value>
         public Type Type { get; internal set; }
+
+        /// <summary>
+        /// Gets the length of the array.
+        /// </summary>
+        /// <value>
+        /// The length of the array.
+        /// </value>
+        public int? ArrayLength { get; internal set; }
     }
 }

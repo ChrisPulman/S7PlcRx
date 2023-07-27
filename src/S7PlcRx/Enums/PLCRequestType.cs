@@ -17,10 +17,5 @@ namespace S7PlcRx.Enums
         /// The write.
         /// </summary>
         Write,
-
-        /// <summary>
-        /// The restart.
-        /// </summary>
-        Restart
     }
 }

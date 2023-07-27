@@ -18,8 +18,8 @@ namespace S7PlcRx.Core
     /// </summary>
     internal class S7SocketRx : IDisposable
     {
-        private const string Failed = "Failed";
-        private const string Success = "Success";
+        private const string Failed = nameof(Failed);
+        private const string Success = nameof(Success);
         private readonly IDisposable _disposable;
         private readonly ISubject<Exception> _socketExceptionSubject = new Subject<Exception>();
         private bool _disposedValue;
@@ -80,7 +80,7 @@ namespace S7PlcRx.Core
                             obs.OnError(ex);
                         }));
                         dis.Add(IsAvailable.Subscribe(
-                            deviceAvailiable =>
+                            _ =>
                         {
                             try
                             {
@@ -186,7 +186,7 @@ namespace S7PlcRx.Core
             Observable.Create<bool>(obs =>
             {
                 _isConnected = null;
-                var tim = Observable.Interval(TimeSpan.FromMilliseconds(100)).Subscribe(_ =>
+                var tim = Observable.Interval(TimeSpan.FromMilliseconds(500)).Subscribe(_ =>
                 {
                     if (_socket == null)
                     {
@@ -258,7 +258,7 @@ namespace S7PlcRx.Core
                         if (tag != null && Debugger.IsAttached)
                         {
                             var res = buffer[21] == 0xff ? Success : Failed;
-                            Debug.WriteLine($"{DateTime.Now} Read Tag: {tag.Name} value: {tag.Value} {res}");
+                            ////Debug.WriteLine($"{DateTime.Now} Read Tag: {tag.Name} value: {tag.Value} {res}");
                         }
 
                         return r ?? -1;
@@ -294,7 +294,7 @@ namespace S7PlcRx.Core
                         if (tag != null && Debugger.IsAttached)
                         {
                             var res = r == size ? Success : Failed;
-                            Debug.WriteLine($"{DateTime.Now} Wrote Tag: {tag.Name} value: {tag.Value} {res}");
+                            ////Debug.WriteLine($"{DateTime.Now} Wrote Tag: {tag.Name} value: {tag.Value} {res}");
                         }
 
                         return r ?? -1;
