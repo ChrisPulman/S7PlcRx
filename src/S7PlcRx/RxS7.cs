@@ -8,6 +8,7 @@ using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Runtime.CompilerServices;
 using S7PlcRx.Core;
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
@@ -56,7 +57,7 @@ public class RxS7 : IRxS7
         // Create an observable socket
         _socketRx = new(IP, type, rack, slot);
 
-        IsConnected = _socketRx.IsConnected.Publish().RefCount();
+        IsConnected = _socketRx.IsConnected;
 
         // Get the PLC connection status
         _disposables.Add(IsConnected.Subscribe(x =>
@@ -106,7 +107,7 @@ public class RxS7 : IRxS7
     /// <value>
     ///   <c>true</c> if this instance is paused; otherwise, <c>false</c>.
     /// </value>
-    public IObservable<bool> IsPaused => _paused.DistinctUntilChanged();
+    public IObservable<bool> IsPaused => _paused.DistinctUntilChanged().Publish().RefCount();
 
     /// <summary>
     /// Gets the ip address.
@@ -128,7 +129,7 @@ public class RxS7 : IRxS7
     /// Gets the last error.
     /// </summary>
     /// <value>The last error.</value>
-    public IObservable<string> LastError => _lastError.AsObservable();
+    public IObservable<string> LastError => _lastError.Publish().RefCount();
 
     /// <summary>
     /// Gets the last error code registered when executing a function.
@@ -136,7 +137,7 @@ public class RxS7 : IRxS7
     /// <value>
     /// The last error code.
     /// </value>
-    public IObservable<ErrorCode> LastErrorCode => _lastErrorCode.AsObservable();
+    public IObservable<ErrorCode> LastErrorCode => _lastErrorCode.Publish().RefCount();
 
     /// <summary>
     /// Gets the type of the PLC.
@@ -168,7 +169,7 @@ public class RxS7 : IRxS7
     /// <value>
     /// The status.
     /// </value>
-    public IObservable<string> Status => _status.AsObservable();
+    public IObservable<string> Status => _status.Publish().RefCount();
 
     /// <summary>
     /// Gets the tag list. A) Name, B) Address, C) Value.
@@ -205,7 +206,7 @@ public class RxS7 : IRxS7
     /// <value>
     /// The read time.
     /// </value>
-    public IObservable<long> ReadTime => _readTime.AsObservable();
+    public IObservable<long> ReadTime => _readTime.Publish().RefCount();
 
     /// <summary>
     /// Observes the specified variable.
@@ -215,7 +216,7 @@ public class RxS7 : IRxS7
     /// <returns>An Observable of T.</returns>
     public IObservable<T?> Observe<T>(string? variable) =>
         ObserveAll
-            .Where(t => t?.Name == variable && t?.Value.GetType() == typeof(T))
+            .Where(t => TagValueIsValid<T>(t, variable))
             .Select(t => (T?)t?.Value)
             .Retry()
             .Publish()
@@ -230,7 +231,7 @@ public class RxS7 : IRxS7
     public async Task<T?> Value<T>(string? variable)
     {
         _pause = true;
-        var p = await _paused.Where(x => x).FirstAsync();
+        _ = await _paused.Where(x => x).FirstAsync();
         var tag = TagList[variable!];
         GetTagValue(tag);
         _pause = false;
@@ -335,11 +336,25 @@ public class RxS7 : IRxS7
         {
             if (disposing)
             {
-                _lock.Wait();
-                _lock.Dispose();
-                _lockTagList.Wait();
-                _lockTagList.Dispose();
                 _disposables.Dispose();
+                try
+                {
+                    _lock.Wait();
+                    _lock.Dispose();
+                }
+                catch
+                {//// ignored
+                }
+
+                try
+                {
+                    _lockTagList.Wait();
+                    _lockTagList.Dispose();
+                }
+                catch
+                {//// ignored
+                }
+
                 _socketRx?.Dispose();
             }
 
@@ -348,6 +363,8 @@ public class RxS7 : IRxS7
     }
 
     private static bool TagValueIsValid<T>(Tag? tag) => tag != null && tag.Type == typeof(T) && tag.Value.GetType() == typeof(T);
+
+    private static bool TagValueIsValid<T>(Tag? tag, string? variable) => tag?.Name == variable && tag?.Type == typeof(T) && tag.Value.GetType() == typeof(T);
 
     private static ByteArray CreateReadDataRequestPackage(DataType dataType, int db, int startByteAdr, int count = 1)
     {
@@ -369,7 +386,7 @@ public class RxS7 : IRxS7
         package.Add(Word.ToByteArray((ushort)count));
         package.Add(Word.ToByteArray((ushort)db));
         package.Add((byte)dataType);
-        var overflow = (int)(startByteAdr * 8 / 0xffffU); // handles words with address bigger than 8191
+        var overflow = (int)(startByteAdr * 8 / 65535U); // handles words with address bigger than 8191
         package.Add((byte)overflow);
         switch (dataType)
         {
@@ -396,33 +413,16 @@ public class RxS7 : IRxS7
     /// <returns>The Tag as a string.</returns>
     private static string GetTagAddress(DataType dataType, int startAddress, VarType type, int offset = 1)
     {
-        var description = string.Empty;
-        switch (dataType)
+        var description = dataType switch
         {
-            case DataType.Input:
-                description = "I";
-                break;
-
-            case DataType.Output:
-                description = "O";
-                break;
-
-            case DataType.Memory:
-                description = "M";
-                break;
-
-            case DataType.DataBlock:
-                description = "DB";
-                break;
-
-            case DataType.Timer:
-                description = "T";
-                break;
-
-            case DataType.Counter:
-                description = "C";
-                break;
-        }
+            DataType.Input => "I",
+            DataType.Output => "O",
+            DataType.Memory => "M",
+            DataType.DataBlock => "DB",
+            DataType.Timer => "T",
+            DataType.Counter => "C",
+            _ => string.Empty,
+        };
 
         description += type switch
         {

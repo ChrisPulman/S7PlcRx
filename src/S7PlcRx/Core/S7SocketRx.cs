@@ -267,7 +267,7 @@ internal class S7SocketRx : IDisposable
                     var r = _socket?.Receive(buffer, size, SocketFlags.None);
                     if (tag != null && Debugger.IsAttached)
                     {
-                        var res = buffer[21] == 0xff ? Success : Failed;
+                        var res = buffer[21] == 255 ? Success : Failed;
                         Debug.WriteLine($"{DateTime.Now} Read Tag: {tag.Name} value: {tag.Value} {res}");
                     }
 
@@ -373,57 +373,32 @@ internal class S7SocketRx : IDisposable
                 return false;
             }
 
-            ////            //1  2  3  4   5   6    7  8  9  10  11 12   13 14 15 16   17 18 19 20   21 22//
+            ////            //0  1  2  3   4   5    6  7  8  9   10 11   12 13 14 15   16 17 18 19   20 21//
             byte[] bSend1 = { 3, 0, 0, 22, 17, 224, 0, 0, 0, 46, 0, 193, 2, 1, 0, 194, 2, 3, 0, 192, 1, 9 };
 
             switch (PLCType)
             {
                 case CpuType.S7200:
-                    bSend1[11] = 193;
-                    bSend1[12] = 2;
                     bSend1[13] = 16;
                     bSend1[14] = 0;
-                    bSend1[15] = 194;
-                    bSend1[16] = 2;
                     bSend1[17] = 16;
                     bSend1[18] = 0;
                     _dataReadLength = 480;
                     break;
 
                 case CpuType.S71200:
-                case CpuType.S7300:
-                    bSend1[11] = 193;
-                    bSend1[12] = 2;
-                    bSend1[13] = 1;
-                    bSend1[14] = 0;
-                    bSend1[15] = 194;
-                    bSend1[16] = 2;
-                    bSend1[17] = 3;
-                    bSend1[18] = (byte)((Rack * 2 * 16) + Slot);
-                    _dataReadLength = 480;
-                    break;
-
                 case CpuType.S7400:
-                    bSend1[11] = 193;
-                    bSend1[12] = 2;
+                case CpuType.S7300:
                     bSend1[13] = 1;
                     bSend1[14] = 0;
-                    bSend1[15] = 194;
-                    bSend1[16] = 2;
                     bSend1[17] = 3;
                     bSend1[18] = (byte)((Rack * 2 * 16) + Slot);
                     _dataReadLength = 480;
                     break;
 
                 case CpuType.S71500:
-
-                    // Private
-                    bSend1[11] = 193;
-                    bSend1[12] = 2;
                     bSend1[13] = 16;
                     bSend1[14] = 2;
-                    bSend1[15] = 194;
-                    bSend1[16] = 2;
                     bSend1[17] = 3;
                     bSend1[18] = (byte)((Rack * 2 * 16) + Slot);
                     _dataReadLength = 960;
