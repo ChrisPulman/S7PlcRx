@@ -2,72 +2,76 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Linq;
-using System.Text;
 using S7PlcRx;
 
 var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, "172.16.17.1", 0, 1, interval: 5);
+plc.LastError.Subscribe(ex => Console.WriteLine(ex));
+plc.Status.Subscribe(status => Console.WriteLine(status));
+const string DB100_DBB3 = nameof(DB100_DBB3);
+const string PlcData = nameof(PlcData);
+const string TestItems = nameof(TestItems);
+const string TagNames1 = nameof(TagNames1);
+const string TagNames2 = nameof(TagNames2);
+const string TagValues = nameof(TagValues);
 
-const string Tag0_To_99 = nameof(Tag0_To_99);
-const string StringArea = nameof(StringArea);
-////for (var i = 0; i < 100; i++)
-{
-    plc.AddUpdateTagItem<double[]>(Tag0_To_99, "DB103.DBD0", 99);
-    plc.AddUpdateTagItem<byte[]>(StringArea, "DB101.DBB0", 264).SetTagNoPoll(true);
-}
+plc.AddUpdateTagItem<byte>(DB100_DBB3, "DB100.DBB3");
+plc.AddUpdateTagItem<byte[]>(PlcData, "DB100.DBB0", 64).SetTagPollIng(false);
+plc.AddUpdateTagItem<byte[]>(TestItems, "DB101.DBB0", 520).SetTagPollIng(false);
+plc.AddUpdateTagItem<byte[]>(TagNames1, "DB102.DBB0", 4096).SetTagPollIng(false);
+plc.AddUpdateTagItem<double[]>(TagValues, "DB103.DBD0", 99).SetTagPollIng(false);
 
-plc.IsConnected.Subscribe(x =>
-{
-    if (x)
+plc.IsConnected
+    .Where(x => x)
+    .Take(1)
+    .Subscribe(_ =>
     {
         Console.WriteLine("Connected");
-        var v = plc.Value<byte[]>(StringArea);
-    }
-    else
-    {
-        Console.WriteLine("Disconnected");
-    }
-});
-
-////plc.Observe<double>("Tag0").Subscribe(x => Console.WriteLine($"Tag0: {x}"));
-////plc.Observe<double>("Tag1").Subscribe(x => Console.WriteLine($"Tag1: {x}"));
-var count = 0;
-plc.ReadTime
-    .Select(x => TimeSpan.FromTicks(x).TotalMilliseconds)
-    .TimeInterval()
-    .Buffer(200)
-    .Select(x => (ExectionTime: x.Select(x => x.Interval.TotalMilliseconds).Average(), Value: x.Select(x => x.Value).Average()))
-    .CombineLatest(
-plc.Observe<double[]>(Tag0_To_99).ToTagValue(Tag0_To_99))
-    .Subscribe(values =>
-    {
-        count++;
-        if (count % 200 == 0)
-        {
-            count = 0;
-            var sb = new StringBuilder();
-            sb.Append("Read time: ").Append(values.First).Append(" ms");
-            if (values.First.Value > 5)
+        plc.IsPaused.Subscribe(x => Console.WriteLine($"Paused: {x}"));
+        var setupComplete = false;
+        plc.Observe<byte>(DB100_DBB3)
+            .Select(v => v == 1)
+            .Where(_ => !setupComplete)
+            .Do(v =>
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-            }
-            else
+                Console.WriteLine($"DB100 DBB3 value: {v}");
+                plc?.GetTag(DB100_DBB3)?.SetTagPollIng(false);
+            })
+            .Subscribe(async _ =>
             {
-                Console.ForegroundColor = ConsoleColor.Green;
-            }
-
-            Console.WriteLine(sb.ToString());
-            Console.ResetColor();
-            sb.Clear().Append("Tag = ").Append(values.Second.Tag);
-            for (var i = 0; i < values.Second.Value.Length; i++)
-            {
-                sb.Append(", Value").Append(i).Append(" = ").Append(values.Second.Value[i]).Append(" / ");
-            }
-
-            Console.WriteLine(sb.ToString());
-        }
+                Console.WriteLine("Setup started");
+                Console.WriteLine("Reading PlcData");
+                var bytesPlcData = await plc?.Value<byte[]>(PlcData)!;
+                Console.WriteLine($"bytesPlcData: {bytesPlcData?.Length}");
+                await Task.Delay(500);
+                Console.WriteLine("Reading TestItems");
+                var bytesTestItems = await plc?.Value<byte[]>(TestItems)!;
+                Console.WriteLine($"bytesTestItems: {bytesTestItems?.Length}");
+                await Task.Delay(500);
+                Console.WriteLine("Reading TagNames");
+                var bytesTagNames1 = await plc?.Value<byte[]>(TagNames1)!;
+                Console.WriteLine($"bytesTagNames1: {bytesTagNames1?.Length}");
+                await Task.Delay(500);
+                var dummy = await plc?.Value<byte>(DB100_DBB3)!;
+                Console.WriteLine($"dummy: {dummy}");
+                await Task.Delay(500);
+                Console.WriteLine("Setup complete");
+                plc?.GetTag(TagValues)?.SetTagPollIng(true);
+                setupComplete = true;
+            });
+        plc.Observe<double[]>(TagValues)
+                    .Where(_ => setupComplete)
+                    .Subscribe(values =>
+                    {
+                        try
+                        {
+                            var tagValues = values?.Take(14).Select(Convert.ToSingle).ToArray();
+                            Console.WriteLine($"TagValues: {string.Join(", ", tagValues!)}");
+                        }
+                        catch (Exception ex)
+                        {
+                        }
+                    });
     });
-
-////plc.ReadTime.Select(x => TimeSpan.FromTicks(x).TotalMilliseconds).Buffer(200).Select(x => x.Average()).Subscribe(time => Console.WriteLine($"Read time: {time}"));
 
 Console.WriteLine("Press any key to exit...");
 Console.ReadKey();

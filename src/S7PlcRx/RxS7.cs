@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.Diagnostics;
+using System.Linq;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
@@ -16,6 +17,7 @@ namespace S7PlcRx;
 /// <summary>
 /// Rx S7.
 /// </summary>
+/// <seealso cref="S7PlcRx.IRxS7" />
 public class RxS7 : IRxS7
 {
     private readonly S7SocketRx _socketRx;
@@ -27,8 +29,12 @@ public class RxS7 : IRxS7
     private readonly ISubject<string> _status = new Subject<string>();
     private readonly ISubject<long> _readTime = new Subject<long>();
     private readonly SemaphoreSlim _lock = new(1);
+    private readonly SemaphoreSlim _lockTagList = new(1);
+    private readonly object _socketLock = new();
     private readonly Stopwatch _stopwatch = new();
+    private readonly ISubject<bool> _paused = new Subject<bool>();
     private bool _isConnected;
+    private bool _pause;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RxS7" /> class.
@@ -64,7 +70,7 @@ public class RxS7 : IRxS7
             _disposables.Add(WatchDogObservable().Subscribe());
         }
 
-        _disposables.Add(TagReaderObservable(interval).Subscribe());
+        _disposables.Add(TagReaderObservable(interval).DelaySubscription(TimeSpan.FromSeconds(5)).Subscribe());
 
         _disposables.Add(_pLCRequestSubject.Subscribe(request =>
         {
@@ -93,6 +99,14 @@ public class RxS7 : IRxS7
             .AsObservable()
             .Publish()
             .RefCount();
+
+    /// <summary>
+    /// Gets a value indicating whether this instance is paused.
+    /// </summary>
+    /// <value>
+    ///   <c>true</c> if this instance is paused; otherwise, <c>false</c>.
+    /// </value>
+    public IObservable<bool> IsPaused => _paused.DistinctUntilChanged();
 
     /// <summary>
     /// Gets the ip address.
@@ -208,24 +222,27 @@ public class RxS7 : IRxS7
             .RefCount();
 
     /// <summary>
-    /// Values the specified variable.
+    /// Reads the specified variable.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>
-    /// <param name="variable">The variable.</param>
+    /// <param name="variable">The variable to read.</param>
     /// <returns>A value of T.</returns>
-    public T? Value<T>(string? variable)
+    public async Task<T?> Value<T>(string? variable)
     {
+        _pause = true;
+        var p = await _paused.Where(x => x).FirstAsync();
         var tag = TagList[variable!];
         GetTagValue(tag);
-        return (T?)tag?.Value;
+        _pause = false;
+        return TagValueIsValid<T>(tag) ? (T?)tag.Value : default;
     }
 
     /// <summary>
-    /// Values the specified variable.
+    /// Writes the specified value to the PLC Tag.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>
     /// <param name="variable">The variable.</param>
-    /// <param name="value">The value.</param>
+    /// <param name="value">The value to write.</param>
     public void Value<T>(string? variable, T? value)
     {
         var tag = TagList[variable!];
@@ -241,7 +258,6 @@ public class RxS7 : IRxS7
     /// </summary>
     public void Dispose()
     {
-        // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
@@ -276,7 +292,7 @@ public class RxS7 : IRxS7
             throw new TagAddressOutOfRangeException(tag);
         }
 
-        _lock.Wait();
+        _lockTagList.Wait();
         if (TagList[tag!.Name!] is Tag tagExists)
         {
             tagExists.Name = tag.Name;
@@ -290,7 +306,7 @@ public class RxS7 : IRxS7
             TagList.Add(tag);
         }
 
-        _lock.Release();
+        _lockTagList.Release();
     }
 
     internal void RemoveTagItem(string tagName)
@@ -300,13 +316,13 @@ public class RxS7 : IRxS7
             throw new ArgumentNullException(nameof(tagName));
         }
 
-        _lock.Wait();
+        _lockTagList.Wait();
         if (TagList.ContainsKey(tagName!))
         {
             TagList.Remove(tagName!);
         }
 
-        _lock.Release();
+        _lockTagList.Release();
     }
 
     /// <summary>
@@ -321,6 +337,8 @@ public class RxS7 : IRxS7
             {
                 _lock.Wait();
                 _lock.Dispose();
+                _lockTagList.Wait();
+                _lockTagList.Dispose();
                 _disposables.Dispose();
                 _socketRx?.Dispose();
             }
@@ -328,6 +346,8 @@ public class RxS7 : IRxS7
             IsDisposed = true;
         }
     }
+
+    private static bool TagValueIsValid<T>(Tag? tag) => tag != null && tag.Type == typeof(T) && tag.Value.GetType() == typeof(T);
 
     private static ByteArray CreateReadDataRequestPackage(DataType dataType, int db, int startByteAdr, int count = 1)
     {
@@ -492,55 +512,60 @@ public class RxS7 : IRxS7
     /// <returns>NoError if it was successful, or the error is specified.</returns>
     private bool WriteBytes(Tag tag, DataType dataType, int db, int startByteAdr, byte[] value)
     {
-        var bReceive = new byte[513];
-        try
+        lock (_socketLock)
         {
-            var varCount = value.Length;
-
-            // first create the header
-            var packageSize = 35 + value.Length;
-            var package = new ByteArray(packageSize);
-
-            package.Add(new byte[] { 3, 0, 0 });
-            package.Add((byte)packageSize);
-            package.Add(new byte[] { 2, 240, 128, 50, 1, 0, 0 });
-            package.Add(Word.ToByteArray((ushort)(varCount - 1)));
-            package.Add(new byte[] { 0, 14 });
-            package.Add(Word.ToByteArray((ushort)(varCount + 4)));
-            package.Add(new byte[] { 5, 1, 18, 10, 16, 2 });
-            package.Add(Word.ToByteArray((ushort)varCount));
-            package.Add(Word.ToByteArray((ushort)db));
-            package.Add((byte)dataType);
-            var overflow = (int)(startByteAdr * 8 / 0xffffU); // handles words with address bigger than 8191
-            package.Add((byte)overflow);
-            package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
-            package.Add(new byte[] { 0, 4 });
-            package.Add(Word.ToByteArray((ushort)(varCount * 8)));
-
-            // now join the header and the data
-            package.Add(value);
-
-            var sent = _socketRx.Send(tag, package.Array, package.Array.Length);
-            if (package.Array.Length != sent)
+            var bReceive = new byte[1024];
+            try
             {
+                var varCount = value.Length;
+
+                // first create the header
+                var packageSize = 35 + value.Length;
+                var package = new ByteArray(packageSize);
+
+                package.Add(new byte[] { 3, 0, 0 });
+                package.Add((byte)packageSize);
+                package.Add(new byte[] { 2, 240, 128, 50, 1, 0, 0 });
+                package.Add(Word.ToByteArray((ushort)(varCount - 1)));
+                package.Add(new byte[] { 0, 14 });
+                package.Add(Word.ToByteArray((ushort)(varCount + 4)));
+                package.Add(new byte[] { 5, 1, 18, 10, 16, 2 });
+                package.Add(Word.ToByteArray((ushort)varCount));
+                package.Add(Word.ToByteArray((ushort)db));
+                package.Add((byte)dataType);
+                var overflow = (int)(startByteAdr * 8 / 0xffffU); // handles words with address bigger than 8191
+                package.Add((byte)overflow);
+                package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
+                package.Add(new byte[] { 0, 4 });
+                package.Add(Word.ToByteArray((ushort)(varCount * 8)));
+
+                // now join the header and the data
+                package.Add(value);
+
+                var sent = _socketRx.Send(tag, package.Array, package.Array.Length);
+                if (package.Array.Length != sent)
+                {
+                    return false;
+                }
+
+                var result = _socketRx.Receive(tag, bReceive, 1024);
+
+                if (bReceive[21] != 0xff)
+                {
+                    _lastErrorCode.OnNext(ErrorCode.WriteData);
+                    _lastError.OnNext($"Tag {tag.Name} failed to write - {nameof(ErrorCode.WrongNumberReceivedBytes)} code {bReceive[21]}");
+                    return false;
+                }
+
+                _lastErrorCode.OnNext(ErrorCode.NoError);
+                return true;
+            }
+            catch (Exception exc)
+            {
+                _lastErrorCode.OnNext(ErrorCode.WriteData);
+                _lastError.OnNext(exc.Message);
                 return false;
             }
-
-            var result = _socketRx.Receive(tag, bReceive, 512);
-
-            if (bReceive[21] != 0xff)
-            {
-                throw new Exception(nameof(ErrorCode.WrongNumberReceivedBytes));
-            }
-
-            _lastErrorCode.OnNext(ErrorCode.NoError);
-            return true;
-        }
-        catch (Exception exc)
-        {
-            _lastErrorCode.OnNext(ErrorCode.WriteData);
-            _lastError.OnNext(exc.Message);
-            return false;
         }
     }
 
@@ -672,13 +697,18 @@ public class RxS7 : IRxS7
     {
         try
         {
+            _lock.Wait();
             var cntBytes = VarTypeToByteLength(varType, tag.ArrayLength!.Value);
             var bytes = ReadMultipleBytes(tag, dataType, db, startByteAdr, cntBytes);
-            return bytes == null ? default : (T?)ParseBytes(varType, bytes, tag.ArrayLength!.Value);
+            return bytes?.Length > 0 ? (T?)ParseBytes(varType, bytes!, tag.ArrayLength!.Value) : default;
         }
         catch (Exception ex)
         {
             _lastError.OnNext(ex.Message);
+        }
+        finally
+        {
+            _lock.Release();
         }
 
         return default;
@@ -704,11 +734,11 @@ public class RxS7 : IRxS7
         BitArray objBoolArray;
 
         // remove spaces
-        var correctVariable = tag.Address!.ToUpper().Replace(" ", string.Empty);
+        var correctVariable = tag!.Address!.ToUpper().Replace(" ", string.Empty);
 
         try
         {
-            switch (correctVariable.Substring(0, 2))
+            switch (correctVariable!.Substring(0, 2))
             {
                 case "DB":
                     var strings = correctVariable.Split(new char[] { '.' });
@@ -945,40 +975,45 @@ public class RxS7 : IRxS7
 
     private byte[]? ReadBytes(Tag tag, DataType dataType, int db, int startByteAdr, int count)
     {
-        try
+        lock (_socketLock)
         {
-            var bytes = new byte[count];
-
-            // first create the header
-            const int packageSize = 31;
-            var package = new ByteArray(packageSize);
-            package.Add(ReadHeaderPackage());
-
-            // package.Add(0x02); // data type
-            package.Add(CreateReadDataRequestPackage(dataType, db, startByteAdr, count));
-
-            var sent = _socketRx.Send(tag, package.Array, package.Array.Length);
-            if (package.Array.Length != sent)
+            try
             {
+                var bytes = new byte[count];
+                const int packageSize = 31;
+                var package = new ByteArray(packageSize);
+                package.Add(ReadHeaderPackage());
+                package.Add(CreateReadDataRequestPackage(dataType, db, startByteAdr, count));
+
+                var sent = _socketRx.Send(tag, package.Array, package.Array.Length);
+                if (package.Array.Length != sent)
+                {
+                    return default;
+                }
+
+                var bReceive = new byte[1024];
+                var result = _socketRx.Receive(tag, bReceive, 1024);
+                if (bReceive[21] != 0xff)
+                {
+                    if (bReceive[21] != 0)
+                    {
+                        _lastErrorCode.OnNext(ErrorCode.ReadData);
+                        _lastError.OnNext($"Tag {tag.Name} failed to read - {nameof(ErrorCode.WrongNumberReceivedBytes)} code {bReceive[21]}");
+                    }
+
+                    return default;
+                }
+
+                Array.Copy(bReceive, 25, bytes, 0, count);
+
+                return bytes;
+            }
+            catch (Exception exc)
+            {
+                _lastErrorCode.OnNext(ErrorCode.WriteData);
+                _lastError.OnNext(exc.Message);
                 return default;
             }
-
-            var bReceive = new byte[1024];
-            var result = _socketRx.Receive(tag, bReceive, 1024);
-            if (bReceive[21] != 0xff)
-            {
-                throw new Exception(nameof(ErrorCode.WrongNumberReceivedBytes));
-            }
-
-            Array.Copy(bReceive, 25, bytes, 0, count);
-
-            return bytes;
-        }
-        catch (Exception exc)
-        {
-            _lastErrorCode.OnNext(ErrorCode.WriteData);
-            _lastError.OnNext(exc.Message);
-            return default;
         }
     }
 
@@ -1011,8 +1046,18 @@ public class RxS7 : IRxS7
         var index = startByteAdr;
         while (numBytes > 0)
         {
-            var maxToRead = Math.Min(numBytes, _socketRx.DataReadLength);
-            var bytes = ReadBytes(tag, dataType, db, index, maxToRead);
+            // Allow 32 bytes for the header
+            var maxToRead = Math.Min(numBytes, _socketRx.DataReadLength - 32);
+            var bytes = default(byte[]);
+            for (var i = 0; i < 3; i++)
+            {
+                bytes = ReadBytes(tag, dataType, db, index, maxToRead);
+                if (bytes != null)
+                {
+                    break;
+                }
+            }
+
             if (bytes == null)
             {
                 return Array.Empty<byte>();
@@ -1034,9 +1079,17 @@ public class RxS7 : IRxS7
                     {
                         if (_isConnected)
                         {
-                            _lock.Wait();
+                            var tagList = TagList.ToList().Where(t => !t.DoNotPoll);
+                            if (!tagList.Any() || _pause)
+                            {
+                                _paused.OnNext(true);
+                                return;
+                            }
+
+                            await _lockTagList.WaitAsync();
                             _stopwatch.Restart();
-                            foreach (Tag tag in TagList.Values)
+                            _paused.OnNext(false);
+                            foreach (var tag in tagList)
                             {
                                 if (tag.DoNotPoll)
                                 {
@@ -1061,7 +1114,7 @@ public class RxS7 : IRxS7
 
                             _stopwatch.Stop();
                             _readTime.OnNext(_stopwatch.ElapsedTicks);
-                            _lock.Release();
+                            _lockTagList.Release();
                         }
                     });
 

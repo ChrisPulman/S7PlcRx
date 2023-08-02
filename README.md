@@ -7,14 +7,14 @@
 </p>
 
 # S7PlcRx
-S7 PLC Communications Library
+Reactive S7 PLC Communications Library
 
 ## Introduction
 S7PlcRx is a library that provides a simple interface to communicate with Siemens S7 PLCs.
 
 ## Features
 - Read and Write to PLC
-- Read and Write to PLC with Subscription
+- Read from PLC with Reactive Subscription
 
 
 ## Getting Started
@@ -36,12 +36,28 @@ dotnet add package S7PlcRx
 ```csharp
 using S7PlcRx;
 
-var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, "", 0, 1);
-plc.AddUpdateTagItem<double>("Tag0", "DB500.DBD0");
+var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, "PLC_IP_ADDRESS", 0, 5);
+// Add Tag without Polling
+plc.AddUpdateTagItem<double>("Tag0", "DB500.DBD0").SetTagPollIng(false);
+// Add Tag with Polling
 plc.AddUpdateTagItem<double>("Tag1", "DB500.DBD8");
 
+plc.IsConnected
+    .Where(x => x)
+    .Take(1)
+    .Subscribe(async _ =>
+    {
+        Console.WriteLine("Connected");
+
+        // Read Tag Value manually
+        var tag0 = await plc.Value<double>("Tag0");
+    });
+
+// Subscribe to Tag Values
 plc.Observe<double>("Tag0").Subscribe(x => Console.WriteLine($"Tag0: {x}"));
 plc.Observe<double>("Tag1").Subscribe(x => Console.WriteLine($"Tag1: {x}"));
+// Start Polling on previously disabled Tag
+plc?.GetTag("Tag0")?.SetTagPollIng(true);
 ```
 
 #### Write to PLC
