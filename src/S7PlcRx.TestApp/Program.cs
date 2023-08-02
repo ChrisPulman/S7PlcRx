@@ -69,6 +69,7 @@ plc.IsConnected
                         }
                         catch (Exception ex)
                         {
+                            Console.WriteLine(ex);
                         }
                     });
     });
