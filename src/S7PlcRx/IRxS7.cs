@@ -77,6 +77,14 @@ public interface IRxS7 : ICancelable
     short Slot { get; }
 
     /// <summary>
+    /// Gets a value indicating whether this instance is paused.
+    /// </summary>
+    /// <value>
+    ///   <c>true</c> if this instance is paused; otherwise, <c>false</c>.
+    /// </value>
+    IObservable<bool> IsPaused { get; }
+
+    /// <summary>
     /// Gets the status.
     /// </summary>
     /// <value>
@@ -133,15 +141,15 @@ public interface IRxS7 : ICancelable
     IObservable<T?> Observe<T>(string? variable);
 
     /// <summary>
-    /// Values the specified variable.
+    /// Reads the specified variable.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>
     /// <param name="variable">The variable.</param>
     /// <returns>A value of T.</returns>
-    T? Value<T>(string? variable);
+    Task<T?> Value<T>(string? variable);
 
     /// <summary>
-    /// Values the specified variable.
+    /// Writes the specified variable.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>
     /// <param name="variable">The variable.</param>

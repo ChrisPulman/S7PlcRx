@@ -40,11 +40,29 @@ public static class ExtensionsMixins
     }
 
     /// <summary>
-    /// Sets the tag no poll.
+    /// Sets the tag to poll for values.
     /// </summary>
-    /// <param name="this">The instance of plc.</param>
-    /// <param name="poll">if set to <c>true</c> [poll].</param>
-    public static void SetTagNoPoll(this ITag @this, bool poll) => @this?.SetDoNotPoll(poll);
+    /// <param name="this">The instance of tag.</param>
+    /// <param name="polling">if set to <c>true</c> [poll].</param>
+    /// <returns>The instance.</returns>
+    public static ITag? SetTagPollIng(this ITag? @this, bool polling = true)
+    {
+        @this?.SetDoNotPoll(!polling);
+        return @this;
+    }
+
+    /// <summary>
+    /// Gets the tag.
+    /// </summary>
+    /// <param name="this">The rx s7 plc instance.</param>
+    /// <param name="tagName">Name of the tag.</param>
+    /// <returns>The instance of tag.</returns>
+    public static ITag? GetTag(this IRxS7 @this, string tagName) =>
+        @this?.TagList[tagName!] switch
+        {
+            Tag tag => tag,
+            _ => default
+        };
 
     /// <summary>
     /// Removes the tag item.
