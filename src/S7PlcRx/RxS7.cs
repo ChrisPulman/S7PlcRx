@@ -3,12 +3,10 @@
 
 using System.Collections;
 using System.Diagnostics;
-using System.Linq;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Runtime.CompilerServices;
 using S7PlcRx.Core;
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
@@ -71,23 +69,17 @@ public class RxS7 : IRxS7
             _disposables.Add(WatchDogObservable().Subscribe());
         }
 
-        _disposables.Add(TagReaderObservable(interval).DelaySubscription(TimeSpan.FromSeconds(5)).Subscribe());
+        _disposables.Add(TagReaderObservable(interval).Subscribe());
 
         _disposables.Add(_pLCRequestSubject.Subscribe(request =>
         {
-            switch (request.Request)
+            if (request.Request == PLCRequestType.Write)
             {
-                case PLCRequestType.Read:
-                    GetTagValue(request.Tag);
-                    _dataRead.OnNext(request.Tag);
-                    break;
-
-                case PLCRequestType.Write:
-                    WriteString(request.Tag);
-                    GetTagValue(request.Tag);
-                    _dataRead.OnNext(request.Tag);
-                    break;
+                WriteString(request.Tag);
             }
+
+            GetTagValue(request.Tag);
+            _dataRead.OnNext(request.Tag);
         }));
     }
 
@@ -235,7 +227,7 @@ public class RxS7 : IRxS7
         var tag = TagList[variable!];
         GetTagValue(tag);
         _pause = false;
-        return TagValueIsValid<T>(tag) ? (T?)tag.Value : default;
+        return TagValueIsValid<T>(tag) ? (T?)tag?.Value : default;
     }
 
     /// <summary>
@@ -362,9 +354,9 @@ public class RxS7 : IRxS7
         }
     }
 
-    private static bool TagValueIsValid<T>(Tag? tag) => tag != null && tag.Type == typeof(T) && tag.Value.GetType() == typeof(T);
+    private static bool TagValueIsValid<T>(Tag? tag) => tag != null && tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T);
 
-    private static bool TagValueIsValid<T>(Tag? tag, string? variable) => tag?.Name == variable && tag?.Type == typeof(T) && tag.Value.GetType() == typeof(T);
+    private static bool TagValueIsValid<T>(Tag? tag, string? variable) => tag?.Name == variable && tag?.Type == typeof(T) && tag.Value?.GetType() == typeof(T);
 
     private static ByteArray CreateReadDataRequestPackage(DataType dataType, int db, int startByteAdr, int count = 1)
     {
@@ -411,7 +403,11 @@ public class RxS7 : IRxS7
     /// <param name="type">The type.</param>
     /// <param name="offset">The offset.</param>
     /// <returns>The Tag as a string.</returns>
+#pragma warning disable IDE0051 // Remove unused private members
+#pragma warning disable RCS1213 // Remove unused member declaration.
     private static string GetTagAddress(DataType dataType, int startAddress, VarType type, int offset = 1)
+#pragma warning restore RCS1213 // Remove unused member declaration.
+#pragma warning restore IDE0051 // Remove unused private members
     {
         var description = dataType switch
         {
@@ -1015,29 +1011,6 @@ public class RxS7 : IRxS7
                 return default;
             }
         }
-    }
-
-    /// <summary>
-    /// Reads all the bytes needed to fill a class in C#, starting from a certain address, and
-    /// set all the properties values to the value that are read from the PLC. This reads only
-    /// properties, it doesn't read private variable or public variable without {get;set;} specified.
-    /// </summary>
-    /// <param name="tag">The tag.</param>
-    /// <param name="sourceClass">Instance of the class that will store the values.</param>
-    /// <param name="db">Index of the DB; es.: 1 is for DB1.</param>
-    /// <param name="startByteAdr">
-    /// Start byte address. If you want to read DB1.DBW200, this is 200.
-    /// </param>
-    private void ReadClass(Tag tag, object sourceClass, int db, int startByteAdr = 0)
-    {
-        var classType = sourceClass.GetType();
-        var numBytes = Class.GetClassSize(classType);
-
-        // now read the package
-        var resultBytes = ReadMultipleBytes(tag, DataType.DataBlock, db, startByteAdr, numBytes);
-
-        // and decode it
-        Class.FromBytes(sourceClass, classType, resultBytes);
     }
 
     private byte[] ReadMultipleBytes(Tag tag, DataType dataType, int db, int startByteAdr, int numBytes)

@@ -31,5 +31,5 @@ public enum CpuType
     /// <summary>
     /// The S71500.
     /// </summary>
-    S71500
+    S71500,
 }

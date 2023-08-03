@@ -1,8 +1,6 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System;
-
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
@@ -70,7 +68,7 @@ internal static class DInt
     public static byte[] ToByteArray(int value)
     {
         var bytes = new byte[4];
-        var x = 4;
+        const int x = 4;
         long valLong = value;
         for (var cnt = 0; cnt < x; cnt++)
         {

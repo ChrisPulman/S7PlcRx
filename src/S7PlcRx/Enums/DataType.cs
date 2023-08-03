@@ -36,5 +36,5 @@ internal enum DataType
     /// <summary>
     /// The data block.
     /// </summary>
-    DataBlock = 132
+    DataBlock = 132,
 }

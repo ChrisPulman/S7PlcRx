@@ -1,8 +1,6 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System;
-
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
@@ -37,7 +35,7 @@ internal static class Real
 
         // first sign
         var vz = int.Parse(txt.Substring(0, 1));
-        var exd = Conversion.BinStringToInt32(txt.Substring(1, 8));
+        var exd = txt.Substring(1, 8).BinStringToInt32();
         var ma = txt.Substring(9, 23);
         var mantisse = 1d;
         var faktor = 1d;

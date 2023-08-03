@@ -56,5 +56,5 @@ internal enum VarType
     /// <summary>
     /// The counter.
     /// </summary>
-    Counter
+    Counter,
 }

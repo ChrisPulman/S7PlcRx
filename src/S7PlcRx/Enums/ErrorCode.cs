@@ -51,5 +51,5 @@ public enum ErrorCode
     /// <summary>
     /// The write data.
     /// </summary>
-    WriteData = 50
+    WriteData = 50,
 }
