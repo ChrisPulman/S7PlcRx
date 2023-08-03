@@ -1,9 +1,6 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System;
-using System.Net;
-
 namespace S7PlcRx;
 
 /// <summary>
@@ -115,7 +112,7 @@ public class Tag : ITag
     /// Gets or sets the current value.
     /// </summary>
     /// <value>The value.</value>
-    public object Value { get; set; }
+    public object? Value { get; set; }
 
     /// <summary>
     /// Gets the value.

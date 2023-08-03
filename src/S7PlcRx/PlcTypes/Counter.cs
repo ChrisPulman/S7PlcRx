@@ -1,8 +1,6 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System;
-
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
@@ -51,7 +49,7 @@ internal static class Counter
     public static byte[] ToByteArray(ushort value)
     {
         var bytes = new byte[2];
-        var x = 2;
+        const int x = 2;
         long valLong = value;
         for (var cnt = 0; cnt < x; cnt++)
         {

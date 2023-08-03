@@ -43,9 +43,11 @@ public class Tags : Hashtable
     /// <param name="key">The key.</param>
     /// <param name="isEnd">if set to <c>true</c> [is end].</param>
     /// <returns>A object.</returns>
-    public object this[object key, bool isEnd = false]
+#pragma warning disable RCS1163 // Unused parameter.
+    public object? this[object key, bool isEnd = false]
+#pragma warning restore RCS1163 // Unused parameter.
     {
-        get => base[key]!;
+        get => base[key];
         set => base[key] = value;
     }
 
@@ -55,7 +57,7 @@ public class Tags : Hashtable
     /// <value>The <see cref="object"/>.</value>
     /// <param name="name">The name.</param>
     /// <returns>A tag.</returns>
-    public Tag this[string name] => (Tag)base[name]!;
+    public Tag? this[string name] => (Tag?)base[name];
 
     /// <summary>
     /// Gets the <see cref="object"/> with the specified tag.
@@ -63,7 +65,7 @@ public class Tags : Hashtable
     /// <value>The <see cref="object"/>.</value>
     /// <param name="tag">The tag.</param>
     /// <returns>A tag.</returns>
-    public Tag this[Tag tag] => (Tag)base[tag?.Name!]!;
+    public Tag? this[Tag? tag] => (Tag?)base[tag?.Name!];
 
     /// <summary>
     /// Adds an element with the specified key and value into the <see cref="Hashtable"/>.

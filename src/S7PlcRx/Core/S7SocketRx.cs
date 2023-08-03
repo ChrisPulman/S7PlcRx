@@ -1,7 +1,6 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System;
 using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -152,7 +151,7 @@ internal class S7SocketRx : IDisposable
             IDisposable tim;
             _isAvailable = null;
             var count = 0;
-            tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(1)).Subscribe(_ =>
+            tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(10)).Subscribe(_ =>
             {
                 count++;
                 if (_isAvailable == null || !_isAvailable.HasValue || (count == 1 && !_isAvailable.Value) || (count == 10 && _isAvailable.Value))
@@ -170,10 +169,7 @@ internal class S7SocketRx : IDisposable
                             try
                             {
                                 var result = ping.Send(IP);
-                                if (result != null)
-                                {
-                                    _isAvailable = result?.Status == IPStatus.Success;
-                                }
+                                _isAvailable = result?.Status == IPStatus.Success;
                             }
                             catch (PingException)
                             {
@@ -196,7 +192,7 @@ internal class S7SocketRx : IDisposable
         Observable.Create<bool>(obs =>
         {
             _isConnected = null;
-            var tim = Observable.Interval(TimeSpan.FromMilliseconds(500)).Subscribe(_ =>
+            var tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(10)).Subscribe(_ =>
             {
                 if (_socket == null)
                 {

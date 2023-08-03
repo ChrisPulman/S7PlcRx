@@ -19,9 +19,9 @@ public static class ExtensionsMixins
     /// <param name="address">The address.</param>
     /// <param name="arrayLength">Length of the array.</param>
     /// <returns>A Tag.</returns>
-    public static ITag AddUpdateTagItem<T>(this IRxS7 @this, string tagName, string address, int? arrayLength = null)
+    public static (ITag? tag, IRxS7? plc) AddUpdateTagItem<T>(this IRxS7 @this, string tagName, string address, int? arrayLength = null)
     {
-        var tag = default(Tag)!;
+        var tag = default(Tag);
         if (@this is RxS7 plc)
         {
             if ((typeof(T) == typeof(string) || typeof(T).IsArray) && arrayLength.HasValue)
@@ -36,7 +36,36 @@ public static class ExtensionsMixins
             plc.AddUpdateTagItem(tag);
         }
 
-        return tag;
+        return (tag, @this);
+    }
+
+    /// <summary>
+    /// Adds the update tag item.
+    /// </summary>
+    /// <typeparam name="T">The Type.</typeparam>
+    /// <param name="this">The this.</param>
+    /// <param name="tagName">The tag name.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="arrayLength">Length of the array.</param>
+    /// <returns>A Tag.</returns>
+    public static (ITag? tag, IRxS7? plc) AddUpdateTagItem<T>(this (ITag? _, IRxS7? plc) @this, string tagName, string address, int? arrayLength = null)
+    {
+        var tag = default(Tag);
+        if (@this.plc is RxS7 plc)
+        {
+            if ((typeof(T) == typeof(string) || typeof(T).IsArray) && arrayLength.HasValue)
+            {
+                tag = new(tagName, address, typeof(T), arrayLength.Value);
+            }
+            else
+            {
+                tag = new(tagName, address, typeof(T));
+            }
+
+            plc.AddUpdateTagItem(tag);
+        }
+
+        return (tag, @this.plc);
     }
 
     /// <summary>
@@ -45,9 +74,9 @@ public static class ExtensionsMixins
     /// <param name="this">The instance of tag.</param>
     /// <param name="polling">if set to <c>true</c> [poll].</param>
     /// <returns>The instance.</returns>
-    public static ITag? SetTagPollIng(this ITag? @this, bool polling = true)
+    public static (ITag? tag, IRxS7? plc) SetTagPollIng(this (ITag? tag, IRxS7? plc) @this, bool polling = true)
     {
-        @this?.SetDoNotPoll(!polling);
+        @this.tag?.SetDoNotPoll(!polling);
         return @this;
     }
 
@@ -57,11 +86,11 @@ public static class ExtensionsMixins
     /// <param name="this">The rx s7 plc instance.</param>
     /// <param name="tagName">Name of the tag.</param>
     /// <returns>The instance of tag.</returns>
-    public static ITag? GetTag(this IRxS7 @this, string tagName) =>
+    public static (ITag? tag, IRxS7? plc) GetTag(this IRxS7 @this, string tagName) =>
         @this?.TagList[tagName!] switch
         {
-            Tag tag => tag,
-            _ => default
+            Tag tag => (tag, @this),
+            _ => (default, @this)
         };
 
     /// <summary>
@@ -90,7 +119,7 @@ public static class ExtensionsMixins
         IDictionary<string, TValue> tagValues = new Dictionary<string, TValue>();
         return source
             .Where(t => t != null && t?.Value is TValue)
-            .Select(t => (Name: t!.Name!, Value: (TValue)t!.Value))
+            .Select(t => (Name: t!.Name!, Value: (TValue)t!.Value!))
             .Where(t => t.Value != null)
             .Select(t =>
             {
