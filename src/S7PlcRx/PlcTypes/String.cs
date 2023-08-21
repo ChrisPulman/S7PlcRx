@@ -16,6 +16,16 @@ internal static class String
     public static string FromByteArray(byte[] bytes) => System.Text.Encoding.ASCII.GetString(bytes);
 
     /// <summary>
+    /// Froms the byte array.
+    /// </summary>
+    /// <param name="bytes">The bytes.</param>
+    /// <param name="start">The start.</param>
+    /// <param name="length">The length.</param>
+    /// <returns>A string.</returns>
+    public static string FromByteArray(byte[] bytes, int start, int length) =>
+        bytes.Length >= start + length ? System.Text.Encoding.ASCII.GetString(bytes, start, length) : string.Empty;
+
+    /// <summary>
     /// To the byte array.
     /// </summary>
     /// <param name="value">The value.</param>

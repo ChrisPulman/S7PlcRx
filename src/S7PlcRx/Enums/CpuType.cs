@@ -9,6 +9,11 @@ namespace S7PlcRx.Enums;
 public enum CpuType
 {
     /// <summary>
+    /// The logo0ba8.
+    /// </summary>
+    Logo0BA8,
+
+    /// <summary>
     /// The S7200.
     /// </summary>
     S7200,

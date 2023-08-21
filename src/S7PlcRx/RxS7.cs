@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
+using System.Data;
 using System.Diagnostics;
 using System.Reactive;
 using System.Reactive.Disposables;
@@ -256,6 +257,50 @@ public class RxS7 : IRxS7
     }
 
     /// <summary>
+    /// Gets the cpu information. AS Name, Module Name, Copyright, Serial Number, Module Type Name, Order Code, Version.
+    /// </summary>
+    /// <returns>
+    /// A String Array.
+    /// </returns>
+    public async Task<string[]> GetCpuInfo()
+    {
+    errorCpuData:
+        var cpuData = _socketRx.GetSZLData(28);
+        if (cpuData.data.Length == 0)
+        {
+            await Task.Delay(100).ConfigureAwait(true);
+            goto errorCpuData;
+        }
+
+    errororder:
+        var orderCode = _socketRx.GetSZLData(17);
+        if (orderCode.data.Length == 0)
+        {
+            await Task.Delay(100).ConfigureAwait(true);
+            goto errororder;
+        }
+
+        if (cpuData.data.Length > 0 && orderCode.data.Length > 0)
+        {
+            var l = new List<string>
+            {
+                PlcTypes.String.FromByteArray(cpuData.data, 2, 24).Replace("\0", string.Empty), // AS Name
+                PlcTypes.String.FromByteArray(cpuData.data, 36, 24).Replace("\0", string.Empty), // Module Name
+                PlcTypes.String.FromByteArray(cpuData.data, 104, 26).Replace("\0", string.Empty), // Copyright
+                PlcTypes.String.FromByteArray(cpuData.data, 138, 24).Replace("\0", string.Empty), // Serial Number
+                PlcTypes.String.FromByteArray(cpuData.data, 172, 32).Replace("\0", string.Empty), // Module Type Name
+                PlcTypes.String.FromByteArray(orderCode.data, 2, 20).Replace("\0", string.Empty), // Order Code
+                $"V1: {orderCode.data[orderCode.size - 3]}", // Version 1
+                $"V2: {orderCode.data[orderCode.size - 2]}", // Version 2
+                $"V3: {orderCode.data[orderCode.size - 1]}", // Version 3
+            };
+            return l.ToArray();
+        }
+
+        return Array.Empty<string>();
+    }
+
+    /// <summary>
     /// Writes a C# class to a DB in the PLC.
     /// </summary>
     /// <param name="tag">The tag.</param>
@@ -356,7 +401,7 @@ public class RxS7 : IRxS7
 
     private static bool TagValueIsValid<T>(Tag? tag) => tag != null && tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T);
 
-    private static bool TagValueIsValid<T>(Tag? tag, string? variable) => tag?.Name == variable && tag?.Type == typeof(T) && tag.Value?.GetType() == typeof(T);
+    private static bool TagValueIsValid<T>(Tag? tag, string? variable) => string.Equals(tag?.Name, variable, StringComparison.InvariantCultureIgnoreCase) && tag?.Type == typeof(T) && tag.Value?.GetType() == typeof(T);
 
     private static ByteArray CreateReadDataRequestPackage(DataType dataType, int db, int startByteAdr, int count = 1)
     {
@@ -395,45 +440,6 @@ public class RxS7 : IRxS7
         return package;
     }
 
-    /// <summary>
-    /// Gets the Tag address as a string.
-    /// </summary>
-    /// <param name="dataType">Type of the data.</param>
-    /// <param name="startAddress">The start address.</param>
-    /// <param name="type">The type.</param>
-    /// <param name="offset">The offset.</param>
-    /// <returns>The Tag as a string.</returns>
-#pragma warning disable IDE0051 // Remove unused private members
-#pragma warning disable RCS1213 // Remove unused member declaration.
-    private static string GetTagAddress(DataType dataType, int startAddress, VarType type, int offset = 1)
-#pragma warning restore RCS1213 // Remove unused member declaration.
-#pragma warning restore IDE0051 // Remove unused private members
-    {
-        var description = dataType switch
-        {
-            DataType.Input => "I",
-            DataType.Output => "O",
-            DataType.Memory => "M",
-            DataType.DataBlock => "DB",
-            DataType.Timer => "T",
-            DataType.Counter => "C",
-            _ => string.Empty,
-        };
-
-        description += type switch
-        {
-            VarType.Bit => dataType == DataType.DataBlock ? $"X{startAddress}.{offset}" : $"{startAddress}.{offset}",
-            VarType.Byte => dataType == DataType.Input || dataType == DataType.Output ? $"{startAddress}" : $"B{startAddress}",
-            VarType.Word => $"W{startAddress}",
-            VarType.DWord => $"D{startAddress}",
-            VarType.Int => $"W{startAddress}",
-            VarType.DInt or VarType.Real => $"D{startAddress}",
-            VarType.String => $"X{startAddress}-{offset}",
-            _ => $"{startAddress}",
-        };
-        return description;
-    }
-
     private static ByteArray ReadHeaderPackage(int amount = 1)
     {
         // header size = 19 bytes
@@ -461,6 +467,7 @@ public class RxS7 : IRxS7
         VarType.String => varCount,
         VarType.Word or VarType.Timer or VarType.Int or VarType.Counter => varCount * 2,
         VarType.DWord or VarType.DInt or VarType.Real => varCount * 4,
+        VarType.LReal => varCount * 8,
         _ => 0,
     };
 
@@ -635,6 +642,14 @@ public class RxS7 : IRxS7
 
                     return Real.ToArray(bytes);
 
+                case VarType.LReal:
+                    if (varCount == 1)
+                    {
+                        return LReal.FromByteArray(bytes);
+                    }
+
+                    return LReal.ToArray(bytes);
+
                 case VarType.String:
                     return PlcTypes.String.FromByteArray(bytes);
 
@@ -774,12 +789,22 @@ public class RxS7 : IRxS7
                         case "DBD":
                             if (tag.Type == typeof(double))
                             {
-                                return Read<double>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real);
+                                return Read<double>(tag, DataType.DataBlock, dB, dbIndex, VarType.LReal);
                             }
 
                             if (tag.Type == typeof(double[]))
                             {
-                                return Read<double[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real);
+                                return Read<double[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.LReal);
+                            }
+
+                            if (tag.Type == typeof(float))
+                            {
+                                return Read<float>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real);
+                            }
+
+                            if (tag.Type == typeof(float[]))
+                            {
+                                return Read<float[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real);
                             }
 
                             if (tag.Type == typeof(uint[]))
@@ -890,10 +915,10 @@ public class RxS7 : IRxS7
                     // Memory double-word
                     if (tag.Type == typeof(double[]))
                     {
-                        return Read<double[]>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Real);
+                        return Read<double[]>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.LReal);
                     }
 
-                    return Read<double>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Real);
+                    return Read<double>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.LReal);
 
                 default:
                     switch (correctVariable.Substring(0, 1))
@@ -1188,7 +1213,7 @@ public class RxS7 : IRxS7
                 break;
 
             case "Double":
-                package = Real.ToByteArray((double)tag.NewValue!);
+                package = LReal.ToByteArray((double)tag.NewValue!);
                 break;
 
             case "Byte[]":
@@ -1222,7 +1247,7 @@ public class RxS7 : IRxS7
                 break;
 
             case "Double[]":
-                package = Real.ToByteArray((double[])tag.NewValue!);
+                package = LReal.ToByteArray((double[])tag.NewValue!);
                 break;
 
             case "String":

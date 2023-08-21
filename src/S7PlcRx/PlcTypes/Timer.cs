@@ -9,13 +9,23 @@ namespace S7PlcRx.PlcTypes;
 internal static class Timer
 {
     /// <summary>
-    /// From the byte array.
+    /// Froms the byte array.
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A double.</returns>
-    public static double FromByteArray(byte[] bytes)
+    public static double FromByteArray(byte[] bytes) => FromByteArray(bytes, 0);
+
+    /// <summary>
+    /// From the byte array.
+    /// </summary>
+    /// <param name="bytes">The bytes.</param>
+    /// <param name="start">The start.</param>
+    /// <returns>
+    /// A double.
+    /// </returns>
+    public static double FromByteArray(byte[] bytes, int start)
     {
-        var value = (short)Word.FromBytes(bytes[1], bytes[0]);
+        var value = (short)Word.FromBytes(bytes[start + 1], bytes[start]);
         var txt = value.ValToBinString();
         var wert = txt.Substring(4, 4).BinStringToInt32() * 100.0;
         wert += txt.Substring(8, 4).BinStringToInt32() * 10.0;

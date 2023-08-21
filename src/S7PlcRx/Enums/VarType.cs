@@ -44,6 +44,11 @@ internal enum VarType
     Real,
 
     /// <summary>
+    /// The l real.
+    /// </summary>
+    LReal,
+
+    /// <summary>
     /// The string.
     /// </summary>
     String,

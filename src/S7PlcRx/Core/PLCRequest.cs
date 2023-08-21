@@ -8,28 +8,22 @@ namespace S7PlcRx.Core;
 /// <summary>
 /// PLC Request.
 /// </summary>
-internal class PLCRequest
+/// <remarks>
+/// Initializes a new instance of the <see cref="PLCRequest"/> class.
+/// </remarks>
+/// <param name="request">The request.</param>
+/// <param name="tag">The tag.</param>
+internal class PLCRequest(PLCRequestType request, Tag? tag)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="PLCRequest"/> class.
-    /// </summary>
-    /// <param name="request">The request.</param>
-    /// <param name="tag">The tag.</param>
-    public PLCRequest(PLCRequestType request, Tag? tag)
-    {
-        Request = request;
-        Tag = tag;
-    }
-
     /// <summary>
     /// Gets the request.
     /// </summary>
     /// <value>The request.</value>
-    public PLCRequestType Request { get; }
+    public PLCRequestType Request { get; } = request;
 
     /// <summary>
     /// Gets the tag.
     /// </summary>
     /// <value>The tag.</value>
-    public Tag? Tag { get; }
+    public Tag? Tag { get; } = tag;
 }
