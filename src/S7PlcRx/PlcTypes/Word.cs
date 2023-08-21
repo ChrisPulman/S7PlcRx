@@ -16,6 +16,14 @@ internal static class Word
     public static ushort FromByteArray(byte[] bytes) => FromBytes(bytes[1], bytes[0]);
 
     /// <summary>
+    /// Froms the byte array.
+    /// </summary>
+    /// <param name="bytes">The bytes.</param>
+    /// <param name="start">The start.</param>
+    /// <returns>A ushort.</returns>
+    public static ushort FromByteArray(byte[] bytes, int start) => FromBytes(bytes[start + 1], bytes[start]);
+
+    /// <summary>
     /// From the bytes.
     /// </summary>
     /// <param name="loVal">The lo value.</param>
@@ -62,6 +70,15 @@ internal static class Word
 
         return bytes;
     }
+
+    /// <summary>
+    /// Converts to bytearray.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="destination">The destination.</param>
+    /// <param name="start">The start.</param>
+    public static void ToByteArray(ushort value, Array destination, int start) =>
+        Array.Copy(ToByteArray(value), 0, destination, start, 2);
 
     /// <summary>
     /// To the byte array.

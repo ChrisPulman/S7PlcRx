@@ -120,7 +120,7 @@ internal static class Class
                     }
 
                     // hier auswerten
-                    property.SetValue(sourceClass, Real.FromByteArray(new byte[] { bytes[(int)numBytes], bytes[(int)numBytes + 1], bytes[(int)numBytes + 2], bytes[(int)numBytes + 3] }), null);
+                    property.SetValue(sourceClass, LReal.FromByteArray(new byte[] { bytes[(int)numBytes], bytes[(int)numBytes + 1], bytes[(int)numBytes + 2], bytes[(int)numBytes + 3] }), null);
                     numBytes += 4;
                     break;
 
@@ -268,7 +268,7 @@ internal static class Class
                     break;
 
                 case "Single":
-                    bytes2 = Real.ToByteArray((float)property.GetValue(sourceClass, null)!);
+                    bytes2 = LReal.ToByteArray((float)property.GetValue(sourceClass, null)!);
                     break;
             }
 

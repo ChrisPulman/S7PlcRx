@@ -18,14 +18,21 @@ plc.AddUpdateTagItem<byte>(StartLogging, "DB100.DBB3")
     .AddUpdateTagItem<byte[]>(PlcData, "DB100.DBB0", 64).SetTagPollIng(false)
     .AddUpdateTagItem<byte[]>(TestItems, "DB101.DBB0", 520).SetTagPollIng(false)
     .AddUpdateTagItem<byte[]>(TagNames1, "DB102.DBB0", 4096).SetTagPollIng(false)
-    .AddUpdateTagItem<double[]>(TagValues, "DB103.DBD4", 98).SetTagPollIng(false);
+    .AddUpdateTagItem<float[]>(TagValues, "DB103.DBD4", 98).SetTagPollIng(false);
 
 plc.IsConnected
     .Where(x => x)
     .Take(1)
-    .Subscribe(_ =>
+    .Subscribe(async _ =>
     {
         Console.WriteLine("Connected");
+        var info = await plc.GetCpuInfo();
+        foreach (var item in info)
+        {
+            Console.WriteLine(item);
+        }
+
+        await Task.Delay(2000);
         plc.IsPaused.Subscribe(x => Console.WriteLine($"Paused: {x}"));
         var setupComplete = false;
         plc.Observe<byte>(StartLogging)
@@ -58,13 +65,13 @@ plc.IsConnected
                 plc?.GetTag(TagValues).SetTagPollIng(true);
                 setupComplete = true;
             });
-        plc.Observe<double[]>(TagValues)
+        plc.Observe<float[]>(TagValues)
                     .Where(_ => setupComplete)
                     .Subscribe(values =>
                     {
                         try
                         {
-                            var tagValues = values?.Take(14).Select(Convert.ToSingle).ToArray();
+                            var tagValues = values?.Take(14).ToArray();
                             Console.WriteLine($"TagValues: {string.Join(", ", tagValues!)}");
                         }
                         catch (Exception ex)

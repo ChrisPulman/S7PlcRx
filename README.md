@@ -1,8 +1,10 @@
 ![License](https://img.shields.io/github/license/ChrisPulman/S7PlcRx.svg) [![Build](https://github.com/ChrisPulman/S7PlcRx/actions/workflows/BuildOnly.yml/badge.svg)](https://github.com/ChrisPulman/S7PlcRx/actions/workflows/BuildOnly.yml) ![Nuget](https://img.shields.io/nuget/dt/S7PlcRx?color=pink&style=plastic) [![NuGet](https://img.shields.io/nuget/v/S7PlcRx.svg?style=plastic)](https://www.nuget.org/packages/S7PlcRx)
 
+![Alt](https://repobeats.axiom.co/api/embed/48a23aed3690ef69ed277b96f2154062dd436af2.svg "Repobeats analytics image")
+
 <p align="left">
   <a href="https://github.com/ChrisPulman/S7PlcRx">
-    <img alt="S7PlcRx" src="https://github.com/ChrisPulman/S7PlcRx/blob/main/Images/S7PlcRx.png" width="200"/>
+    <img alt="S7PlcRx" src="./Images/S7PlcRx.png" width="200"/>
   </a>
 </p>
 
@@ -64,3 +66,34 @@ plc?.GetTag("Tag0")?.SetTagPollIng(true);
 ```csharp
 plc.Value<double>("Tag0", 1.0);
 ```
+
+#### Read PLC CPU Info
+```csharp
+var cpuInfo = await plc.CpuInfo();
+```
+
+This returns a `CpuInfo` string Array with the following values:
+AS Name, Module Name, Copyright, Serial Number, Module Type Name, Order Code, Version.
+
+#### Supported Data Types
+
+- Bool
+- Byte
+- Int
+- DInt
+- Real
+- LReal
+- String
+- Word
+- DWord
+
+Further types will be added in the future.
+
+#### Supported PLCs
+
+- Logo-0BA8
+- S7-200
+- S7-300
+- S7-400
+- S7-1200
+- S7-1500

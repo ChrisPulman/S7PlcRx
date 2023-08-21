@@ -33,6 +33,14 @@ internal static class Int
     public static short FromByteArray(byte[] bytes) => FromBytes(bytes[1], bytes[0]);
 
     /// <summary>
+    /// Froms the byte array.
+    /// </summary>
+    /// <param name="bytes">The bytes.</param>
+    /// <param name="start">The start.</param>
+    /// <returns>A short.</returns>
+    public static short FromByteArray(byte[] bytes, int start) => FromBytes(bytes[start + 1], bytes[start]);
+
+    /// <summary>
     /// From the bytes.
     /// </summary>
     /// <param name="loVal">The lo value.</param>

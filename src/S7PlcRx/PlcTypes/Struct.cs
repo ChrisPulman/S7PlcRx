@@ -125,7 +125,7 @@ internal static class Struct
                     }
 
                     // Evaluating here
-                    info.SetValue(structValue, Real.FromByteArray(new byte[]
+                    info.SetValue(structValue, LReal.FromByteArray(new byte[]
                     {
                         bytes[(int)numBytes],
                         bytes[(int)numBytes + 1],
@@ -278,7 +278,7 @@ internal static class Struct
                     break;
 
                 case "Single":
-                    bytes2 = Real.ToByteArray((float)info.GetValue(structValue)!);
+                    bytes2 = LReal.ToByteArray((float)info.GetValue(structValue)!);
                     break;
             }
 

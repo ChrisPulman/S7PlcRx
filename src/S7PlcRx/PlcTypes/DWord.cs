@@ -9,11 +9,20 @@ namespace S7PlcRx.PlcTypes;
 internal static class DWord
 {
     /// <summary>
-    /// Froms the byte array.
+    /// Converts a DWord (4 bytes) to uint.
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A uint.</returns>
-    public static uint FromByteArray(byte[] bytes) => FromBytes(bytes[3], bytes[2], bytes[1], bytes[0]);
+    public static uint FromByteArray(byte[] bytes) => (uint)(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
+
+    /// <summary>
+    /// Froms the byte array.
+    /// </summary>
+    /// <param name="bytes">The bytes.</param>
+    /// <param name="start">The start.</param>
+    /// <returns>A uint.</returns>
+    public static uint FromByteArray(byte[] bytes, int start) =>
+        (uint)(bytes[start] << 24 | bytes[start + 1] << 16 | bytes[start + 2] << 8 | bytes[start + 3]);
 
     /// <summary>
     /// Froms the bytes.
@@ -23,7 +32,8 @@ internal static class DWord
     /// <param name="v3">The v3.</param>
     /// <param name="v4">The v4.</param>
     /// <returns>A uint.</returns>
-    public static uint FromBytes(byte v1, byte v2, byte v3, byte v4) => (uint)(v1 + (v2 * Math.Pow(2, 8)) + (v3 * Math.Pow(2, 16)) + (v4 * Math.Pow(2, 24)));
+    public static uint FromBytes(byte v1, byte v2, byte v3, byte v4) =>
+        (uint)((v4 << 24) | (v3 << 16) | (v2 << 8) | v1);
 
     /// <summary>
     /// To the array.
@@ -51,16 +61,10 @@ internal static class DWord
     public static byte[] ToByteArray(uint value)
     {
         var bytes = new byte[4];
-        const int x = 4;
-        long valLong = value;
-        for (var cnt = 0; cnt < x; cnt++)
-        {
-            var x1 = (long)Math.Pow(256, cnt);
-
-            var x3 = valLong / x1;
-            bytes[x - cnt - 1] = (byte)(x3 & 255);
-            valLong -= bytes[x - cnt - 1] * x1;
-        }
+        bytes[0] = (byte)((value >> 24) & 0xFF);
+        bytes[1] = (byte)((value >> 16) & 0xFF);
+        bytes[2] = (byte)((value >> 8) & 0xFF);
+        bytes[3] = (byte)(value & 0xFF);
 
         return bytes;
     }

@@ -27,7 +27,6 @@ internal class S7SocketRx : IDisposable
     private bool? _isAvailable;
     private bool? _isConnected;
     private Socket? _socket;
-    private ushort _dataReadLength = 480;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="S7SocketRx" /> class.
@@ -81,7 +80,7 @@ internal class S7SocketRx : IDisposable
                         obs.OnError(ex);
                     }));
                     dis.Add(IsAvailable.Subscribe(
-                        _ =>
+                        async _ =>
                     {
                         try
                         {
@@ -90,7 +89,7 @@ internal class S7SocketRx : IDisposable
                                 var isAvail = _isAvailable != null && _isAvailable.HasValue && _isAvailable.Value;
                                 if (isAvail)
                                 {
-                                    if (!_initComplete && !InitialiseSiemensConnection())
+                                    if (!_initComplete && !await InitialiseSiemensConnectionAsync())
                                     {
                                         CloseSocket(_socket);
                                         obs.OnError(new S7Exception("Device not connected"));
@@ -139,7 +138,7 @@ internal class S7SocketRx : IDisposable
     /// <value>
     /// The length of the data read.
     /// </value>
-    public int DataReadLength => _dataReadLength;
+    public ushort DataReadLength { get; private set; } = 480;
 
     /// <summary>
     /// Gets the is available.
@@ -251,8 +250,11 @@ internal class S7SocketRx : IDisposable
     /// <param name="tag">The tag.</param>
     /// <param name="buffer">The buffer.</param>
     /// <param name="size">The size.</param>
-    /// <returns>A int.</returns>
-    public int Receive(Tag tag, byte[] buffer, int size)
+    /// <param name="offset">The offset.</param>
+    /// <returns>
+    /// A int.
+    /// </returns>
+    public int Receive(Tag tag, byte[] buffer, int size, int offset = 0)
     {
         if (_initComplete)
         {
@@ -260,7 +262,7 @@ internal class S7SocketRx : IDisposable
             {
                 if (_socket?.Connected == true)
                 {
-                    var r = _socket?.Receive(buffer, size, SocketFlags.None);
+                    var r = _socket?.Receive(buffer, offset, size, SocketFlags.None);
                     if (tag != null && Debugger.IsAttached)
                     {
                         var res = buffer[21] == 255 ? Success : Failed;
@@ -317,6 +319,135 @@ internal class S7SocketRx : IDisposable
         return -1;
     }
 
+    internal (byte[] data, ushort size) GetSZLData(ushort szlArea, ushort index = 0)
+    {
+        ////               0, 1, 2, 3 , 4, 5,   6,   7,  8, 9, 10,11,12,13,14,15,16,17,18,19, 20,21, 22, 23,24,25,  26,27,28,29,30,31,32
+        byte[] s7_SZL1 = { 3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 5, 0, 0, 8, 0, 8, 0, 1, 18, 4, 17, 68, 1, 0, 255, 9, 0, 4, 0, 0, 0, 0 };
+        byte[] s7_SZL2 = { 3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 6, 0, 0, 12, 0, 4, 0, 1, 18, 8, 18, 68, 1, 1, 0, 0, 0, 0, 10, 0, 0, 0 };
+        const int size = 1024;
+        var data = new byte[size];
+        var resultData = new byte[size];
+        var tag = new Tag();
+        int length;
+        var done = false;
+        var first = true;
+        byte seq_in = 0;
+        ushort seq_out = 0;
+        var lastError = 0;
+        var offset = 0;
+        ushort lengthOfDataRead = 0;
+        int szlDataLength;
+
+        do
+        {
+            if (first)
+            {
+                Word.ToByteArray(++seq_out, s7_SZL1, 11);
+                Word.ToByteArray(szlArea, s7_SZL1, 29);
+                Word.ToByteArray(index, s7_SZL1, 31);
+                Send(tag, s7_SZL1, s7_SZL1.Length);
+            }
+            else
+            {
+                Word.ToByteArray(++seq_out, s7_SZL2, 11);
+                s7_SZL2[24] = seq_in;
+                Send(tag, s7_SZL2, s7_SZL2.Length);
+            }
+
+            if (lastError != 0)
+            {
+                return (Array.Empty<byte>(), 0);
+            }
+
+            length = ReceiveIsoData(tag, ref data);
+
+            if (lastError == 0 && length > 32)
+            {
+                if (first && (Word.FromByteArray(data, 27) == 0) && (data[29] == 255))
+                {
+                    szlDataLength = Word.FromByteArray(data, 31) - 8;
+                    done = data[26] == 0;
+                    seq_in = data[24];
+                    lengthOfDataRead = Word.FromByteArray(data, 37);
+                    Array.Copy(data, 41, resultData, offset, szlDataLength);
+                    offset += szlDataLength;
+                    lengthOfDataRead += lengthOfDataRead;
+                    first = false;
+                }
+                else if ((Word.FromByteArray(data, 27) == 0) && (data[29] == 255))
+                {
+                    szlDataLength = Word.FromByteArray(data, 31);
+                    done = data[26] == 0;
+                    seq_in = data[24];
+                    Array.Copy(data, 37, resultData, offset, szlDataLength);
+                    offset += szlDataLength;
+                    lengthOfDataRead += lengthOfDataRead;
+                }
+                else
+                {
+                    lastError = (int)ErrorCode.WrongVarFormat;
+                }
+            }
+            else
+            {
+                lastError = (int)ErrorCode.WrongNumberReceivedBytes;
+            }
+        }
+        while (!done && (lastError == 0));
+
+        if (lastError == 0)
+        {
+            var result = new byte[length];
+            Array.Copy(resultData, result, length);
+            return (result, lengthOfDataRead);
+        }
+
+        return (Array.Empty<byte>(), 0);
+    }
+
+    internal int ReceiveIsoData(Tag tag, ref byte[] bytes)
+    {
+        var done = false;
+        var size = 0;
+        var lastError = 0;
+        //// byte lastPDUType;
+        while ((lastError == 0) && !done)
+        {
+            Receive(tag, bytes, 4);
+            if (lastError == 0)
+            {
+                size = Word.FromByteArray(bytes, 2);
+
+                if (size == 7)
+                {
+                    Receive(tag, bytes, 3, 4);
+                }
+                else if ((size > DataReadLength + 7) || (size < 16))
+                {
+                    lastError = (int)ErrorCode.WrongNumberReceivedBytes;
+                }
+                else
+                {
+                    done = true;
+                }
+            }
+        }
+
+        switch (lastError)
+        {
+            case 0:
+                // Get PDU Type, incase we need it
+                Receive(tag, bytes, 3, 4);
+                //// lastPDUType = bytes[5];
+
+                // Receives the S7 ISO Payload
+                Receive(tag, bytes, size - 7, 7);
+                return size;
+            default:
+                return 0;
+        }
+    }
+
     /// <summary>
     /// Releases unmanaged and - optionally - managed resources.
     /// </summary>
@@ -349,7 +480,7 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    private bool InitialiseSiemensConnection()
+    private async Task<bool> InitialiseSiemensConnectionAsync()
     {
         var bReceive = new byte[256];
         try
@@ -359,10 +490,10 @@ internal class S7SocketRx : IDisposable
                 return false;
             }
 
-            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 1000);
-            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, 1000);
+            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 10000);
+            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, 10000);
             var server = new IPEndPoint(IPAddress.Parse(IP), 102);
-            _socket.Connect(server);
+            await _socket.ConnectAsync(server);
             _isConnected = _socket.Connected || (_socket.Poll(1000, SelectMode.SelectRead) && _socket.Available == 0);
             if (_isConnected == false)
             {
@@ -374,12 +505,20 @@ internal class S7SocketRx : IDisposable
 
             switch (PLCType)
             {
+                case CpuType.Logo0BA8:
+                    bSend1[13] = 1;
+                    bSend1[14] = 0;
+                    bSend1[17] = 1;
+                    bSend1[18] = 2;
+                    DataReadLength = 240;
+                    break;
+
                 case CpuType.S7200:
                     bSend1[13] = 16;
                     bSend1[14] = 0;
                     bSend1[17] = 16;
                     bSend1[18] = 0;
-                    _dataReadLength = 480;
+                    DataReadLength = 480;
                     break;
 
                 case CpuType.S71200:
@@ -389,7 +528,7 @@ internal class S7SocketRx : IDisposable
                     bSend1[14] = 0;
                     bSend1[17] = 3;
                     bSend1[18] = (byte)((Rack * 2 * 16) + Slot);
-                    _dataReadLength = 480;
+                    DataReadLength = 480;
                     break;
 
                 case CpuType.S71500:
@@ -397,7 +536,7 @@ internal class S7SocketRx : IDisposable
                     bSend1[14] = 2;
                     bSend1[17] = 3;
                     bSend1[18] = (byte)((Rack * 2 * 16) + Slot);
-                    _dataReadLength = 960;
+                    DataReadLength = 960;
                     break;
 
                 default:
@@ -412,11 +551,11 @@ internal class S7SocketRx : IDisposable
                 throw new S7Exception(nameof(ErrorCode.WrongNumberReceivedBytes));
             }
 
-            // (4,5,6) TPKT + COTP
-            // (23,24) PDU Length Requested = HI-LO Here Default 480 bytes
-            ////          //1  2  3  4   5  6    7    8   9  10 11 12 13 14 15 16 17 18   19 20 21 22 23 24 25//
+            ////              1  2  3  4   5  6    7    8   9  10 11 12 13 14 15 16 17 18   19 20 21 22 23 24 25//
             byte[] bsend2 = { 3, 0, 0, 25, 2, 240, 128, 50, 1, 0, 0, 4, 0, 0, 8, 0, 0, 240, 0, 0, 1, 0, 1, 0, 30 };
-            Array.Copy(Word.ToByteArray(_dataReadLength), 0, bsend2, 23, 2);
+
+            // (23,24) PDU Length Requested = HI-LO Here Default 480 bytes
+            Word.ToByteArray(DataReadLength, bsend2, 23);
             _socket.Send(bsend2, 25, SocketFlags.None);
 
             result = _socket.Receive(bReceive, 27, SocketFlags.None);

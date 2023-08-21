@@ -34,7 +34,7 @@ internal static class Conversion
     /// </summary>
     /// <param name="input">The input.</param>
     /// <returns>A double.</returns>
-    public static double ConvertToDouble(this uint input) => Real.FromByteArray(DWord.ToByteArray(input));
+    public static double ConvertToDouble(this uint input) => LReal.FromByteArray(DWord.ToByteArray(input));
 
     /// <summary>
     /// Converts from uint value to int value; it's used to retrieve negative values from DBDs.
@@ -55,7 +55,7 @@ internal static class Conversion
     /// </summary>
     /// <param name="input">The input.</param>
     /// <returns>A uint.</returns>
-    public static uint ConvertToUInt(this float input) => DWord.FromByteArray(Real.ToByteArray(input));
+    public static uint ConvertToUInt(this float input) => DWord.FromByteArray(LReal.ToByteArray(input));
 
     /// <summary>
     /// Converts from short value to ushort value; it's used to pass negative values to DWs.
