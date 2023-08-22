@@ -28,6 +28,14 @@ public interface IRxS7 : ICancelable
     IObservable<bool> IsConnected { get; }
 
     /// <summary>
+    /// Gets a value indicating whether this instance is connected.
+    /// </summary>
+    /// <value>
+    ///   <c>true</c> if this instance is connected; otherwise, <c>false</c>.
+    /// </value>
+    bool IsConnectedValue { get; }
+
+    /// <summary>
     /// Gets the last error.
     /// </summary>
     /// <value>
@@ -154,4 +162,10 @@ public interface IRxS7 : ICancelable
     /// <param name="variable">The variable.</param>
     /// <param name="value">The value.</param>
     void Value<T>(string? variable, T? value);
+
+    /// <summary>
+    /// Gets the cpu information. AS Name, Module Name, Copyright, Serial Number, Module Type Name, Order Code, Version.
+    /// </summary>
+    /// <returns>A string Array.</returns>
+    IObservable<string[]> GetCpuInfo();
 }
