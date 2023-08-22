@@ -33,7 +33,6 @@ public class RxS7 : IRxS7
     private readonly object _socketLock = new();
     private readonly Stopwatch _stopwatch = new();
     private readonly ISubject<bool> _paused = new Subject<bool>();
-    private bool _isConnected;
     private bool _pause;
 
     /// <summary>
@@ -59,11 +58,11 @@ public class RxS7 : IRxS7
         IsConnected = _socketRx.IsConnected;
 
         // Get the PLC connection status
-        _disposables.Add(IsConnected.Subscribe(x =>
+        _disposables.Add(IsConnected.Subscribe((Action<bool>)(x =>
         {
-            _isConnected = x;
+            IsConnectedValue = x;
             _status.OnNext($"{DateTime.Now} - PLC Connected Status: {x}");
-        }));
+        })));
 
         if (!string.IsNullOrWhiteSpace(watchDogAddress))
         {
@@ -117,6 +116,14 @@ public class RxS7 : IRxS7
     /// The is connected.
     /// </value>
     public IObservable<bool> IsConnected { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether this instance is connected.
+    /// </summary>
+    /// <value>
+    ///   <c>true</c> if this instance is connected; otherwise, <c>false</c>.
+    /// </value>
+    public bool IsConnectedValue { get; private set; }
 
     /// <summary>
     /// Gets the last error.
@@ -262,43 +269,61 @@ public class RxS7 : IRxS7
     /// <returns>
     /// A String Array.
     /// </returns>
-    public async Task<string[]> GetCpuInfo()
-    {
-    errorCpuData:
-        var cpuData = _socketRx.GetSZLData(28);
-        if (cpuData.data.Length == 0)
+    public IObservable<string[]> GetCpuInfo() =>
+        Observable.Create<string[]>(obs =>
         {
-            await Task.Delay(100).ConfigureAwait(true);
-            goto errorCpuData;
-        }
-
-    errororder:
-        var orderCode = _socketRx.GetSZLData(17);
-        if (orderCode.data.Length == 0)
-        {
-            await Task.Delay(100).ConfigureAwait(true);
-            goto errororder;
-        }
-
-        if (cpuData.data.Length > 0 && orderCode.data.Length > 0)
-        {
-            var l = new List<string>
+            var d = new CompositeDisposable();
+            d.Add(IsConnected.Where(x => x).Take(1).Subscribe(async _ =>
             {
-                PlcTypes.String.FromByteArray(cpuData.data, 2, 24).Replace("\0", string.Empty), // AS Name
-                PlcTypes.String.FromByteArray(cpuData.data, 36, 24).Replace("\0", string.Empty), // Module Name
-                PlcTypes.String.FromByteArray(cpuData.data, 104, 26).Replace("\0", string.Empty), // Copyright
-                PlcTypes.String.FromByteArray(cpuData.data, 138, 24).Replace("\0", string.Empty), // Serial Number
-                PlcTypes.String.FromByteArray(cpuData.data, 172, 32).Replace("\0", string.Empty), // Module Type Name
-                PlcTypes.String.FromByteArray(orderCode.data, 2, 20).Replace("\0", string.Empty), // Order Code
-                $"V1: {orderCode.data[orderCode.size - 3]}", // Version 1
-                $"V2: {orderCode.data[orderCode.size - 2]}", // Version 2
-                $"V3: {orderCode.data[orderCode.size - 1]}", // Version 3
-            };
-            return l.ToArray();
-        }
+            errorCpuData:
+                var cpuData = _socketRx.GetSZLData(28);
+                if (cpuData.data.Length == 0 && !d.IsDisposed)
+                {
+                    await Task.Delay(10).ConfigureAwait(true);
+                    goto errorCpuData;
+                }
 
-        return Array.Empty<string>();
-    }
+            errororder:
+                var orderCode = _socketRx.GetSZLData(17);
+                if (orderCode.data.Length == 0 && !d.IsDisposed)
+                {
+                    await Task.Delay(10).ConfigureAwait(true);
+                    goto errororder;
+                }
+
+                if (cpuData.data.Length >= 204 && orderCode.data.Length >= 25)
+                {
+                    var l = new List<string>
+                    {
+                        PlcTypes.String.FromByteArray(cpuData.data, 2, 24).Replace("\0", string.Empty), // AS Name
+                        PlcTypes.String.FromByteArray(cpuData.data, 36, 24).Replace("\0", string.Empty), // Module Name
+                        PlcTypes.String.FromByteArray(cpuData.data, 104, 26).Replace("\0", string.Empty), // Copyright
+                        PlcTypes.String.FromByteArray(cpuData.data, 138, 24).Replace("\0", string.Empty), // Serial Number
+                        PlcTypes.String.FromByteArray(cpuData.data, 172, 32).Replace("\0", string.Empty), // Module Type Name
+                        PlcTypes.String.FromByteArray(orderCode.data, 2, 20).Replace("\0", string.Empty), // Order Code
+                        $"V1: {orderCode.data[orderCode.size - 3]}", // Version 1
+                        $"V2: {orderCode.data[orderCode.size - 2]}", // Version 2
+                        $"V3: {orderCode.data[orderCode.size - 1]}", // Version 3
+                    };
+                    obs.OnNext(l.ToArray());
+                    obs.OnCompleted();
+                }
+                else
+                {
+                    if (cpuData.data.Length < 204)
+                    {
+                        goto errorCpuData;
+                    }
+
+                    if (orderCode.data.Length < 25)
+                    {
+                        goto errororder;
+                    }
+                }
+            }));
+
+            return d;
+        });
 
     /// <summary>
     /// Writes a C# class to a DB in the PLC.
@@ -1075,7 +1100,7 @@ public class RxS7 : IRxS7
                 var tim = Observable.Interval(TimeSpan.FromMilliseconds(interval))
                     .Subscribe(async _ =>
                     {
-                        if (_isConnected)
+                        if (IsConnectedValue)
                         {
                             var tagList = TagList.ToList().Where(t => !t.DoNotPoll);
                             if (!tagList.Any() || _pause)
@@ -1096,7 +1121,7 @@ public class RxS7 : IRxS7
 
                                 try
                                 {
-                                    while (!_isConnected)
+                                    while (!IsConnectedValue)
                                     {
                                         await Task.Delay(10);
                                     }
@@ -1135,7 +1160,7 @@ public class RxS7 : IRxS7
             AddUpdateTagItem(wd);
             var tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(WatchDogWritingTime)).Retry().Subscribe(_ =>
             {
-                if (_isConnected)
+                if (IsConnectedValue)
                 {
                     wd.Value = WatchDogValueToWrite;
                     _pLCRequestSubject.OnNext(new PLCRequest(PLCRequestType.Write, wd));
@@ -1212,6 +1237,10 @@ public class RxS7 : IRxS7
                 package = DWord.ToByteArray((uint)Convert.ChangeType(tag.NewValue, typeof(uint))!);
                 break;
 
+            case "Single":
+                package = Real.ToByteArray((float)tag.NewValue!);
+                break;
+
             case "Double":
                 package = LReal.ToByteArray((double)tag.NewValue!);
                 break;
@@ -1244,6 +1273,10 @@ public class RxS7 : IRxS7
 
             case "uint[]":
                 package = DWord.ToByteArray((uint[])Convert.ChangeType(tag.NewValue, typeof(uint[]))!);
+                break;
+
+            case "Single[]":
+                package = Real.ToByteArray((float[])tag.NewValue!);
                 break;
 
             case "Double[]":
