@@ -23,6 +23,9 @@ S7PlcRx is a library that provides a simple interface to communicate with Siemen
 ### Installation
 S7PlcRx is available on [NuGet](https://www.nuget.org/packages/S7PlcRx/).
 
+In the Siemens PLC program you need to enable PUT/GET communication in the PLC settings.
+You will also need to set any DBs you want to access to be non-optimized.
+
 #### Package Manager
 ```powershell
 Install-Package S7PlcRx
