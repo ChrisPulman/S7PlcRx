@@ -809,6 +809,16 @@ public class RxS7 : IRxS7
                                 return Read<ushort[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
                             }
 
+                            if (tag.Type == typeof(short[]))
+                            {
+                                return Read<short[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
+                            }
+
+                            if (tag.Type == typeof(short))
+                            {
+                                return Read<short>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
+                            }
+
                             return Read<ushort>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
 
                         case "DBD":
@@ -873,6 +883,16 @@ public class RxS7 : IRxS7
                         return Read<ushort[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
                     }
 
+                    if (tag.Type == typeof(short[]))
+                    {
+                        return Read<short[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
+                    }
+
+                    if (tag.Type == typeof(short))
+                    {
+                        return Read<short>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
+                    }
+
                     return Read<ushort>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
 
                 case "ED":
@@ -881,6 +901,16 @@ public class RxS7 : IRxS7
                     if (tag.Type == typeof(uint[]))
                     {
                         return Read<uint[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
+                    }
+
+                    if (tag.Type == typeof(int[]))
+                    {
+                        return Read<int[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
+                    }
+
+                    if (tag.Type == typeof(int))
+                    {
+                        return Read<int>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
                     }
 
                     return Read<uint>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
@@ -903,6 +933,16 @@ public class RxS7 : IRxS7
                         return Read<ushort[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
                     }
 
+                    if (tag.Type == typeof(short[]))
+                    {
+                        return Read<short[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
+                    }
+
+                    if (tag.Type == typeof(short))
+                    {
+                        return Read<short>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
+                    }
+
                     return Read<ushort>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
 
                 case "AD":
@@ -911,6 +951,16 @@ public class RxS7 : IRxS7
                     if (tag.Type == typeof(uint[]))
                     {
                         return Read<uint[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
+                    }
+
+                    if (tag.Type == typeof(int[]))
+                    {
+                        return Read<int[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
+                    }
+
+                    if (tag.Type == typeof(int))
+                    {
+                        return Read<int>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
                     }
 
                     return Read<uint>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
@@ -931,6 +981,16 @@ public class RxS7 : IRxS7
                     if (tag.Type == typeof(ushort[]))
                     {
                         return Read<ushort[]>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
+                    }
+
+                    if (tag.Type == typeof(short[]))
+                    {
+                        return Read<short[]>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
+                    }
+
+                    if (tag.Type == typeof(short))
+                    {
+                        return Read<short>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
                     }
 
                     return Read<ushort>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
@@ -985,6 +1045,16 @@ public class RxS7 : IRxS7
                             if (tag.Type == typeof(ushort[]))
                             {
                                 return Read<ushort[]>(tag, DataType.Counter, 0, int.Parse(correctVariable.Substring(2)), VarType.Counter);
+                            }
+
+                            if (tag.Type == typeof(short[]))
+                            {
+                                return Read<short[]>(tag, DataType.Counter, 0, int.Parse(correctVariable.Substring(2)), VarType.Counter);
+                            }
+
+                            if (tag.Type == typeof(short))
+                            {
+                                return Read<short>(tag, DataType.Counter, 0, int.Parse(correctVariable.Substring(2)), VarType.Counter);
                             }
 
                             return Read<ushort>(tag, DataType.Counter, 0, int.Parse(correctVariable.Substring(1)), VarType.Counter);
@@ -1206,6 +1276,7 @@ public class RxS7 : IRxS7
         byte[] package;
         switch (tag.Type.Name)
         {
+            // TODO: fix Bit
             case "Byte":
                 package = new byte[] { (byte)(value ?? Convert.ChangeType(tag.NewValue, typeof(byte)))! };
                 break;
