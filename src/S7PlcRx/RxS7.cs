@@ -804,19 +804,19 @@ public class RxS7 : IRxS7
                             return Read<byte>(tag, DataType.DataBlock, dB, dbIndex, VarType.Byte);
 
                         case "DBW":
-                            if (tag.Type == typeof(ushort[]))
-                            {
-                                return Read<ushort[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
-                            }
-
                             if (tag.Type == typeof(short[]))
                             {
-                                return Read<short[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
+                                return Read<short[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Int);
                             }
 
                             if (tag.Type == typeof(short))
                             {
-                                return Read<short>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
+                                return Read<short>(tag, DataType.DataBlock, dB, dbIndex, VarType.Int);
+                            }
+
+                            if (tag.Type == typeof(ushort[]))
+                            {
+                                return Read<ushort[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
                             }
 
                             return Read<ushort>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
@@ -842,9 +842,19 @@ public class RxS7 : IRxS7
                                 return Read<float[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real);
                             }
 
+                            if (tag.Type == typeof(int))
+                            {
+                                return Read<int>(tag, DataType.DataBlock, dB, dbIndex, VarType.DInt);
+                            }
+
+                            if (tag.Type == typeof(int[]))
+                            {
+                                return Read<int[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.DInt);
+                            }
+
                             if (tag.Type == typeof(uint[]))
                             {
-                                return Read<uint>(tag, DataType.DataBlock, dB, dbIndex, VarType.DWord);
+                                return Read<uint[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.DWord);
                             }
 
                             return Read<uint>(tag, DataType.DataBlock, dB, dbIndex, VarType.DWord);
@@ -1276,7 +1286,7 @@ public class RxS7 : IRxS7
         byte[] package;
         switch (tag.Type.Name)
         {
-            // TODO: fix Bit
+            case "Boolean":
             case "Byte":
                 package = new byte[] { (byte)(value ?? Convert.ChangeType(tag.NewValue, typeof(byte)))! };
                 break;
