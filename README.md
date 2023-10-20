@@ -65,6 +65,20 @@ plc.Observe<double>("Tag1").Subscribe(x => Console.WriteLine($"Tag1: {x}"));
 plc?.GetTag("Tag0")?.SetTagPollIng(true);
 ```
 
+#### SetPolling
+
+Polling is enabled by default when a Tag is added. You can disable and enable polling on a Tag at any time.
+```csharp
+// Create a new Tag and with no Polling
+plc.AddUpdateTagItem<double>("Tag0", "DB500.DBD0").SetTagPollIng(false);
+
+// Set Polling on Tag
+plc?.GetTag("Tag0")?.SetTagPollIng(true);
+
+// Stop Polling on Tag
+plc?.GetTag("Tag0")?.SetTagPollIng(false);
+```
+
 #### Write to PLC
 ```csharp
 plc.Value<double>("Tag0", 1.0);
@@ -72,7 +86,13 @@ plc.Value<double>("Tag0", 1.0);
 
 #### Read PLC CPU Info
 ```csharp
+// Get CPU Info from PLC Async
 var cpuInfo = await plc.CpuInfo();
+
+// Get CPU Info from PLC Reactive
+plc.GetCpuInfo().Subscribe(info =>
+    {
+    });
 ```
 
 This returns a `CpuInfo` string Array with the following values:
@@ -80,15 +100,26 @@ AS Name, Module Name, Copyright, Serial Number, Module Type Name, Order Code, Ve
 
 #### Supported Data Types
 
-- Bool
-- Byte
-- Int
-- DInt
-- Real
-- LReal
-- String
-- Word
-- DWord
+- Bool - DB?.DBX?.?
+- Byte - DB?.DBB?
+- Byte[] - DB?.DBB? set length to number of bytes when creating array tags - example AddUpdateTagItem<byte[]>(PlcData, "DB100.DBB0", 64) - creates a tag with 64 bytes
+- Int - DB?.DBW?
+- Int[] - DB?.DBW?
+- UInt - DB?.DBW?
+- UInt[] - DB?.DBW?
+- DInt - DB?.DBD?
+- DInt[] - DB?.DBD?
+- UDInt - DB?.DBD?
+- UDInt[] - DB?.DBD?
+- Real - DB?.DBD?
+- Real[] - DB?.DBD?
+- LReal - DB?.DBD?
+- LReal[] - DB?.DBD?
+- String - TODO - for the time being use a Byte Array
+- Word - DB?.DBW?
+- Word[] - DB?.DBW?
+- DWord - DB?.DBD?
+- DWord[] - DB?.DBD?
 
 Further types will be added in the future.
 

@@ -20,8 +20,8 @@ internal class S7SocketRx : IDisposable
 {
     private const string Failed = nameof(Failed);
     private const string Success = nameof(Success);
-    private readonly IDisposable _disposable;
     private readonly ISubject<Exception> _socketExceptionSubject = new Subject<Exception>();
+    private IDisposable _disposable;
     private bool _disposedValue;
     private bool _initComplete;
     private bool? _isAvailable;
@@ -202,6 +202,12 @@ internal class S7SocketRx : IDisposable
                     try
                     {
                         _isConnected = _socket.Connected || (_socket.Poll(1000, SelectMode.SelectRead) && _socket.Available == 0);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        _isConnected = false;
+                        _disposable.Dispose();
+                        _disposable = Connect.Subscribe();
                     }
                     catch (Exception ex)
                     {
