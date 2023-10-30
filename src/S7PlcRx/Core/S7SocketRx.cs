@@ -542,7 +542,7 @@ internal class S7SocketRx : IDisposable
                     bSend1[14] = 2;
                     bSend1[17] = 3;
                     bSend1[18] = (byte)((Rack * 2 * 16) + Slot);
-                    DataReadLength = 960;
+                    DataReadLength = 480;
                     break;
 
                 default:
