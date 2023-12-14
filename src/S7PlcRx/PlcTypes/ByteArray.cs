@@ -5,12 +5,12 @@ namespace S7PlcRx.PlcTypes;
 
 internal class ByteArray
 {
-    private List<byte> _list = new();
+    private List<byte> _list;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ByteArray"/> class.
     /// </summary>
-    public ByteArray() => _list = new();
+    public ByteArray() => _list = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ByteArray"/> class.
@@ -45,5 +45,5 @@ internal class ByteArray
     /// <summary>
     /// Clears this instance.
     /// </summary>
-    public void Clear() => _list = new();
+    public void Clear() => _list = [];
 }

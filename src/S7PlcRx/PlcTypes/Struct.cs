@@ -125,13 +125,13 @@ internal static class Struct
                     }
 
                     // Evaluating here
-                    info.SetValue(structValue, LReal.FromByteArray(new byte[]
-                    {
+                    info.SetValue(structValue, LReal.FromByteArray(
+                    [
                         bytes[(int)numBytes],
                         bytes[(int)numBytes + 1],
                         bytes[(int)numBytes + 2],
                         bytes[(int)numBytes + 3]
-                    }));
+                    ]));
                     numBytes += 4;
                     break;
 

@@ -120,7 +120,7 @@ internal static class Class
                     }
 
                     // hier auswerten
-                    property.SetValue(sourceClass, LReal.FromByteArray(new byte[] { bytes[(int)numBytes], bytes[(int)numBytes + 1], bytes[(int)numBytes + 2], bytes[(int)numBytes + 3] }), null);
+                    property.SetValue(sourceClass, LReal.FromByteArray([bytes[(int)numBytes], bytes[(int)numBytes + 1], bytes[(int)numBytes + 2], bytes[(int)numBytes + 3]]), null);
                     numBytes += 4;
                     break;
 

@@ -47,7 +47,7 @@ internal static class DWord
         var counter = 0;
         for (var cnt = 0; cnt < bytes.Length / 4; cnt++)
         {
-            values[cnt] = FromByteArray(new byte[] { bytes[counter++], bytes[counter++], bytes[counter++], bytes[counter++] });
+            values[cnt] = FromByteArray([bytes[counter++], bytes[counter++], bytes[counter++], bytes[counter++]]);
         }
 
         return values;
