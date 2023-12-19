@@ -21,18 +21,18 @@ namespace S7PlcRx;
 public class RxS7 : IRxS7
 {
     private readonly S7SocketRx _socketRx;
-    private readonly ISubject<Tag?> _dataRead = new Subject<Tag?>();
+    private readonly Subject<Tag?> _dataRead = new();
     private readonly CompositeDisposable _disposables = new();
-    private readonly ISubject<string> _lastError = new Subject<string>();
-    private readonly ISubject<ErrorCode> _lastErrorCode = new Subject<ErrorCode>();
-    private readonly ISubject<PLCRequest> _pLCRequestSubject = new Subject<PLCRequest>();
-    private readonly ISubject<string> _status = new Subject<string>();
-    private readonly ISubject<long> _readTime = new Subject<long>();
+    private readonly Subject<string> _lastError = new Subject<string>();
+    private readonly Subject<ErrorCode> _lastErrorCode = new Subject<ErrorCode>();
+    private readonly Subject<PLCRequest> _pLCRequestSubject = new Subject<PLCRequest>();
+    private readonly Subject<string> _status = new Subject<string>();
+    private readonly Subject<long> _readTime = new Subject<long>();
     private readonly SemaphoreSlim _lock = new(1);
     private readonly SemaphoreSlim _lockTagList = new(1);
     private readonly object _socketLock = new();
     private readonly Stopwatch _stopwatch = new();
-    private readonly ISubject<bool> _paused = new Subject<bool>();
+    private readonly Subject<bool> _paused = new Subject<bool>();
     private bool _pause;
 
     /// <summary>
@@ -175,7 +175,7 @@ public class RxS7 : IRxS7
     /// Gets the tag list. A) Name, B) Address, C) Value.
     /// </summary>
     /// <value>The tag list.</value>
-    public Tags TagList { get; } = new();
+    public Tags TagList { get; } = [];
 
     /// <summary>
     /// Gets the watch dog address.
@@ -305,7 +305,7 @@ public class RxS7 : IRxS7
                         $"V2: {orderCode.data[orderCode.size - 2]}", // Version 2
                         $"V3: {orderCode.data[orderCode.size - 1]}", // Version 3
                     };
-                    obs.OnNext(l.ToArray());
+                    obs.OnNext([.. l]);
                     obs.OnCompleted();
                 }
                 else
@@ -417,7 +417,14 @@ public class RxS7 : IRxS7
                 {//// ignored
                 }
 
+                _dataRead?.Dispose();
+                _lastError?.Dispose();
                 _socketRx?.Dispose();
+                _lastErrorCode?.Dispose();
+                _paused?.Dispose();
+                _pLCRequestSubject?.Dispose();
+                _status?.Dispose();
+                _readTime?.Dispose();
             }
 
             IsDisposed = true;
@@ -432,7 +439,7 @@ public class RxS7 : IRxS7
     {
         // single data register = 12
         var package = new ByteArray(12);
-        package.Add(new byte[] { 18, 10, 16 });
+        package.Add([18, 10, 16]);
         switch (dataType)
         {
             case DataType.Timer:
@@ -469,15 +476,15 @@ public class RxS7 : IRxS7
     {
         // header size = 19 bytes
         var package = new ByteArray(19);
-        package.Add(new byte[] { 3, 0, 0 });
+        package.Add([3, 0, 0]);
 
         // complete package size
         package.Add((byte)(19 + (12 * amount)));
-        package.Add(new byte[] { 2, 240, 128, 50, 1, 0, 0, 0, 0 });
+        package.Add([2, 240, 128, 50, 1, 0, 0, 0, 0]);
 
         // data part size
         package.Add(Word.ToByteArray((ushort)(2 + (amount * 12))));
-        package.Add(new byte[] { 0, 0, 4 });
+        package.Add([0, 0, 4]);
 
         // amount of requests
         package.Add((byte)amount);
@@ -551,20 +558,20 @@ public class RxS7 : IRxS7
                 var packageSize = 35 + value.Length;
                 var package = new ByteArray(packageSize);
 
-                package.Add(new byte[] { 3, 0, 0 });
+                package.Add([3, 0, 0]);
                 package.Add((byte)packageSize);
-                package.Add(new byte[] { 2, 240, 128, 50, 1, 0, 0 });
+                package.Add([2, 240, 128, 50, 1, 0, 0]);
                 package.Add(Word.ToByteArray((ushort)(varCount - 1)));
-                package.Add(new byte[] { 0, 14 });
+                package.Add([0, 14]);
                 package.Add(Word.ToByteArray((ushort)(varCount + 4)));
-                package.Add(new byte[] { 5, 1, 18, 10, 16, 2 });
+                package.Add([5, 1, 18, 10, 16, 2]);
                 package.Add(Word.ToByteArray((ushort)varCount));
                 package.Add(Word.ToByteArray((ushort)db));
                 package.Add((byte)dataType);
                 var overflow = (int)(startByteAdr * 8 / 0xffffU); // handles words with address bigger than 8191
                 package.Add((byte)overflow);
                 package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
-                package.Add(new byte[] { 0, 4 });
+                package.Add([0, 4]);
                 package.Add(Word.ToByteArray((ushort)(varCount * 8)));
 
                 // now join the header and the data
@@ -777,7 +784,7 @@ public class RxS7 : IRxS7
             switch (correctVariable!.Substring(0, 2))
             {
                 case "DB":
-                    var strings = correctVariable.Split(new char[] { '.' });
+                    var strings = correctVariable.Split(['.']);
                     if (strings.Length < 2)
                     {
                         throw new Exception();
@@ -1163,7 +1170,7 @@ public class RxS7 : IRxS7
 
             if (bytes == null)
             {
-                return Array.Empty<byte>();
+                return [];
             }
 
             resultBytes.AddRange(bytes);
@@ -1171,7 +1178,7 @@ public class RxS7 : IRxS7
             index += maxToRead;
         }
 
-        return resultBytes.ToArray();
+        return [.. resultBytes];
     }
 
     private IObservable<Unit> TagReaderObservable(double interval) =>
@@ -1211,7 +1218,7 @@ public class RxS7 : IRxS7
                                 catch (Exception ex)
                                 {
                                     _lastError.OnNext(ex.Message);
-                                    _status.OnNext($"{tag.Name} could not be read from {tag.Address}. Error: " + ex.ToString());
+                                    _status.OnNext($"{tag.Name} could not be read from {tag.Address}. Error: " + ex);
                                 }
                             }
 
@@ -1288,7 +1295,7 @@ public class RxS7 : IRxS7
         {
             case "Boolean":
             case "Byte":
-                package = new byte[] { (byte)(value ?? Convert.ChangeType(tag.NewValue, typeof(byte)))! };
+                package = [(byte)(value ?? Convert.ChangeType(tag.NewValue, typeof(byte)))!];
                 break;
 
             case "Int16":
@@ -1303,7 +1310,7 @@ public class RxS7 : IRxS7
 
                 var parsed = ushort.Parse(value.ToString()!);
                 var vOut = BitConverter.GetBytes(parsed);
-                package = new byte[] { vOut[1], vOut[0] };
+                package = [vOut[1], vOut[0]];
                 break;
 
             case "ushort":
@@ -1391,7 +1398,7 @@ public class RxS7 : IRxS7
             {
                 var maxToWrite = Math.Min(bytes.Count, 200);
                 var part = bytes.ToList().GetRange(0, maxToWrite);
-                errCode = WriteBytes(tag, DataType.DataBlock, db, index, part.ToArray());
+                errCode = WriteBytes(tag, DataType.DataBlock, db, index, [.. part]);
                 bytes.RemoveRange(0, maxToWrite);
                 index += maxToWrite;
                 if (!errCode)
@@ -1432,7 +1439,7 @@ public class RxS7 : IRxS7
             switch (tagAddress.Substring(0, 2))
             {
                 case "DB":
-                    var strings = tagAddress.Split(new char[] { '.' });
+                    var strings = tagAddress.Split(['.']);
                     if (strings.Length < 2)
                     {
                         throw new Exception();

@@ -19,7 +19,7 @@ internal static class Real
         if (BitConverter.IsLittleEndian)
         {
             // create deep copy of the array and reverse
-            bytes = new byte[] { bytes[3], bytes[2], bytes[1], bytes[0] };
+            bytes = [bytes[3], bytes[2], bytes[1], bytes[0]];
         }
 
         return BitConverter.ToSingle(bytes, 0);
@@ -39,7 +39,7 @@ internal static class Real
         }
 
         // create deep copy of the array and reverse
-        return new byte[] { bytes[3], bytes[2], bytes[1], bytes[0] };
+        return [bytes[3], bytes[2], bytes[1], bytes[0]];
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ internal static class Real
         var counter = 0;
         for (var cnt = 0; cnt < bytes.Length / 4; cnt++)
         {
-            values[cnt] = FromByteArray(new byte[] { bytes[counter++], bytes[counter++], bytes[counter++], bytes[counter++] });
+            values[cnt] = FromByteArray([bytes[counter++], bytes[counter++], bytes[counter++], bytes[counter++]]);
         }
 
         return values;

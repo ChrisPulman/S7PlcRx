@@ -20,7 +20,7 @@ internal class S7SocketRx : IDisposable
 {
     private const string Failed = nameof(Failed);
     private const string Success = nameof(Success);
-    private readonly ISubject<Exception> _socketExceptionSubject = new Subject<Exception>();
+    private readonly Subject<Exception> _socketExceptionSubject = new();
     private IDisposable _disposable;
     private bool _disposedValue;
     private bool _initComplete;
@@ -328,8 +328,8 @@ internal class S7SocketRx : IDisposable
     internal (byte[] data, ushort size) GetSZLData(ushort szlArea, ushort index = 0)
     {
         ////               0, 1, 2, 3 , 4, 5,   6,   7,  8, 9, 10,11,12,13,14,15,16,17,18,19, 20,21, 22, 23,24,25,  26,27,28,29,30,31,32
-        byte[] s7_SZL1 = { 3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 5, 0, 0, 8, 0, 8, 0, 1, 18, 4, 17, 68, 1, 0, 255, 9, 0, 4, 0, 0, 0, 0 };
-        byte[] s7_SZL2 = { 3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 6, 0, 0, 12, 0, 4, 0, 1, 18, 8, 18, 68, 1, 1, 0, 0, 0, 0, 10, 0, 0, 0 };
+        byte[] s7_SZL1 = [3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 5, 0, 0, 8, 0, 8, 0, 1, 18, 4, 17, 68, 1, 0, 255, 9, 0, 4, 0, 0, 0, 0];
+        byte[] s7_SZL2 = [3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 6, 0, 0, 12, 0, 4, 0, 1, 18, 8, 18, 68, 1, 1, 0, 0, 0, 0, 10, 0, 0, 0];
         const int size = 1024;
         var data = new byte[size];
         var resultData = new byte[size];
@@ -480,9 +480,15 @@ internal class S7SocketRx : IDisposable
     {
         if (socket?.Connected == true)
         {
-            socket.Shutdown(SocketShutdown.Both);
-            socket.Close();
-            socket.Dispose();
+            try
+            {
+                socket.Shutdown(SocketShutdown.Both);
+                socket.Close();
+                socket.Dispose();
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -507,7 +513,7 @@ internal class S7SocketRx : IDisposable
             }
 
             ////            //0  1  2  3   4   5    6  7  8  9   10 11   12 13 14 15   16 17 18 19   20 21//
-            byte[] bSend1 = { 3, 0, 0, 22, 17, 224, 0, 0, 0, 46, 0, 193, 2, 1, 0, 194, 2, 3, 0, 192, 1, 9 };
+            byte[] bSend1 = [3, 0, 0, 22, 17, 224, 0, 0, 0, 46, 0, 193, 2, 1, 0, 194, 2, 3, 0, 192, 1, 9];
 
             switch (PLCType)
             {
@@ -558,7 +564,7 @@ internal class S7SocketRx : IDisposable
             }
 
             ////              1  2  3  4   5  6    7    8   9  10 11 12 13 14 15 16 17 18   19 20 21 22 23 24 25//
-            byte[] bsend2 = { 3, 0, 0, 25, 2, 240, 128, 50, 1, 0, 0, 4, 0, 0, 8, 0, 0, 240, 0, 0, 1, 0, 1, 0, 30 };
+            byte[] bsend2 = [3, 0, 0, 25, 2, 240, 128, 50, 1, 0, 0, 4, 0, 0, 8, 0, 0, 240, 0, 0, 1, 0, 1, 0, 30];
 
             // (23,24) PDU Length Requested = HI-LO Here Default 480 bytes
             Word.ToByteArray(DataReadLength, bsend2, 23);
