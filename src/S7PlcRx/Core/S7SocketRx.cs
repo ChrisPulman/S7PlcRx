@@ -20,7 +20,7 @@ internal class S7SocketRx : IDisposable
 {
     private const string Failed = nameof(Failed);
     private const string Success = nameof(Success);
-    private readonly ISubject<Exception> _socketExceptionSubject = new Subject<Exception>();
+    private readonly Subject<Exception> _socketExceptionSubject = new();
     private IDisposable _disposable;
     private bool _disposedValue;
     private bool _initComplete;
@@ -480,9 +480,15 @@ internal class S7SocketRx : IDisposable
     {
         if (socket?.Connected == true)
         {
-            socket.Shutdown(SocketShutdown.Both);
-            socket.Close();
-            socket.Dispose();
+            try
+            {
+                socket.Shutdown(SocketShutdown.Both);
+                socket.Close();
+                socket.Dispose();
+            }
+            catch
+            {
+            }
         }
     }
 
