@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
-using System.Runtime.Serialization;
 
 namespace S7PlcRx;
 
@@ -17,22 +16,6 @@ public class Tags : Hashtable
     /// Initializes a new instance of the <see cref="Tags"/> class.
     /// </summary>
     public Tags()
-    {
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Tags"/> class.
-    /// </summary>
-    /// <param name="info">
-    /// A <see cref="SerializationInfo"/> object containing the
-    /// information required to serialize the <see cref="Hashtable"/> object.
-    /// </param>
-    /// <param name="context">
-    /// A <see cref="StreamingContext"/> object containing the
-    /// source and destination of the serialized stream associated with the <see cref="Hashtable"/>.
-    /// </param>
-    protected Tags(SerializationInfo info, StreamingContext context)
-        : base(info, context)
     {
     }
 

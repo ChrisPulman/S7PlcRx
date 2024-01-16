@@ -126,10 +126,10 @@ public interface IRxS7 : ICancelable
     ushort WatchDogValueToWrite { get; set; }
 
     /// <summary>
-    /// Gets or sets the watch dog writing time. (Sec).
+    /// Gets the watch dog writing time. (Sec).
     /// </summary>
     /// <value>The watch dog writing time. (Sec).</value>
-    int WatchDogWritingTime { get; set; }
+    int WatchDogWritingTime { get; }
 
     /// <summary>
     /// Gets the read time.

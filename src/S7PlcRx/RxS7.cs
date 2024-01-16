@@ -22,17 +22,17 @@ public class RxS7 : IRxS7
 {
     private readonly S7SocketRx _socketRx;
     private readonly Subject<Tag?> _dataRead = new();
-    private readonly CompositeDisposable _disposables = new();
-    private readonly Subject<string> _lastError = new Subject<string>();
-    private readonly Subject<ErrorCode> _lastErrorCode = new Subject<ErrorCode>();
-    private readonly Subject<PLCRequest> _pLCRequestSubject = new Subject<PLCRequest>();
-    private readonly Subject<string> _status = new Subject<string>();
-    private readonly Subject<long> _readTime = new Subject<long>();
+    private readonly CompositeDisposable _disposables = [];
+    private readonly Subject<string> _lastError = new();
+    private readonly Subject<ErrorCode> _lastErrorCode = new();
+    private readonly Subject<PLCRequest> _pLCRequestSubject = new();
+    private readonly Subject<string> _status = new();
+    private readonly Subject<long> _readTime = new();
     private readonly SemaphoreSlim _lock = new(1);
     private readonly SemaphoreSlim _lockTagList = new(1);
     private readonly object _socketLock = new();
     private readonly Stopwatch _stopwatch = new();
-    private readonly Subject<bool> _paused = new Subject<bool>();
+    private readonly Subject<bool> _paused = new();
     private bool _pause;
 
     /// <summary>
@@ -44,7 +44,9 @@ public class RxS7 : IRxS7
     /// <param name="slot">The slot.</param>
     /// <param name="watchDogAddress">The watch dog address.</param>
     /// <param name="interval">The interval to observe on.</param>
-    public RxS7(CpuType type, string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100)
+    /// <param name="watchDogValueToWrite">The watch dog value to write.</param>
+    /// <param name="watchDogInterval">The watch dog interval.</param>
+    public RxS7(CpuType type, string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 10)
     {
         PLCType = type;
         IP = ip;
@@ -66,6 +68,8 @@ public class RxS7 : IRxS7
 
         if (!string.IsNullOrWhiteSpace(watchDogAddress))
         {
+            WatchDogWritingTime = watchDogInterval;
+            WatchDogValueToWrite = watchDogValueToWrite;
             _disposables.Add(WatchDogObservable().Subscribe());
         }
 
@@ -190,10 +194,10 @@ public class RxS7 : IRxS7
     public ushort WatchDogValueToWrite { get; set; } = 4500;
 
     /// <summary>
-    /// Gets or sets the watch dog writing time. (Seconds).
+    /// Gets the watch dog writing time. (Seconds).
     /// </summary>
     /// <value>The watch dog writing time. (Seconds).</value>
-    public int WatchDogWritingTime { get; set; } = 10;
+    public int WatchDogWritingTime { get; } = 10;
 
     /// <summary>
     /// Gets a value indicating whether gets a value that indicates whether the object is disposed.
@@ -1086,8 +1090,8 @@ public class RxS7 : IRxS7
                         throw new Exception();
                     }
 
-                    mByte = int.Parse(txt2.Substring(0, txt2.IndexOf(".")));
-                    mBit = int.Parse(txt2.Substring(txt2.IndexOf(".") + 1));
+                    mByte = int.Parse(txt2.Substring(0, txt2.IndexOf('.')));
+                    mBit = int.Parse(txt2.Substring(txt2.IndexOf('.') + 1));
                     if (mBit > 7)
                     {
                         throw new Exception();
@@ -1535,7 +1539,7 @@ public class RxS7 : IRxS7
                     }
 
                     addressLocation = tagAddress.Substring(1);
-                    var decimalPointIndex = addressLocation.IndexOf(".");
+                    var decimalPointIndex = addressLocation.IndexOf('.');
                     if (decimalPointIndex == -1)
                     {
                         throw new Exception(string.Format("Cannot parse variable {0}. Input, Output, Memory Address, Timer, and Counter types require bit-level addressing (e.g. I0.1).", addressLocation));
