@@ -35,14 +35,4 @@ public class S7Exception : Exception
         : base(message, innerException)
     {
     }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="S7Exception"/> class.
-    /// </summary>
-    /// <param name="serializationInfo">The serialization information.</param>
-    /// <param name="streamingContext">The streaming context.</param>
-    protected S7Exception(System.Runtime.Serialization.SerializationInfo serializationInfo, System.Runtime.Serialization.StreamingContext streamingContext)
-        : base(serializationInfo, streamingContext)
-    {
-    }
 }
