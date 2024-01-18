@@ -1290,14 +1290,10 @@ public class RxS7 : IRxS7
     /// <param name="startByteAdr">
     /// Start byte address. If you want to read DB1.DBW200, this is 200.
     /// </param>
-    /// <param name="value">
-    /// Bytes to write. The length of this parameter can't be higher than 200. If you need more,
-    /// use recursion.
-    /// </param>
     /// <returns>NoError if it was successful, or the error is specified.</returns>
-    private bool Write(Tag tag, DataType dataType, int db, int startByteAdr, object? value = null)
+    private bool Write(Tag tag, DataType dataType, int db, int startByteAdr)
     {
-        if (tag.NewValue == null && value == null)
+        if (tag.NewValue == null)
         {
             return false;
         }
@@ -1307,32 +1303,25 @@ public class RxS7 : IRxS7
         {
             case "Boolean":
             case "Byte":
-                package = [(byte)(value ?? Convert.ChangeType(tag.NewValue, typeof(byte)))!];
+                package = [(byte)Convert.ChangeType(tag.NewValue, typeof(byte))!];
                 break;
 
             case "Int16":
+            case "short":
                 package = Int.ToByteArray((short)tag.NewValue!);
                 break;
 
             case "UInt16":
-                if (value == null)
-                {
-                    return false;
-                }
-
-                var parsed = ushort.Parse(value.ToString()!);
-                var vOut = BitConverter.GetBytes(parsed);
-                package = [vOut[1], vOut[0]];
-                break;
-
             case "ushort":
                 package = Word.ToByteArray((ushort)Convert.ChangeType(tag.NewValue, typeof(ushort))!);
                 break;
 
             case "Int32":
+            case "int":
                 package = DInt.ToByteArray((int)tag.NewValue!);
                 break;
 
+            case "UInt32":
             case "uint":
                 package = DWord.ToByteArray((uint)Convert.ChangeType(tag.NewValue, typeof(uint))!);
                 break;
@@ -1346,31 +1335,25 @@ public class RxS7 : IRxS7
                 break;
 
             case "Byte[]":
-                if (value == null)
-                {
-                    return false;
-                }
-
-                package = (byte[])value;
+                package = (byte[])tag.NewValue;
                 break;
 
             case "Int16[]":
+            case "short[]":
                 package = Int.ToByteArray((short[])tag.NewValue!);
                 break;
 
+            case "UInt16[]":
             case "ushort[]":
-                if (value == null)
-                {
-                    return false;
-                }
-
-                package = Word.ToByteArray((ushort[])value);
+                package = Word.ToByteArray((ushort[])tag.NewValue);
                 break;
 
             case "Int32[]":
+            case "int[]":
                 package = DInt.ToByteArray((int[])tag.NewValue!);
                 break;
 
+            case "UInt32[]":
             case "uint[]":
                 package = DWord.ToByteArray((uint[])Convert.ChangeType(tag.NewValue, typeof(uint[]))!);
                 break;
@@ -1384,11 +1367,6 @@ public class RxS7 : IRxS7
                 break;
 
             case "String":
-                if (value == null)
-                {
-                    return false;
-                }
-
                 package = PlcTypes.String.ToByteArray(tag.NewValue! as string);
                 break;
 
@@ -1487,7 +1465,9 @@ public class RxS7 : IRxS7
                                 b = (byte)(b & (b ^ (byte)Math.Pow(2, mBit))); // reset bit
                             }
 
-                            return Write(tag, DataType.DataBlock, mDB, mByte, b);
+                            tag.NewValue = b;
+
+                            return Write(tag, DataType.DataBlock, mDB, mByte);
 
                         default:
                             throw new Exception(string.Format("Addressing Error: Unable to parse address {0}. Supported formats include DBB (BYTE), DBW (WORD), DBD (DWORD), DBX (BITWISE), DBS (STRING).", dbType));
@@ -1590,7 +1570,8 @@ public class RxS7 : IRxS7
                         }
                     }
 
-                    return Write(tag, mDataType, 0, mByte, @byte);
+                    tag.NewValue = @byte;
+                    return Write(tag, mDataType, 0, mByte);
             }
         }
         catch (Exception exc)
