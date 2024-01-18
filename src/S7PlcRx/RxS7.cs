@@ -42,17 +42,16 @@ public class RxS7 : IRxS7
     /// <param name="ip">The ip.</param>
     /// <param name="rack">The rack.</param>
     /// <param name="slot">The slot.</param>
-    /// <param name="watchDogAddress">The watch dog address.</param>
-    /// <param name="interval">The interval to observe on.</param>
+    /// <param name="watchDogAddress">The watch dog address, WatchDogAddress must be a DBW address.</param>
+    /// <param name="interval">The interval to observe on in milliseconds.</param>
     /// <param name="watchDogValueToWrite">The watch dog value to write.</param>
-    /// <param name="watchDogInterval">The watch dog interval.</param>
+    /// <param name="watchDogInterval">The watch dog interval in seconds.</param>
     public RxS7(CpuType type, string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 10)
     {
         PLCType = type;
         IP = ip;
         Rack = rack;
         Slot = slot;
-        WatchDogAddress = watchDogAddress!;
 
         // Create an observable socket
         _socketRx = new(IP, type, rack, slot);
@@ -68,6 +67,17 @@ public class RxS7 : IRxS7
 
         if (!string.IsNullOrWhiteSpace(watchDogAddress))
         {
+            if (!watchDogAddress.Contains("DBW"))
+            {
+                throw new ArgumentException("WatchDogAddress must be a DBW address.", nameof(watchDogAddress));
+            }
+
+            WatchDogAddress = watchDogAddress;
+            if (watchDogInterval < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(watchDogInterval), "WatchDogInterval must be greater than 0.");
+            }
+
             WatchDogWritingTime = watchDogInterval;
             WatchDogValueToWrite = watchDogValueToWrite;
             _disposables.Add(WatchDogObservable().Subscribe());
@@ -185,7 +195,7 @@ public class RxS7 : IRxS7
     /// Gets the watch dog address.
     /// </summary>
     /// <value>The watch dog address.</value>
-    public string WatchDogAddress { get; }
+    public string? WatchDogAddress { get; }
 
     /// <summary>
     /// Gets or sets the watch dog value to write.
@@ -1242,22 +1252,20 @@ public class RxS7 : IRxS7
             {
                 // disable watchdog if not defined
                 obs.OnCompleted();
-                return Task.CompletedTask;
+                return Disposable.Empty;
             }
 
             // Setup the watchdog
-            var wd = new Tag("WatchDog", WatchDogAddress, WatchDogValueToWrite, typeof(ushort));
+            this.AddUpdateTagItem<ushort>("WatchDog", WatchDogAddress).SetTagPollIng(false);
 
-            AddUpdateTagItem(wd);
             var tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(WatchDogWritingTime)).Retry().Subscribe(_ =>
             {
                 if (IsConnectedValue)
                 {
-                    wd.Value = WatchDogValueToWrite;
-                    _pLCRequestSubject.OnNext(new PLCRequest(PLCRequestType.Write, wd));
+                    Value("WatchDog", WatchDogValueToWrite);
                     if (ShowWatchDogWriting)
                     {
-                        _status.OnNext($"{DateTime.Now} - Watch Dog writing {wd.Value} to {wd.Address}");
+                        _status.OnNext($"{DateTime.Now} - WatchDog writing {WatchDogValueToWrite} to {WatchDogAddress}");
                     }
                 }
             });
