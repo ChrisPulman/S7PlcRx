@@ -117,7 +117,7 @@ public interface IRxS7 : ICancelable
     /// Gets the watch dog address.
     /// </summary>
     /// <value>The watch dog address.</value>
-    string WatchDogAddress { get; }
+    string? WatchDogAddress { get; }
 
     /// <summary>
     /// Gets or sets the watch dog value to write.
