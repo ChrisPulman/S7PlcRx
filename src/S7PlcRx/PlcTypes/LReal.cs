@@ -26,44 +26,20 @@ internal static class LReal
     /// <exception cref="System.ArgumentNullException">bytes.</exception>
     public static double FromByteArray(byte[] bytes, int start)
     {
-        if (bytes == null)
+        if (bytes.Length != 8)
         {
-            throw new ArgumentNullException(nameof(bytes));
+            throw new ArgumentException("Wrong number of bytes. Bytes array must contain 8 bytes.");
         }
 
-        var v1 = bytes[start];
-        var v2 = bytes[start + 1];
-        var v3 = bytes[start + 2];
-        var v4 = bytes[start + 3];
+        var buffer = bytes;
 
-        if (v1 + v2 + v3 + v4 == 0)
+        // sps uses bigending so we have to reverse if platform needs
+        if (BitConverter.IsLittleEndian)
         {
-            return 0d;
+            Array.Reverse(buffer);
         }
 
-        // form the string
-        var txt = ValToBinString(v1) + ValToBinString(v2) + ValToBinString(v3) + ValToBinString(v4);
-
-        // first sign
-        var vz = int.Parse(txt.Substring(0, 1));
-        var exd = txt.Substring(1, 8).BinStringToInt32();
-        var ma = txt.Substring(9, 23);
-        var mantisse = 1d;
-        var faktor = 1d;
-
-        // All which is the number of the
-        for (var cnt = 0; cnt <= 22; cnt++)
-        {
-            faktor /= 2.0;
-
-            // corresponds to 2^-y
-            if (ma.Substring(cnt, 1) == "1")
-            {
-                mantisse += faktor;
-            }
-        }
-
-        return Math.Pow(-1, vz) * Math.Pow(2, exd - 127) * mantisse;
+        return BitConverter.ToDouble(buffer, start);
     }
 
     /// <summary>
@@ -71,42 +47,21 @@ internal static class LReal
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A double.</returns>
-    public static double FromDWord(int value)
-    {
-        var b = DInt.ToByteArray(value);
-        return (double)FromByteArray(b);
-    }
+    public static double FromDWord(int value) => FromByteArray(DInt.ToByteArray(value));
 
     /// <summary>
     /// Froms the d word.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A double.</returns>
-    public static double FromDWord(uint value)
-    {
-        var b = DWord.ToByteArray(value);
-        var d = FromByteArray(b);
-        return d;
-    }
+    public static double FromDWord(uint value) => FromByteArray(DWord.ToByteArray(value));
 
     /// <summary>
     /// To the array.
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A double.</returns>
-    public static double[] ToArray(byte[] bytes)
-    {
-        var length = bytes?.Length;
-        var values = new double[length!.Value / 4];
-
-        var counter = 0;
-        for (var cnt = 0; cnt < bytes!.Length / 4; cnt++)
-        {
-            values[cnt] = FromByteArray([bytes[counter++], bytes[counter++], bytes[counter++], bytes[counter++]]);
-        }
-
-        return values;
-    }
+    public static double[] ToArray(byte[] bytes) => TypeConverter.ToArray(bytes, FromByteArray);
 
     /// <summary>
     /// To the byte array.
@@ -115,48 +70,12 @@ internal static class LReal
     /// <returns>A byte.</returns>
     public static byte[] ToByteArray(double value)
     {
-        var bytes = new byte[4];
-        if (value != 0f)
+        var bytes = BitConverter.GetBytes(value);
+
+        // sps uses big endian so we have to check if platform is same
+        if (BitConverter.IsLittleEndian)
         {
-            string binString;
-            if (value < 0)
-            {
-                value *= -1;
-                binString = "1";
-            }
-            else
-            {
-                binString = "0";
-            }
-
-            var exponent = (int)Math.Floor((double)Math.Log(value) / Math.Log(2.0));
-            value = (value / Math.Pow(2, exponent)) - 1;
-
-            binString += ValToBinString((byte)(exponent + 127));
-            for (var cnt = 1; cnt <= 23; cnt++)
-            {
-                if (!(value - Math.Pow(2, -cnt) < 0))
-                {
-                    value -= Math.Pow(2, -cnt);
-                    binString += "1";
-                }
-                else
-                {
-                    binString += "0";
-                }
-            }
-
-            bytes[0] = (byte)BinStringToByte(binString.Substring(0, 8))!;
-            bytes[1] = (byte)BinStringToByte(binString.Substring(8, 8))!;
-            bytes[2] = (byte)BinStringToByte(binString.Substring(16, 8))!;
-            bytes[3] = (byte)BinStringToByte(binString.Substring(24, 8))!;
-        }
-        else
-        {
-            bytes[0] = 0;
-            bytes[1] = 0;
-            bytes[2] = 0;
-            bytes[3] = 0;
+            Array.Reverse(bytes);
         }
 
         return bytes;
@@ -167,55 +86,5 @@ internal static class LReal
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte.</returns>
-    public static byte[] ToByteArray(double[] value)
-    {
-        var arr = new ByteArray();
-        for (var i = 0; i < value?.Length; i++)
-        {
-            var val = value[i];
-            arr.Add(ToByteArray(val));
-        }
-
-        return arr.Array;
-    }
-
-    private static byte? BinStringToByte(string txt)
-    {
-        var ret = 0;
-
-        if (txt.Length == 8)
-        {
-            int cnt;
-            for (cnt = 7; cnt >= 0; cnt += -1)
-            {
-                if (int.Parse(txt.Substring(cnt, 1)) == 1)
-                {
-                    ret += (int)Math.Pow(2, txt.Length - 1 - cnt);
-                }
-            }
-
-            return (byte)ret;
-        }
-
-        return null;
-    }
-
-    private static string ValToBinString(byte value)
-    {
-        var txt = string.Empty;
-
-        for (var cnt = 7; cnt >= 0; cnt += -1)
-        {
-            if ((value & (byte)Math.Pow(2, cnt)) > 0)
-            {
-                txt += "1";
-            }
-            else
-            {
-                txt += "0";
-            }
-        }
-
-        return txt;
-    }
+    public static byte[] ToByteArray(double[] value) => TypeConverter.ToByteArray(value, ToByteArray);
 }

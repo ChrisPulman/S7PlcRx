@@ -53,54 +53,19 @@ internal static class Int
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A short.</returns>
-    public static short[] ToArray(byte[] bytes)
-    {
-        var values = new short[bytes.Length / 2];
-
-        var counter = 0;
-        for (var cnt = 0; cnt < bytes.Length / 2; cnt++)
-        {
-            values[cnt] = FromByteArray([bytes[counter++], bytes[counter++]]);
-        }
-
-        return values;
-    }
+    public static short[] ToArray(byte[] bytes) => TypeConverter.ToArray(bytes, FromByteArray);
 
     /// <summary>
     /// To the byte array.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte array.</returns>
-    public static byte[] ToByteArray(short value)
-    {
-        var bytes = new byte[2];
-        const int x = 2;
-        long valLong = value;
-        for (var cnt = 0; cnt < x; cnt++)
-        {
-            var x1 = (long)Math.Pow(256, cnt);
-
-            var x3 = valLong / x1;
-            bytes[x - cnt - 1] = (byte)(x3 & 255);
-            valLong -= bytes[x - cnt - 1] * x1;
-        }
-
-        return bytes;
-    }
+    public static byte[] ToByteArray(short value) => [(byte)((value >> 8) & 255), (byte)(value & 255)];
 
     /// <summary>
     /// To the byte array.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte array.</returns>
-    public static byte[] ToByteArray(short[] value)
-    {
-        var arr = new ByteArray();
-        foreach (var val in value)
-        {
-            arr.Add(ToByteArray(val));
-        }
-
-        return arr.Array;
-    }
+    public static byte[] ToByteArray(short[] value) => TypeConverter.ToByteArray(value, ToByteArray);
 }

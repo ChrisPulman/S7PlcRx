@@ -36,18 +36,7 @@ internal static class Word
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A ushort array.</returns>
-    public static ushort[] ToArray(byte[] bytes)
-    {
-        var values = new ushort[bytes.Length / 2];
-
-        var counter = 0;
-        for (var cnt = 0; cnt < bytes.Length / 2; cnt++)
-        {
-            values[cnt] = FromByteArray([bytes[counter++], bytes[counter++]]);
-        }
-
-        return values;
-    }
+    public static ushort[] ToArray(byte[] bytes) => TypeConverter.ToArray(bytes, FromByteArray);
 
     /// <summary>
     /// To the byte array.
@@ -85,14 +74,5 @@ internal static class Word
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte array.</returns>
-    public static byte[] ToByteArray(ushort[] value)
-    {
-        var arr = new ByteArray();
-        foreach (var val in value)
-        {
-            arr.Add(ToByteArray(val));
-        }
-
-        return arr.Array;
-    }
+    public static byte[] ToByteArray(ushort[] value) => TypeConverter.ToByteArray(value, ToByteArray);
 }
