@@ -55,54 +55,24 @@ internal static class DInt
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>int array.</returns>
-    public static int[] ToArray(byte[] bytes)
-    {
-        var values = new int[bytes.Length / 4];
-
-        var counter = 0;
-        for (var cnt = 0; cnt < bytes.Length / 4; cnt++)
-        {
-            values[cnt] = FromByteArray([bytes[counter++], bytes[counter++], bytes[counter++], bytes[counter++]]);
-        }
-
-        return values;
-    }
+    public static int[] ToArray(byte[] bytes) => TypeConverter.ToArray(bytes, FromByteArray);
 
     /// <summary>
     /// To the byte array.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte array.</returns>
-    public static byte[] ToByteArray(int value)
-    {
-        var bytes = new byte[4];
-        const int x = 4;
-        long valLong = value;
-        for (var cnt = 0; cnt < x; cnt++)
-        {
-            var x1 = (long)Math.Pow(256, cnt);
-
-            var x3 = valLong / x1;
-            bytes[x - cnt - 1] = (byte)(x3 & 255);
-            valLong -= bytes[x - cnt - 1] * x1;
-        }
-
-        return bytes;
-    }
+    public static byte[] ToByteArray(int value) => [
+            (byte)((value >> 24) & 255),
+            (byte)((value >> 16) & 255),
+            (byte)((value >> 8) & 255),
+            (byte)(value & 255),
+    ];
 
     /// <summary>
     /// To the byte array.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte array.</returns>
-    public static byte[] ToByteArray(int[] value)
-    {
-        var arr = new ByteArray();
-        foreach (var val in value)
-        {
-            arr.Add(ToByteArray(val));
-        }
-
-        return arr.Array;
-    }
+    public static byte[] ToByteArray(int[] value) => TypeConverter.ToByteArray(value, ToByteArray);
 }

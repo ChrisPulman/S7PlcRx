@@ -40,48 +40,24 @@ internal static class DWord
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A uint array.</returns>
-    public static uint[] ToArray(byte[] bytes)
-    {
-        var values = new uint[bytes.Length / 4];
-
-        var counter = 0;
-        for (var cnt = 0; cnt < bytes.Length / 4; cnt++)
-        {
-            values[cnt] = FromByteArray([bytes[counter++], bytes[counter++], bytes[counter++], bytes[counter++]]);
-        }
-
-        return values;
-    }
+    public static uint[] ToArray(byte[] bytes) => TypeConverter.ToArray(bytes, FromByteArray);
 
     /// <summary>
     /// To the byte array.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte array.</returns>
-    public static byte[] ToByteArray(uint value)
-    {
-        var bytes = new byte[4];
-        bytes[0] = (byte)((value >> 24) & 0xFF);
-        bytes[1] = (byte)((value >> 16) & 0xFF);
-        bytes[2] = (byte)((value >> 8) & 0xFF);
-        bytes[3] = (byte)(value & 0xFF);
-
-        return bytes;
-    }
+    public static byte[] ToByteArray(uint value) => [
+            (byte)((value >> 24) & 0xFF),
+            (byte)((value >> 16) & 0xFF),
+            (byte)((value >> 8) & 0xFF),
+            (byte)(value & 0xFF),
+    ];
 
     /// <summary>
     /// To the byte array.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte array.</returns>
-    public static byte[] ToByteArray(uint[] value)
-    {
-        var arr = new ByteArray();
-        foreach (var val in value)
-        {
-            arr.Add(ToByteArray(val));
-        }
-
-        return arr.Array;
-    }
+    public static byte[] ToByteArray(uint[] value) => TypeConverter.ToByteArray(value, ToByteArray);
 }
