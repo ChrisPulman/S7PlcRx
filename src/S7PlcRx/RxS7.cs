@@ -11,13 +11,15 @@ using System.Reactive.Subjects;
 using S7PlcRx.Core;
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
+using DateTime = System.DateTime;
+using TimeSpan = System.TimeSpan;
 
 namespace S7PlcRx;
 
 /// <summary>
 /// Rx S7.
 /// </summary>
-/// <seealso cref="S7PlcRx.IRxS7" />
+/// <seealso cref="IRxS7" />
 public class RxS7 : IRxS7
 {
     private readonly S7SocketRx _socketRx;
@@ -354,8 +356,9 @@ public class RxS7 : IRxS7
             return false;
         }
 
-        var bytes = Class.ToBytes(classValue).ToList();
-        return WriteMultipleBytes(tag, bytes, db, startByteAdr);
+        var bytes = new byte[(int)Class.GetClassSize(classValue)];
+        Class.ToBytes(classValue, bytes);
+        return WriteMultipleBytes(tag, [.. bytes], db, startByteAdr);
     }
 
     /// <summary>
@@ -1166,33 +1169,40 @@ public class RxS7 : IRxS7
 
     private byte[] ReadMultipleBytes(Tag tag, DataType dataType, int db, int startByteAdr, int numBytes)
     {
-        var resultBytes = new List<byte>();
-        var index = startByteAdr;
-        while (numBytes > 0)
+        try
         {
-            // Allow 32 bytes for the header
-            var maxToRead = Math.Min(numBytes, _socketRx.DataReadLength - 32);
-            var bytes = default(byte[]);
-            for (var i = 0; i < 3; i++)
+            var resultBytes = new List<byte>();
+            var index = startByteAdr;
+            while (numBytes > 0)
             {
-                bytes = ReadBytes(tag, dataType, db, index, maxToRead);
-                if (bytes != null)
+                // Allow 32 bytes for the header
+                var maxToRead = Math.Min(numBytes, _socketRx.DataReadLength - 32);
+                var bytes = default(byte[]);
+                for (var i = 0; i < 3; i++)
                 {
-                    break;
+                    bytes = ReadBytes(tag, dataType, db, index, maxToRead);
+                    if (bytes != null)
+                    {
+                        break;
+                    }
                 }
+
+                if (bytes == null)
+                {
+                    return [];
+                }
+
+                resultBytes.AddRange(bytes);
+                numBytes -= maxToRead;
+                index += maxToRead;
             }
 
-            if (bytes == null)
-            {
-                return [];
-            }
-
-            resultBytes.AddRange(bytes);
-            numBytes -= maxToRead;
-            index += maxToRead;
+            return [.. resultBytes];
         }
-
-        return [.. resultBytes];
+        catch
+        {
+            return [];
+        }
     }
 
     private IObservable<Unit> TagReaderObservable(double interval) =>

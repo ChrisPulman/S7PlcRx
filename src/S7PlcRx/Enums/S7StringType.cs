@@ -1,16 +1,20 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace S7PlcRx;
+namespace S7PlcRx.Enums;
 
 /// <summary>
-/// ITag.
+/// String type.
 /// </summary>
-public interface ITag
+public enum S7StringType
 {
     /// <summary>
-    /// Sets the do not poll.
+    /// ASCII string.
     /// </summary>
-    /// <param name="value">if set to <c>true</c> [value].</param>
-    void SetDoNotPoll(bool value);
+    S7String = VarType.S7String,
+
+    /// <summary>
+    /// Unicode string.
+    /// </summary>
+    S7WString = VarType.S7WString
 }

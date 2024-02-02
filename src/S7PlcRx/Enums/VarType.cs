@@ -54,6 +54,16 @@ internal enum VarType
     String,
 
     /// <summary>
+    /// S7 String variable type (variable).
+    /// </summary>
+    S7String,
+
+    /// <summary>
+    /// S7 WString variable type (variable).
+    /// </summary>
+    S7WString,
+
+    /// <summary>
     /// The timer.
     /// </summary>
     Timer,
@@ -62,4 +72,24 @@ internal enum VarType
     /// The counter.
     /// </summary>
     Counter,
+
+    /// <summary>
+    /// DateTIme variable type.
+    /// </summary>
+    DateTime,
+
+    /// <summary>
+    /// IEC date (legacy) variable type.
+    /// </summary>
+    Date,
+
+    /// <summary>
+    /// DateTimeLong variable type.
+    /// </summary>
+    DateTimeLong,
+
+    /// <summary>
+    /// S7 TIME variable type - serialized as S7 DInt and deserialized as C# TimeSpan.
+    /// </summary>
+    Time
 }
