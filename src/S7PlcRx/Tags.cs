@@ -108,13 +108,7 @@ public class Tags : Hashtable
     public Tags GetTags()
     {
         var tags = new Tags();
-        foreach (var value in Values)
-        {
-            if (value is Tag tag && tag.Value != null)
-            {
-                tags.Add(tag.Name!, tag);
-            }
-        }
+        tags.AddRange(ToList().Where(x => x.Value != null));
 
         return tags;
     }
@@ -123,14 +117,5 @@ public class Tags : Hashtable
     /// Gets the tag list.
     /// </summary>
     /// <returns>An IEnumerable of Tag.</returns>
-    public IEnumerable<Tag> ToList()
-    {
-        foreach (var value in Values)
-        {
-            if (value is Tag tag)
-            {
-                yield return tag;
-            }
-        }
-    }
+    public List<Tag> ToList() => Values.OfType<Tag>().ToList();
 }

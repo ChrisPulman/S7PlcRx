@@ -4,16 +4,24 @@
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// ///.
+/// Counter.
 /// </summary>
-internal static class Counter
+public static class Counter
 {
     /// <summary>
     /// From the byte array. bytes[0] -&gt; HighByte, bytes[1] -&gt; LowByte.
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A ushort.</returns>
-    public static ushort FromByteArray(byte[] bytes) => FromBytes(bytes[1], bytes[0]);
+    public static ushort FromByteArray(byte[] bytes)
+    {
+        if (bytes?.Length != 2)
+        {
+            throw new ArgumentException("Byte array must be 2 bytes long");
+        }
+
+        return FromBytes(bytes[1], bytes[0]);
+    }
 
     /// <summary>
     /// Froms the byte array.
@@ -21,7 +29,15 @@ internal static class Counter
     /// <param name="bytes">The bytes.</param>
     /// <param name="start">The start.</param>
     /// <returns>A ushort.</returns>
-    public static ushort FromByteArray(byte[] bytes, int start) => FromBytes(bytes[start + 1], bytes[start]);
+    public static ushort FromByteArray(byte[] bytes, int start)
+    {
+        if (bytes?.Length < start + 2)
+        {
+            throw new ArgumentException("Byte array must be at least 2 bytes long");
+        }
+
+        return FromBytes(bytes![start + 1], bytes[start]);
+    }
 
     /// <summary>
     /// From the bytes.
@@ -38,15 +54,12 @@ internal static class Counter
     /// <returns>A ushort.</returns>
     public static ushort[] ToArray(byte[] bytes)
     {
-        var values = new ushort[bytes.Length / 2];
-
-        var counter = 0;
-        for (var cnt = 0; cnt < bytes.Length / 2; cnt++)
+        if (bytes == null)
         {
-            values[cnt] = FromByteArray([bytes[counter++], bytes[counter++]]);
+            throw new ArgumentNullException(nameof(bytes));
         }
 
-        return values;
+        return TypeConverter.ToArray(bytes, FromByteArray);
     }
 
     /// <summary>
@@ -54,22 +67,7 @@ internal static class Counter
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A byte array.</returns>
-    public static byte[] ToByteArray(ushort value)
-    {
-        var bytes = new byte[2];
-        const int x = 2;
-        long valLong = value;
-        for (var cnt = 0; cnt < x; cnt++)
-        {
-            var x1 = (long)Math.Pow(256, cnt);
-
-            var x3 = valLong / x1;
-            bytes[x - cnt - 1] = (byte)(x3 & 255);
-            valLong -= bytes[x - cnt - 1] * x1;
-        }
-
-        return bytes;
-    }
+    public static byte[] ToByteArray(ushort value) => [(byte)((value << 8) & 255), (byte)(value & 255)];
 
     /// <summary>
     /// To the byte array.
@@ -78,12 +76,11 @@ internal static class Counter
     /// <returns>A byte array.</returns>
     public static byte[] ToByteArray(ushort[] value)
     {
-        var arr = new ByteArray();
-        foreach (var val in value)
+        if (value == null)
         {
-            arr.Add(ToByteArray(val));
+            throw new ArgumentNullException(nameof(value));
         }
 
-        return arr.Array;
+        return TypeConverter.ToByteArray(value, ToByteArray);
     }
 }

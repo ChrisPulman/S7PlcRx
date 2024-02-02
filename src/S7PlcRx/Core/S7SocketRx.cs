@@ -10,6 +10,8 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
+using DateTime = System.DateTime;
+using TimeSpan = System.TimeSpan;
 
 namespace S7PlcRx.Core;
 

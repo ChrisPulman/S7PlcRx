@@ -18,16 +18,23 @@ internal static class Conversion
     public static int BinStringToInt32(this string txt)
     {
         var ret = 0;
-        for (var cnt = txt.Length - 1; cnt >= 0; cnt += -1)
+
+        for (var i = 0; i < txt.Length; i++)
         {
-            if (int.Parse(txt.Substring(cnt, 1)) == 1)
-            {
-                ret += (int)Math.Pow(2, txt.Length - 1 - cnt);
-            }
+            ret = (ret << 1) | ((txt[i] == '1') ? 1 : 0);
         }
 
         return ret;
     }
+
+    /// <summary>
+    /// Converts a binary string to a byte. Can return null.
+    /// </summary>
+    /// <param name="txt">The text.</param>
+    /// <returns>
+    /// A byte.
+    /// </returns>
+    public static byte? BinStringToByte(this string txt) => txt.Length == 8 ? (byte)BinStringToInt32(txt) : null;
 
     /// <summary>
     /// Converts from DWord (DBD) to double.
@@ -35,6 +42,13 @@ internal static class Conversion
     /// <param name="input">The input.</param>
     /// <returns>A double.</returns>
     public static double ConvertToDouble(this uint input) => LReal.FromByteArray(DWord.ToByteArray(input));
+
+    /// <summary>
+    /// Converts from DWord (DBD) to float.
+    /// </summary>
+    /// <param name="input">The input.</param>
+    /// <returns>A float.</returns>
+    public static float ConvertToFloat(this uint input) => Real.FromByteArray(DWord.ToByteArray(input));
 
     /// <summary>
     /// Converts from uint value to int value; it's used to retrieve negative values from DBDs.
@@ -58,6 +72,13 @@ internal static class Conversion
     public static uint ConvertToUInt(this float input) => DWord.FromByteArray(LReal.ToByteArray(input));
 
     /// <summary>
+    /// Converts from Int32 value to UInt32 value; it's used to pass negative values to DBDs.
+    /// </summary>
+    /// <param name="input">The input.</param>
+    /// <returns>A uint.</returns>
+    public static uint ConvertToUInt(this int input) => uint.Parse(input.ToString("X"), NumberStyles.HexNumber);
+
+    /// <summary>
     /// Converts from short value to ushort value; it's used to pass negative values to DWs.
     /// </summary>
     /// <param name="input">The input.</param>
@@ -77,6 +98,39 @@ internal static class Conversion
         var result = data & mask;
 
         return result != 0;
+    }
+
+    /// <summary>
+    /// Helper to set a bit value to the given byte at the bit index.
+    /// <br/>
+    /// <example>
+    ///   Set the bit at index 4:
+    ///   <code>
+    ///     byte data = 0;
+    ///     data.SetBit(4, true);
+    ///   </code>
+    /// </example>
+    /// </summary>
+    /// <param name="data">The data to be modified.</param>
+    /// <param name="index">The zero-based index of the bit to set.</param>
+    /// <param name="value">The Boolean value to assign to the bit.</param>
+    public static void SetBit(this ref byte data, int index, bool value)
+    {
+        if ((uint)index > 7)
+        {
+            return;
+        }
+
+        if (value)
+        {
+            var mask = (byte)(1 << index);
+            data |= mask;
+        }
+        else
+        {
+            var mask = (byte)~(1 << index);
+            data &= mask;
+        }
     }
 
     /// <summary>
