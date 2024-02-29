@@ -65,6 +65,24 @@ plc.Observe<double>("Tag1").Subscribe(x => Console.WriteLine($"Tag1: {x}"));
 plc?.GetTag("Tag0")?.SetTagPollIng(true);
 ```
 
+You can also use the `S7xxxx` static classes to setup the PLC. For example, `S7PlcRx.S71500.Create(......` to setup a S7-1500 PLC.
+
+#### Add Tag without Generic Type
+```csharp
+plc.AddUpdateTagItem(typeof(double), "Tag0", "DB500.DBD0");
+```
+
+#### Add Tag with Chainable Options
+```csharp
+plc.AddUpdateTagItem<double>("Tag0", "DB500.DBD0").SetTagPollIng(false)
+   .AddUpdateTagItem(typeof(double), "Tag1", "DB500.DBD8");
+```
+
+#### Remove Tag
+```csharp
+plc.RemoveTagItem("Tag0");
+```
+
 #### SetPolling
 
 Polling is enabled by default when a Tag is added. You can disable and enable polling on a Tag at any time.
@@ -97,6 +115,20 @@ plc.GetCpuInfo().Subscribe(info =>
 
 This returns a `CpuInfo` string Array with the following values:
 AS Name, Module Name, Copyright, Serial Number, Module Type Name, Order Code, Version.
+
+#### Using the Watchdog
+The Watchdog is a feature that writes a value to a specific address in the PLC at a set interval.
+This can be used to keep the PLC alive and prevent it from going into stop mode.
+
+The functionallity of the PLC is down to the user to implement.
+
+The recommended way to use the Watchdog is to use a timer to decrement a value in the PLC.
+If the value reaches 0 then the PLC can be stopped.
+The Watchdog will always write a value back to the PLC to reset the timer and resume normal operation.
+```csharp
+var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, "PLC_IP_ADDRESS", 0, watchDogAddress, 5, watchDogValueToWrite, watchDogInterval);
+```
+The Watchdog is disabled by default. To enable the Watchdog set the `watchDogAddress`, it must be an address of type DBW. The `watchDogInterval` is the time in seconds between each write and the `watchDogValueToWrite` is the value to write to the PLC.
 
 #### Supported Data Types
 
