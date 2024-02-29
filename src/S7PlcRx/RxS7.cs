@@ -61,15 +61,15 @@ public class RxS7 : IRxS7
         IsConnected = _socketRx.IsConnected;
 
         // Get the PLC connection status
-        _disposables.Add(IsConnected.Subscribe((Action<bool>)(x =>
+        _disposables.Add(IsConnected.Subscribe(x =>
         {
             IsConnectedValue = x;
             _status.OnNext($"{DateTime.Now} - PLC Connected Status: {x}");
-        })));
+        }));
 
         if (!string.IsNullOrWhiteSpace(watchDogAddress))
         {
-            if (!watchDogAddress.Contains("DBW"))
+            if (watchDogAddress?.Contains("DBW") == false)
             {
                 throw new ArgumentException("WatchDogAddress must be a DBW address.", nameof(watchDogAddress));
             }
@@ -1266,7 +1266,7 @@ public class RxS7 : IRxS7
             }
 
             // Setup the watchdog
-            this.AddUpdateTagItem<ushort>("WatchDog", WatchDogAddress).SetTagPollIng(false);
+            this.AddUpdateTagItem<ushort>("WatchDog", WatchDogAddress!).SetTagPollIng(false);
 
             var tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(WatchDogWritingTime)).Retry().Subscribe(_ =>
             {

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net6.0;net7.0;net8.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
-    <NoWarn>$(NoWarn);IDE0042;IDE1006</NoWarn>
+    <NoWarn>$(NoWarn);IDE0042</NoWarn>
   </PropertyGroup>
   
   <ItemGroup>

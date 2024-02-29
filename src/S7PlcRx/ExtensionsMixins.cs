@@ -42,6 +42,35 @@ public static class ExtensionsMixins
     /// <summary>
     /// Adds the update tag item.
     /// </summary>
+    /// <param name="this">The this.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="tagName">Name of the tag.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="arrayLength">Length of the array.</param>
+    /// <returns>A Tag.</returns>
+    public static (ITag? tag, IRxS7? plc) AddUpdateTagItem(this IRxS7 @this, Type type, string tagName, string address, int? arrayLength = null)
+    {
+        var tag = default(Tag);
+        if (@this is RxS7 plc && type != null)
+        {
+            if ((type == typeof(string) || type.IsArray) && arrayLength.HasValue)
+            {
+                tag = new(tagName, address, type, arrayLength.Value);
+            }
+            else
+            {
+                tag = new(tagName, address, type);
+            }
+
+            plc.AddUpdateTagItem(tag);
+        }
+
+        return (tag, @this);
+    }
+
+    /// <summary>
+    /// Adds the update tag item.
+    /// </summary>
     /// <typeparam name="T">The Type.</typeparam>
     /// <param name="this">The this.</param>
     /// <param name="tagName">The tag name.</param>
@@ -60,6 +89,37 @@ public static class ExtensionsMixins
             else
             {
                 tag = new(tagName, address, typeof(T));
+            }
+
+            plc.AddUpdateTagItem(tag);
+        }
+
+        return (tag, @this.plc);
+    }
+
+    /// <summary>
+    /// Adds the update tag item.
+    /// </summary>
+    /// <param name="this">The this.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="tagName">The tag name.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="arrayLength">Length of the array.</param>
+    /// <returns>
+    /// A Tag.
+    /// </returns>
+    public static (ITag? tag, IRxS7? plc) AddUpdateTagItem(this (ITag? _, IRxS7? plc) @this, Type type, string tagName, string address, int? arrayLength = null)
+    {
+        var tag = default(Tag);
+        if (@this.plc is RxS7 plc && type != null)
+        {
+            if ((type == typeof(string) || type.IsArray) && arrayLength.HasValue)
+            {
+                tag = new(tagName, address, type, arrayLength.Value);
+            }
+            else
+            {
+                tag = new(tagName, address, type);
             }
 
             plc.AddUpdateTagItem(tag);

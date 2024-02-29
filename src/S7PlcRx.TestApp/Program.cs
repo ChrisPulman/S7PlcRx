@@ -4,9 +4,9 @@
 using System.Reactive.Linq;
 using S7PlcRx;
 
-var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, "172.16.17.1", 0, 1, interval: 5);
-plc.LastError.Subscribe(ex => Console.WriteLine(ex));
-plc.Status.Subscribe(status => Console.WriteLine(status));
+var plc = S71500.Create("172.16.17.1", interval: 5);
+plc.LastError.Subscribe(Console.WriteLine);
+plc.Status.Subscribe(Console.WriteLine);
 const string StartLogging = nameof(StartLogging);
 const string PlcData = nameof(PlcData);
 const string TestItems = nameof(TestItems);
