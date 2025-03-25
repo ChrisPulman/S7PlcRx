@@ -1,5 +1,4 @@
 using Nuke.Common;
-using Nuke.Common.CI.GitHubActions;
 using Nuke.Common.Git;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
@@ -56,18 +55,12 @@ partial class Build : NukeBuild
             }
 
             PackagesDirectory.CreateOrCleanDirectory();
-            ////await this.UpdateVisualStudio();
             await this.InstallDotNetSdk("6.x.x", "7.x.x", "8.x.x");
         });
 
     Target Restore => _ => _
         .DependsOn(Clean)
-        .Executes(() =>
-        {
-            DotNetRestore(s => s.SetProjectFile(Solution));
-
-            Solution.RestoreSolutionWorkloads();
-        });
+        .Executes(() => DotNetRestore(s => s.SetProjectFile(Solution)));
 
     Target Compile => _ => _
         .DependsOn(Restore, Print)
