@@ -25,10 +25,10 @@ public static class S7OptimizationExamples
         // Define tag mapping for batch operations
         var tagMapping = new Dictionary<string, string>
         {
-            ["Temperature1"] = "DB1.DBD0",    // Process temperature 1
-            ["Temperature2"] = "DB1.DBD4",    // Process temperature 2
-            ["Pressure1"] = "DB1.DBD8",      // System pressure
-            ["FlowRate"] = "DB1.DBD12",      // Flow rate sensor
+            ["Temperature1"] = "DB1.DBD0", // Process temperature 1
+            ["Temperature2"] = "DB1.DBD4", // Process temperature 2
+            ["Pressure1"] = "DB1.DBD8", // System pressure
+            ["FlowRate"] = "DB1.DBD12", // Flow rate sensor
             ["Level"] = "DB1.DBD16" // Tank level
         };
 
@@ -73,9 +73,9 @@ public static class S7OptimizationExamples
         // Define values to write
         var writeValues = new Dictionary<string, object>
         {
-            ["SetPoint1"] = 25.5f,           // Temperature setpoint
-            ["SetPoint2"] = 1.8f,            // Pressure setpoint
-            ["EnableProcess"] = true,         // Enable flag
+            ["SetPoint1"] = 25.5f, // Temperature setpoint
+            ["SetPoint2"] = 1.8f, // Pressure setpoint
+            ["EnableProcess"] = true, // Enable flag
             ["RecipeNumber"] = 42 // Active recipe
         };
 
@@ -128,7 +128,7 @@ public static class S7OptimizationExamples
             "Pressures",
             "DB2.DBD0",   // System pressure
             "DB2.DBD4",   // Line pressure
-            "DB2.DBD8");    // Vacuum pressure
+            "DB2.DBD8");   // Vacuum pressure
 
         Console.WriteLine("=== HIGH-PERFORMANCE TAG GROUPS ===");
 
@@ -206,7 +206,7 @@ public static class S7OptimizationExamples
 
         var smartSubscription = smartMonitor.Subscribe(change =>
         {
-            Console.WriteLine($"🔔 Significant Change Detected:");
+            Console.WriteLine("🔔 Significant Change Detected:");
             Console.WriteLine($"   Tag: {change.TagName}");
             Console.WriteLine($"   Previous: {change.PreviousValue:F2}");
             Console.WriteLine($"   Current: {change.CurrentValue:F2}");
@@ -351,10 +351,10 @@ public static class S7OptimizationExamples
             Console.WriteLine("2️⃣ Recipe Setup");
             var recipeParams = new Dictionary<string, object>
             {
-                ["Temperature_SP"] = 85.5f,      // Temperature setpoint
-                ["Pressure_SP"] = 2.1f,          // Pressure setpoint
-                ["MixSpeed_SP"] = 150,           // Mixer speed
-                ["ProcessTime"] = 3600,          // Process time in seconds
+                ["Temperature_SP"] = 85.5f, // Temperature setpoint
+                ["Pressure_SP"] = 2.1f, // Pressure setpoint
+                ["MixSpeed_SP"] = 150, // Mixer speed
+                ["ProcessTime"] = 3600, // Process time in seconds
                 ["RecipeID"] = 12345 // Recipe identifier
             };
 
@@ -381,9 +381,9 @@ public static class S7OptimizationExamples
             Console.WriteLine("3️⃣ Process Monitoring Setup");
             var processGroup = plc.CreateTagGroup(
                 "ProcessMonitoring",
-                "DB3.DBD0",   // Actual temperature
-                "DB3.DBD4",   // Actual pressure
-                "DB3.DBW8",   // Actual mixer speed
+                "DB3.DBD0", // Actual temperature
+                "DB3.DBD4", // Actual pressure
+                "DB3.DBW8", // Actual mixer speed
                 "DB3.DBX10.0"); // Process running
 
             var alarmGroup = plc.CreateTagGroup(

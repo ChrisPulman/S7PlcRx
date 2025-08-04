@@ -4,7 +4,7 @@
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 
-namespace S7PlcRx;
+namespace S7PlcRx.Enterprise;
 
 /// <summary>
 /// High-availability PLC manager with automatic failover.

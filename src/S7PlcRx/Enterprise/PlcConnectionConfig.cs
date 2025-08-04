@@ -3,7 +3,7 @@
 
 using S7PlcRx.Enums;
 
-namespace S7PlcRx;
+namespace S7PlcRx.Enterprise;
 
 /// <summary>
 /// PLC connection configuration.

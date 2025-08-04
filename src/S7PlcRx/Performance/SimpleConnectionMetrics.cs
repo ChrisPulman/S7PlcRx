@@ -1,12 +1,12 @@
 // Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace S7PlcRx;
+namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Internal connection metrics tracker.
+/// Simple connection metrics tracker for performance extensions.
 /// </summary>
-internal sealed class ConnectionMetrics
+internal sealed class SimpleConnectionMetrics
 {
     private readonly DateTime _startTime = DateTime.UtcNow;
 

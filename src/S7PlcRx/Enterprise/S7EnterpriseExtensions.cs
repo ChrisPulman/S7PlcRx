@@ -3,8 +3,9 @@
 
 using System.Collections.Concurrent;
 using System.Reactive.Linq;
+using S7PlcRx.Core;
 
-namespace S7PlcRx;
+namespace S7PlcRx.Enterprise;
 
 /// <summary>
 /// Enterprise-grade S7 PLC extensions providing advanced security, symbol tables,

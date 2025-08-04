@@ -1,7 +1,7 @@
 // Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace S7PlcRx;
+namespace S7PlcRx.Enterprise;
 
 /// <summary>
 /// Security context for encrypted communication.
@@ -25,4 +25,28 @@ public sealed class SecurityContext
 
     /// <summary>Gets a value indicating whether the session is still valid.</summary>
     public bool IsSessionValid => IsEnabled && DateTime.UtcNow - SessionStartTime < SessionTimeout;
+
+    /// <summary>
+    /// Gets a value indicating whether [enable encryption].
+    /// </summary>
+    /// <value>
+    ///   <c>true</c> if [enable encryption]; otherwise, <c>false</c>.
+    /// </value>
+    public bool EnableEncryption { get; internal set; }
+
+    /// <summary>
+    /// Gets the certificate path.
+    /// </summary>
+    /// <value>
+    /// The certificate path.
+    /// </value>
+    public string? CertificatePath { get; internal set; }
+
+    /// <summary>
+    /// Gets the certificate password.
+    /// </summary>
+    /// <value>
+    /// The certificate password.
+    /// </value>
+    public string? CertificatePassword { get; internal set; }
 }

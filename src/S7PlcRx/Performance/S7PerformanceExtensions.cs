@@ -4,7 +4,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reactive.Linq;
-using S7PlcRx.Optimization;
 
 namespace S7PlcRx.Performance;
 
@@ -15,7 +14,7 @@ namespace S7PlcRx.Performance;
 public static class S7PerformanceExtensions
 {
     private static readonly ConcurrentDictionary<string, PerformanceCounter> _performanceCounters = new();
-    private static readonly ConcurrentDictionary<string, ConnectionMetrics> _connectionMetrics = new();
+    private static readonly ConcurrentDictionary<string, SimpleConnectionMetrics> _connectionMetrics = new();
 
     /// <summary>
     /// Enables comprehensive performance monitoring for PLC operations.
@@ -54,7 +53,7 @@ public static class S7PerformanceExtensions
                 metrics.ErrorRate = counter.GetErrorRate();
 
                 // Get connection metrics
-                var connectionMetrics = _connectionMetrics.GetOrAdd(metricsKey, _ => new ConnectionMetrics());
+                var connectionMetrics = _connectionMetrics.GetOrAdd(metricsKey, _ => new SimpleConnectionMetrics());
                 metrics.ConnectionUptime = connectionMetrics.GetUptime();
                 metrics.ReconnectionCount = connectionMetrics.ReconnectionCount;
 
@@ -75,7 +74,7 @@ public static class S7PerformanceExtensions
     public static async Task<Dictionary<string, T?>> ReadOptimized<T>(
         this IRxS7 plc,
         IEnumerable<string> tagNames,
-        ReadOptimizationConfig? optimizationConfig = null)
+        Optimization.ReadOptimizationConfig? optimizationConfig = null)
     {
         if (plc == null)
         {
@@ -87,7 +86,7 @@ public static class S7PerformanceExtensions
             throw new ArgumentNullException(nameof(tagNames));
         }
 
-        var config = optimizationConfig ?? new ReadOptimizationConfig();
+        var config = optimizationConfig ?? new Optimization.ReadOptimizationConfig();
         var tagList = tagNames.ToList();
         var results = new Dictionary<string, T?>();
 
@@ -162,10 +161,10 @@ public static class S7PerformanceExtensions
     /// <param name="values">Dictionary of tag names and values to write.</param>
     /// <param name="optimizationConfig">Optimization configuration.</param>
     /// <returns>Write operation results.</returns>
-    public static async Task<WriteOptimizationResult> WriteOptimized<T>(
+    public static async Task<Optimization.WriteOptimizationResult> WriteOptimized<T>(
         this IRxS7 plc,
         Dictionary<string, T> values,
-        WriteOptimizationConfig? optimizationConfig = null)
+        Optimization.WriteOptimizationConfig? optimizationConfig = null)
     {
         if (plc == null)
         {
@@ -177,8 +176,8 @@ public static class S7PerformanceExtensions
             throw new ArgumentNullException(nameof(values));
         }
 
-        var config = optimizationConfig ?? new WriteOptimizationConfig();
-        var result = new WriteOptimizationResult { StartTime = DateTime.UtcNow };
+        var config = optimizationConfig ?? new Optimization.WriteOptimizationConfig();
+        var result = new Optimization.WriteOptimizationResult { StartTime = DateTime.UtcNow };
         var counter = GetPerformanceCounter(plc);
 
         try
@@ -301,7 +300,7 @@ public static class S7PerformanceExtensions
 
         var metricsKey = $"{plc.IP}_{plc.PLCType}";
         var counter = _performanceCounters.GetOrAdd(metricsKey, _ => new PerformanceCounter());
-        var connectionMetrics = _connectionMetrics.GetOrAdd(metricsKey, _ => new ConnectionMetrics());
+        var connectionMetrics = _connectionMetrics.GetOrAdd(metricsKey, _ => new SimpleConnectionMetrics());
 
         return new PerformanceStatistics
         {

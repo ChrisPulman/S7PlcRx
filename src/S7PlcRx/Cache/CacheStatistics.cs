@@ -22,4 +22,28 @@ public sealed class CacheStatistics
 
     /// <summary>Gets or sets the timestamp of the newest cache entry.</summary>
     public DateTime NewestEntry { get; set; }
+
+    /// <summary>
+    /// Gets the cached value count.
+    /// </summary>
+    /// <value>
+    /// The cached value count.
+    /// </value>
+    public int CachedValueCount { get; internal set; }
+
+    /// <summary>
+    /// Gets the pending request count.
+    /// </summary>
+    /// <value>
+    /// The pending request count.
+    /// </value>
+    public int PendingRequestCount { get; internal set; }
+
+    /// <summary>
+    /// Gets the cache hit ratio.
+    /// </summary>
+    /// <value>
+    /// The cache hit ratio.
+    /// </value>
+    public double CacheHitRatio { get; internal set; }
 }
