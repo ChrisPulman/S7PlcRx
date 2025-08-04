@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text;
+
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
@@ -13,7 +15,23 @@ internal static class String
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A string.</returns>
-    public static string FromByteArray(byte[] bytes) => System.Text.Encoding.ASCII.GetString(bytes);
+    public static string FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
+
+    /// <summary>
+    /// Converts bytes from span to string.
+    /// </summary>
+    /// <param name="bytes">The bytes span.</param>
+    /// <returns>A string.</returns>
+    public static string FromSpan(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.IsEmpty)
+        {
+            return string.Empty;
+        }
+
+        // For .NET Standard 2.0 compatibility, convert span to array
+        return Encoding.ASCII.GetString(bytes.ToArray());
+    }
 
     /// <summary>
     /// Froms the byte array.
@@ -22,8 +40,15 @@ internal static class String
     /// <param name="start">The start.</param>
     /// <param name="length">The length.</param>
     /// <returns>A string.</returns>
-    public static string FromByteArray(byte[] bytes, int start, int length) =>
-        bytes.Length >= start + length ? System.Text.Encoding.ASCII.GetString(bytes, start, length) : string.Empty;
+    public static string FromByteArray(byte[] bytes, int start, int length)
+    {
+        if (bytes.Length < start + length)
+        {
+            return string.Empty;
+        }
+
+        return FromSpan(bytes.AsSpan(start, length));
+    }
 
     /// <summary>
     /// To the byte array.
@@ -32,24 +57,63 @@ internal static class String
     /// <returns>A byte array.</returns>
     public static byte[] ToByteArray(string? value)
     {
-        var ca = value!.ToCharArray();
-        var bytes = new byte[value.Length];
-        for (var cnt = 0; cnt <= ca.Length - 1; cnt++)
+        if (string.IsNullOrEmpty(value))
         {
-            bytes[cnt] = (byte)Asc(ca[cnt].ToString());
+            return [];
         }
 
-        return bytes;
+        // Use high-performance ASCII encoding
+        return Encoding.ASCII.GetBytes(value);
     }
 
-    private static int Asc(string s)
+    /// <summary>
+    /// Writes string to the specified span as ASCII bytes.
+    /// </summary>
+    /// <param name="value">The string value.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
+    public static int ToSpan(string? value, Span<byte> destination)
     {
-        var b = System.Text.Encoding.ASCII.GetBytes(s);
-        if (b.Length > 0)
+        if (string.IsNullOrEmpty(value))
         {
-            return b[0];
+            return 0;
         }
 
-        return 0;
+        // For .NET Standard 2.0 compatibility, get bytes first then copy
+        var bytes = Encoding.ASCII.GetBytes(value);
+        if (bytes.Length > destination.Length)
+        {
+            throw new ArgumentException("Destination span is too small", nameof(destination));
+        }
+
+        bytes.AsSpan().CopyTo(destination);
+        return bytes.Length;
+    }
+
+    /// <summary>
+    /// Tries to write string to the specified span as ASCII bytes.
+    /// </summary>
+    /// <param name="value">The string value.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <param name="bytesWritten">The number of bytes written.</param>
+    /// <returns>True if successful, false if the destination is too small.</returns>
+    public static bool TryToSpan(string? value, Span<byte> destination, out int bytesWritten)
+    {
+        bytesWritten = 0;
+
+        if (string.IsNullOrEmpty(value))
+        {
+            return true;
+        }
+
+        var bytes = Encoding.ASCII.GetBytes(value);
+        if (bytes.Length > destination.Length)
+        {
+            return false;
+        }
+
+        bytes.AsSpan().CopyTo(destination);
+        bytesWritten = bytes.Length;
+        return true;
     }
 }

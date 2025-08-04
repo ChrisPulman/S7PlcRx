@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Buffers;
+
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
@@ -16,31 +18,33 @@ public static class DateTimeLong
     /// <summary>
     /// The minimum <see cref="T:System.DateTime" /> value supported by the specification.
     /// </summary>
-    public static readonly System.DateTime SpecMinimumDateTime = new System.DateTime(1970, 1, 1);
+    public static readonly System.DateTime SpecMinimumDateTime = new(1970, 1, 1);
 
     /// <summary>
     /// The maximum <see cref="T:System.DateTime" /> value supported by the specification.
     /// </summary>
-    public static readonly System.DateTime SpecMaximumDateTime = new System.DateTime(2262, 4, 11, 23, 47, 16, 854);
+    public static readonly System.DateTime SpecMaximumDateTime = new(2262, 4, 11, 23, 47, 16, 854);
 
     /// <summary>
     /// Parses a <see cref="T:System.DateTime" /> value from bytes.
     /// </summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
     /// <returns>A <see cref="T:System.DateTime" /> object representing the value read from PLC.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when the length of
-    /// <paramref name="bytes" /> is not 12 or any value in <paramref name="bytes" />
-    /// is outside the valid range of values.
-    /// </exception>
-    public static System.DateTime FromByteArray(byte[] bytes)
+    public static System.DateTime FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
+
+    /// <summary>
+    /// Parses a <see cref="T:System.DateTime" /> value from a span.
+    /// </summary>
+    /// <param name="bytes">Input bytes span read from PLC.</param>
+    /// <returns>A <see cref="T:System.DateTime" /> object representing the value read from PLC.</returns>
+    public static System.DateTime FromSpan(ReadOnlySpan<byte> bytes)
     {
-        if (bytes == null)
+        if (bytes.Length < TypeLengthInBytes)
         {
-            throw new ArgumentNullException(nameof(bytes));
+            throw new ArgumentOutOfRangeException(nameof(bytes), bytes.Length, $"Parsing a DateTimeLong requires exactly 12 bytes of input data, input data is {bytes.Length} bytes long.");
         }
 
-        return FromByteArrayImpl(bytes);
+        return FromSpanImpl(bytes);
     }
 
     /// <summary>
@@ -48,26 +52,26 @@ public static class DateTimeLong
     /// </summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
     /// <returns>An array of <see cref="T:System.DateTime" /> objects representing the values read from PLC.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when the length of
-    /// <paramref name="bytes" /> is not a multiple of 12 or any value in
-    /// <paramref name="bytes" /> is outside the valid range of values.
-    /// </exception>
-    public static System.DateTime[] ToArray(byte[] bytes)
+    public static System.DateTime[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
+
+    /// <summary>
+    /// Parses an array of <see cref="T:System.DateTime" /> values from a span.
+    /// </summary>
+    /// <param name="bytes">Input bytes span read from PLC.</param>
+    /// <returns>An array of <see cref="T:System.DateTime" /> objects representing the values read from PLC.</returns>
+    public static System.DateTime[] ToArray(ReadOnlySpan<byte> bytes)
     {
-        if (bytes?.Length % TypeLengthInBytes != 0)
+        if (bytes.Length % TypeLengthInBytes != 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(bytes), bytes!.Length, $"Parsing an array of DateTimeLong requires a multiple of 12 bytes of input data, input data is '{bytes.Length}' long.");
+            throw new ArgumentOutOfRangeException(nameof(bytes), bytes.Length, $"Parsing an array of DateTimeLong requires a multiple of 12 bytes of input data, input data is '{bytes.Length}' long.");
         }
 
-        var cnt = bytes!.Length / TypeLengthInBytes;
+        var cnt = bytes.Length / TypeLengthInBytes;
         var result = new System.DateTime[cnt];
 
         for (var i = 0; i < cnt; i++)
         {
-            var slice = new byte[TypeLengthInBytes];
-            Array.Copy(bytes, i * TypeLengthInBytes, slice, 0, TypeLengthInBytes);
-            result[i] = FromByteArrayImpl(slice);
+            result[i] = FromSpanImpl(bytes.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
 
         return result;
@@ -78,13 +82,25 @@ public static class DateTimeLong
     /// </summary>
     /// <param name="dateTime">The DateTime value to convert.</param>
     /// <returns>A byte array containing the S7 DateTimeLong representation of <paramref name="dateTime" />.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when the value of
-    /// <paramref name="dateTime" /> is before <see cref="P:SpecMinimumDateTime" />
-    /// or after <see cref="P:SpecMaximumDateTime" />.
-    /// </exception>
     public static byte[] ToByteArray(System.DateTime dateTime)
     {
+        Span<byte> bytes = stackalloc byte[TypeLengthInBytes];
+        ToSpan(dateTime, bytes);
+        return bytes.ToArray();
+    }
+
+    /// <summary>
+    /// Converts a <see cref="T:System.DateTime" /> value to a span.
+    /// </summary>
+    /// <param name="dateTime">The DateTime value to convert.</param>
+    /// <param name="destination">The destination span.</param>
+    public static void ToSpan(System.DateTime dateTime, Span<byte> destination)
+    {
+        if (destination.Length < TypeLengthInBytes)
+        {
+            throw new ArgumentException("Destination span must be at least 12 bytes", nameof(destination));
+        }
+
         if (dateTime < SpecMinimumDateTime)
         {
             throw new ArgumentOutOfRangeException(nameof(dateTime), dateTime, $"Date time '{dateTime}' is before the minimum '{SpecMinimumDateTime}' supported in S7 DateTimeLong representation.");
@@ -95,34 +111,31 @@ public static class DateTimeLong
             throw new ArgumentOutOfRangeException(nameof(dateTime), dateTime, $"Date time '{dateTime}' is after the maximum '{SpecMaximumDateTime}' supported in S7 DateTimeLong representation.");
         }
 
-        var stream = new MemoryStream(TypeLengthInBytes);
-
         // Convert Year
-        stream.Write(Word.ToByteArray(Convert.ToUInt16(dateTime.Year)), 0, 2);
+        Word.ToSpan((ushort)dateTime.Year, destination.Slice(0, 2));
 
         // Convert Month
-        stream.WriteByte(Convert.ToByte(dateTime.Month));
+        destination[2] = (byte)dateTime.Month;
 
         // Convert Day
-        stream.WriteByte(Convert.ToByte(dateTime.Day));
+        destination[3] = (byte)dateTime.Day;
 
         // Convert WeekDay. NET DateTime starts with Sunday = 0, while S7DT has Sunday = 1.
-        stream.WriteByte(Convert.ToByte(dateTime.DayOfWeek + 1));
+        destination[4] = (byte)(dateTime.DayOfWeek + 1);
 
         // Convert Hour
-        stream.WriteByte(Convert.ToByte(dateTime.Hour));
+        destination[5] = (byte)dateTime.Hour;
 
         // Convert Minutes
-        stream.WriteByte(Convert.ToByte(dateTime.Minute));
+        destination[6] = (byte)dateTime.Minute;
 
         // Convert Seconds
-        stream.WriteByte(Convert.ToByte(dateTime.Second));
+        destination[7] = (byte)dateTime.Second;
 
         // Convert Nanoseconds. Net DateTime has a representation of 1 Tick = 100ns.
         // Thus First take the ticks Mod 1 Second (1s = 10'000'000 ticks), and then Convert to nanoseconds.
-        stream.Write(DWord.ToByteArray(Convert.ToUInt32((dateTime.Ticks % 10000000) * 100)), 0, 4);
-
-        return stream.ToArray();
+        var nanoseconds = (uint)((dateTime.Ticks % 10000000) * 100);
+        DWord.ToSpan(nanoseconds, destination.Slice(8, 4));
     }
 
     /// <summary>
@@ -130,11 +143,6 @@ public static class DateTimeLong
     /// </summary>
     /// <param name="dateTimes">The DateTime values to convert.</param>
     /// <returns>A byte array containing the S7 DateTimeLong representations of <paramref name="dateTimes" />.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when any value of
-    /// <paramref name="dateTimes" /> is before <see cref="P:SpecMinimumDateTime" />
-    /// or after <see cref="P:SpecMaximumDateTime" />.
-    /// </exception>
     public static byte[] ToByteArray(System.DateTime[] dateTimes)
     {
         if (dateTimes == null)
@@ -142,31 +150,66 @@ public static class DateTimeLong
             throw new ArgumentNullException(nameof(dateTimes));
         }
 
-        var bytes = new List<byte>(dateTimes.Length * TypeLengthInBytes);
-        foreach (var dateTime in dateTimes)
-        {
-            bytes.AddRange(ToByteArray(dateTime));
-        }
+        // Use ArrayPool for large allocations
+        var totalBytes = dateTimes.Length * TypeLengthInBytes;
+        byte[]? pooledArray = null;
+        var buffer = totalBytes > 1024
+            ? pooledArray = ArrayPool<byte>.Shared.Rent(totalBytes)
+            : new byte[totalBytes];
 
-        return [.. bytes];
+        try
+        {
+            var span = buffer.AsSpan(0, totalBytes);
+            for (var i = 0; i < dateTimes.Length; i++)
+            {
+                ToSpan(dateTimes[i], span.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
+            }
+
+            return span.ToArray();
+        }
+        finally
+        {
+            if (pooledArray != null)
+            {
+                ArrayPool<byte>.Shared.Return(pooledArray);
+            }
+        }
     }
 
-    private static System.DateTime FromByteArrayImpl(byte[] bytes)
+    /// <summary>
+    /// Converts multiple DateTime values to the specified span.
+    /// </summary>
+    /// <param name="dateTimes">The DateTime values.</param>
+    /// <param name="destination">The destination span.</param>
+    public static void ToSpan(ReadOnlySpan<System.DateTime> dateTimes, Span<byte> destination)
     {
-        if (bytes.Length != TypeLengthInBytes)
+        if (destination.Length < dateTimes.Length * TypeLengthInBytes)
+        {
+            throw new ArgumentException("Destination span is too small", nameof(destination));
+        }
+
+        for (var i = 0; i < dateTimes.Length; i++)
+        {
+            ToSpan(dateTimes[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
+        }
+    }
+
+    private static System.DateTime FromSpanImpl(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length < TypeLengthInBytes)
         {
             throw new ArgumentOutOfRangeException(nameof(bytes), bytes.Length, $"Parsing a DateTimeLong requires exactly 12 bytes of input data, input data is {bytes.Length} bytes long.");
         }
 
-        var year = AssertRangeInclusive(Word.FromBytes(bytes[1], bytes[0]), 1970, 2262, "year");
-        var month = AssertRangeInclusive(bytes[2], 1, 12, "month");
-        var day = AssertRangeInclusive(bytes[3], 1, 31, "day of month");
-        var dayOfWeek = AssertRangeInclusive(bytes[4], 1, 7, "day of week");
-        var hour = AssertRangeInclusive(bytes[5], 0, 23, "hour");
-        var minute = AssertRangeInclusive(bytes[6], 0, 59, "minute");
-        var second = AssertRangeInclusive(bytes[7], 0, 59, "second");
+        var year = AssertRangeInclusive(Word.FromSpan(bytes.Slice(0, 2)), (ushort)1970, (ushort)2262, "year");
+        var month = AssertRangeInclusive(bytes[2], (byte)1, (byte)12, "month");
+        var day = AssertRangeInclusive(bytes[3], (byte)1, (byte)31, "day of month");
+        var dayOfWeek = AssertRangeInclusive(bytes[4], (byte)1, (byte)7, "day of week");
+        var hour = AssertRangeInclusive(bytes[5], (byte)0, (byte)23, "hour");
+        var minute = AssertRangeInclusive(bytes[6], (byte)0, (byte)59, "minute");
+        var second = AssertRangeInclusive(bytes[7], (byte)0, (byte)59, "second");
 
-        var nanoseconds = AssertRangeInclusive<uint>(DWord.FromBytes(bytes[11], bytes[10], bytes[9], bytes[8]), 0, 999999999, "nanoseconds");
+        var nanoseconds = AssertRangeInclusive(DWord.FromSpan(bytes.Slice(8, 4)), 0u, 999999999u, "nanoseconds");
 
         var time = new System.DateTime(year, month, day, hour, minute, second);
         return time.AddTicks(nanoseconds / 100);
