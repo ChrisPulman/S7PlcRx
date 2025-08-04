@@ -117,5 +117,5 @@ public class Tags : Hashtable
     /// Gets the tag list.
     /// </summary>
     /// <returns>An IEnumerable of Tag.</returns>
-    public List<Tag> ToList() => Values.OfType<Tag>().ToList();
+    public List<Tag> ToList() => [.. Values.OfType<Tag>()];
 }
