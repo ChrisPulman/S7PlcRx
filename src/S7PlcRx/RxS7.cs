@@ -249,6 +249,11 @@ public class RxS7 : IRxS7
         _pause = true;
         _ = await _paused.Where(x => x).FirstAsync();
         var tag = TagList[variable!];
+        if (tag?.Type == typeof(object))
+        {
+            tag?.Type = typeof(T);
+        }
+
         GetTagValue(tag);
         _pause = false;
         return TagValueIsValid<T>(tag) ? (T?)tag?.Value : default;
@@ -263,7 +268,7 @@ public class RxS7 : IRxS7
     public void Value<T>(string? variable, T? value)
     {
         var tag = TagList[variable!];
-        if (tag != null && value != null && tag.Type == typeof(T))
+        if (tag != null && value != null && (typeof(object) == typeof(T) || tag.Type == typeof(T)))
         {
             tag.NewValue = value;
             Write(tag);
@@ -448,9 +453,9 @@ public class RxS7 : IRxS7
         }
     }
 
-    private static bool TagValueIsValid<T>(Tag? tag) => tag != null && tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T);
+    private static bool TagValueIsValid<T>(Tag? tag) => tag != null && (typeof(T) == typeof(object) || (tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
 
-    private static bool TagValueIsValid<T>(Tag? tag, string? variable) => string.Equals(tag?.Name, variable, StringComparison.InvariantCultureIgnoreCase) && tag?.Type == typeof(T) && tag.Value?.GetType() == typeof(T);
+    private static bool TagValueIsValid<T>(Tag? tag, string? variable) => string.Equals(tag?.Name, variable, StringComparison.InvariantCultureIgnoreCase) && (typeof(T) == typeof(object) || (tag?.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
 
     private static ByteArray CreateReadDataRequestPackage(DataType dataType, int db, int startByteAdr, int count = 1)
     {

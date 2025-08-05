@@ -120,7 +120,7 @@ public static class ProductionExtensions
             }
             else
             {
-                var cpuInfo = await plc.GetCpuInfo().FirstAsync();
+                var cpuInfo = await plc.GetCpuInfo();
                 connectivityTest.Success = cpuInfo?.Length > 0;
                 connectivityTest.Details.Add($"CPU Info: {string.Join(", ", cpuInfo ?? [])}");
             }
@@ -142,7 +142,7 @@ public static class ProductionExtensions
         try
         {
             var responseStart = DateTime.UtcNow;
-            await plc.GetCpuInfo().FirstAsync();
+            await plc.GetCpuInfo();
             var responseTime = DateTime.UtcNow - responseStart;
 
             performanceTest.Details.Add($"Response Time: {responseTime.TotalMilliseconds:F0}ms");
@@ -180,7 +180,7 @@ public static class ProductionExtensions
             {
                 try
                 {
-                    await plc.GetCpuInfo().FirstAsync();
+                    await plc.GetCpuInfo();
                     successCount++;
                 }
                 catch

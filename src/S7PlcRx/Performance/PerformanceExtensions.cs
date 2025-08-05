@@ -395,7 +395,7 @@ public static class PerformanceExtensions
             try
             {
                 var stopwatch = Stopwatch.StartNew();
-                await plc.GetCpuInfo().FirstAsync();
+                await plc.GetCpuInfo();
                 stopwatch.Stop();
                 latencies.Add(stopwatch.Elapsed.TotalMilliseconds);
 
@@ -427,7 +427,7 @@ public static class PerformanceExtensions
         {
             while (stopwatch.Elapsed < config.ThroughputTestDuration)
             {
-                await plc.GetCpuInfo().FirstAsync();
+                await plc.GetCpuInfo();
                 operations++;
             }
 
@@ -448,7 +448,7 @@ public static class PerformanceExtensions
         {
             try
             {
-                await plc.GetCpuInfo().FirstAsync();
+                await plc.GetCpuInfo();
                 successCount++;
             }
             catch (Exception ex)

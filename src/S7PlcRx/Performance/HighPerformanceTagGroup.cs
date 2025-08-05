@@ -10,28 +10,52 @@ namespace S7PlcRx.Performance;
 /// <summary>
 /// High-performance tag group for optimized batch operations.
 /// </summary>
-public class HighPerformanceTagGroup : IDisposable
+/// <typeparam name="T">The Type.</typeparam>
+/// <seealso cref="System.IDisposable" />
+public class HighPerformanceTagGroup<T> : IDisposable
 {
     private readonly IRxS7 _plc;
     private readonly string[] _tagNames;
-    private readonly Timer _updateTimer;
-    private readonly ConcurrentDictionary<string, object?> _currentValues = new();
+    private readonly ConcurrentDictionary<string, T?> _currentValues = new();
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="HighPerformanceTagGroup"/> class.
+    /// Initializes a new instance of the <see cref="HighPerformanceTagGroup{T}"/> class.
     /// </summary>
     /// <param name="plc">The PLC instance.</param>
     /// <param name="groupName">The group name.</param>
     /// <param name="tagNames">The tag names in the group.</param>
+    /// <exception cref="System.ArgumentNullException">plc.</exception>
+    /// <exception cref="System.ArgumentException">
+    /// Group name cannot be null or whitespace. - groupName
+    /// or
+    /// Tag names cannot be null or empty. - tagNames.
+    /// </exception>
     public HighPerformanceTagGroup(IRxS7 plc, string groupName, string[] tagNames)
     {
+        if (plc == null)
+        {
+            throw new ArgumentNullException(nameof(plc));
+        }
+
+        if (string.IsNullOrWhiteSpace(groupName))
+        {
+            throw new ArgumentException("Group name cannot be null or whitespace.", nameof(groupName));
+        }
+
+        if (tagNames == null || tagNames.Length == 0)
+        {
+            throw new ArgumentException("Tag names cannot be null or empty.", nameof(tagNames));
+        }
+
         _plc = plc;
         GroupName = groupName;
         _tagNames = tagNames;
-
-        // Create update timer for batch reading
-        _updateTimer = new Timer(UpdateAllValues, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        foreach (var tagName in tagNames)
+        {
+            plc.AddUpdateTagItem<T>(tagName, tagName)
+                .SetTagPollIng(false); // Disable individual polling for performance
+        }
     }
 
     /// <summary>
@@ -42,33 +66,44 @@ public class HighPerformanceTagGroup : IDisposable
     /// <summary>
     /// Gets the current values for all tags in the group.
     /// </summary>
-    public IReadOnlyDictionary<string, object?> CurrentValues => _currentValues;
+    public IReadOnlyDictionary<string, T?> CurrentValues => _currentValues;
 
     /// <summary>
     /// Observes all values in the group as a combined stream.
     /// </summary>
     /// <returns>An observable of the complete group state.</returns>
-    public IObservable<Dictionary<string, object?>> ObserveGroup() =>
-        _plc.ObserveAll
+    public IObservable<Dictionary<string, T?>> ObserveGroup()
+    {
+        foreach (var tagName in _tagNames)
+        {
+            if (_plc.TagList.ContainsKey(tagName))
+            {
+                // Enable individual polling for each tag to ensure updates
+                _plc.GetTag(tagName).SetTagPollIng(true);
+            }
+        }
+
+        return _plc.ObserveAll
             .Where(t => t != null && _tagNames.Contains(t.Name))
             .Select(t => new { t!.Name, t.Value })
             .Scan(
                 _currentValues.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
                 (acc, change) =>
                 {
-                    acc[change.Name!] = change.Value;
-                    return new Dictionary<string, object?>(acc);
+                    acc[change.Name!] = (T?)change.Value;
+                    return new Dictionary<string, T?>(acc);
                 })
             .DistinctUntilChanged()
             .Publish()
             .RefCount();
+    }
 
     /// <summary>
     /// Reads all values in the group efficiently.
     /// </summary>
     /// <typeparam name="T">The type of values to read.</typeparam>
     /// <returns>A dictionary of tag names and values.</returns>
-    public async Task<Dictionary<string, T?>> ReadAll<T>() => await _plc.ValueBatch<T>(_tagNames);
+    public async Task<Dictionary<string, T?>> ReadAll() => await _plc.ValueBatch<T>(_tagNames);
 
     /// <summary>
     /// Writes multiple values to the group.
@@ -76,7 +111,7 @@ public class HighPerformanceTagGroup : IDisposable
     /// <typeparam name="T">The type of values to write.</typeparam>
     /// <param name="values">The values to write.</param>
     /// <returns>A task representing the write operation.</returns>
-    public async Task WriteAll<T>(Dictionary<string, T> values)
+    public async Task WriteAll(Dictionary<string, T> values)
     {
         var filteredValues = values.Where(kvp => _tagNames.Contains(kvp.Key)).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
         await _plc.ValueBatch(filteredValues);
@@ -102,34 +137,16 @@ public class HighPerformanceTagGroup : IDisposable
         {
             if (disposing)
             {
-                _updateTimer?.Dispose();
+                foreach (var tagName in _tagNames)
+                {
+                    _plc.GetTag(tagName)
+                        .SetTagPollIng(false); // Disable individual polling for performance
+                }
+
                 _disposed = true;
             }
 
-            // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-            // TODO: set large fields to null
             _disposed = true;
-        }
-    }
-
-    private async void UpdateAllValues(object? state)
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        try
-        {
-            foreach (var tagName in _tagNames)
-            {
-                var value = await _plc.Value<object>(tagName);
-                _currentValues.AddOrUpdate(tagName, value, (_, _) => value);
-            }
-        }
-        catch
-        {
-            // Ignore errors during background updates
         }
     }
 }

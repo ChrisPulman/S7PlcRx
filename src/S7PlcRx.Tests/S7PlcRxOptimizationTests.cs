@@ -358,7 +358,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         }
 
         // Act
-        var tagGroup = _plc.CreateTagGroup("TestGroup", tagNames);
+        var tagGroup = _plc.CreateTagGroup<float>("TestGroup", tagNames);
 
         // Assert
         tagGroup.Should().NotBeNull();

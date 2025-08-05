@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Reactive.Linq;
 using S7PlcRx.BatchOperations;
+using S7PlcRx.Enums;
 using S7PlcRx.Performance;
 using S7PlcRx.Production;
 
@@ -26,6 +27,19 @@ public static class AdvancedExtensions
         if (plc == null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
+        }
+
+        if (variables == null || variables.Length == 0)
+        {
+            return Observable.Return(new Dictionary<string, T?>());
+        }
+
+        foreach (var variable in variables)
+        {
+            if (!plc.TagList.ContainsKey(variable))
+            {
+                plc.GetTag(variable).SetTagPollIng(true);
+            }
         }
 
         return plc.ObserveAll
@@ -57,7 +71,7 @@ public static class AdvancedExtensions
 
         if (variables == null || variables.Length == 0)
         {
-            return new Dictionary<string, T?>();
+            return [];
         }
 
         var results = new Dictionary<string, T?>();
@@ -131,7 +145,7 @@ public static class AdvancedExtensions
         {
             if (!plc.TagList.ContainsKey(mapping.Key))
             {
-                plc.AddUpdateTagItem<T>(mapping.Key, mapping.Value);
+                plc.AddUpdateTagItem<T>(mapping.Key, mapping.Value).SetTagPollIng(false);
             }
         }
 
@@ -318,14 +332,17 @@ public static class AdvancedExtensions
         {
             try
             {
-                // Test connection latency
-                var latencyStart = DateTime.UtcNow;
-                var cpuInfo = await plc.GetCpuInfo().FirstAsync();
-                diagnostics.ConnectionLatencyMs = (DateTime.UtcNow - latencyStart).TotalMilliseconds;
-                diagnostics.CPUInformation = cpuInfo;
+                if (plc.PLCType == CpuType.S71500)
+                {
+                    // Test connection latency
+                    var latencyStart = DateTime.UtcNow;
+                    var cpuInfo = await plc.GetCpuInfo();
+                    diagnostics.ConnectionLatencyMs = (DateTime.UtcNow - latencyStart).TotalMilliseconds;
+                    diagnostics.CPUInformation = cpuInfo;
+                }
 
                 // Get tag statistics
-                var allTags = plc.TagList.Values.OfType<Tag>().ToList();
+                var allTags = plc.TagList.ToList();
                 diagnostics.TagMetrics = new ProductionTagMetrics
                 {
                     TotalTags = allTags.Count,
@@ -409,11 +426,14 @@ public static class AdvancedExtensions
     /// <summary>
     /// Creates a high-performance tag group for batch operations.
     /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
     /// <param name="plc">The PLC instance.</param>
     /// <param name="groupName">The name of the tag group.</param>
     /// <param name="tagNames">The tags to include in the group.</param>
-    /// <returns>A high-performance tag group.</returns>
-    public static HighPerformanceTagGroup CreateTagGroup(this IRxS7 plc, string groupName, params string[] tagNames) => new(plc, groupName, tagNames);
+    /// <returns>
+    /// A high-performance tag group.
+    /// </returns>
+    public static HighPerformanceTagGroup<T> CreateTagGroup<T>(this IRxS7 plc, string groupName, params string[] tagNames) => new(plc, groupName, tagNames);
 
     private static string ExtractDataBlockId(string address)
     {
@@ -496,5 +516,5 @@ public static class AdvancedExtensions
     /// <param name="tag">The tag to validate.</param>
     /// <returns>True if the tag is valid, false otherwise.</returns>
     private static bool TagValueIsValid<T>(Tag? tag) =>
-        tag != null && tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T);
+        tag != null && (typeof(object) == typeof(T) || (tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
 }

@@ -13,16 +13,19 @@ namespace S7PlcRx.Examples;
 /// </summary>
 public static class AdvancedExamples
 {
+    internal const string IpAddress = "192.168.0.5";
+    internal const CpuType PlcType = CpuType.S71200;
+
     /// <summary>
     /// Demonstrates basic batch reading optimization for multiple tags.
     /// Reduces network overhead by grouping operations by data block.
     /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static async Task BasicBatchReadExample()
+    /// <param name="plc">The PLC.</param>
+    /// <returns>
+    /// A <see cref="Task" /> representing the asynchronous operation.
+    /// </returns>
+    public static async Task BasicBatchReadExample(RxS7 plc)
     {
-        // Initialize PLC connection
-        using var plc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1);
-
         // Define tag mapping for batch operations
         var tagMapping = new Dictionary<string, string>
         {
@@ -60,16 +63,17 @@ public static class AdvancedExamples
     /// Demonstrates advanced batch writing with verification and rollback.
     /// Ensures data integrity in critical industrial operations.
     /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static async Task AdvancedBatchWriteExample()
+    /// <param name="plc">The PLC.</param>
+    /// <returns>
+    /// A <see cref="Task" /> representing the asynchronous operation.
+    /// </returns>
+    public static async Task AdvancedBatchWriteExample(RxS7 plc)
     {
-        using var plc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1);
-
         // Add tags for writing
-        plc.AddUpdateTagItem<float>("SetPoint1", "DB2.DBD0");
-        plc.AddUpdateTagItem<float>("SetPoint2", "DB2.DBD4");
-        plc.AddUpdateTagItem<bool>("EnableProcess", "DB2.DBX8.0");
-        plc.AddUpdateTagItem<int>("RecipeNumber", "DB2.DBW10");
+        plc.AddUpdateTagItem<float>("SetPoint1", "DB3.DBD0").SetTagPollIng(false);
+        plc.AddUpdateTagItem<float>("SetPoint2", "DB3.DBD4").SetTagPollIng(false);
+        plc.AddUpdateTagItem<bool>("EnableProcess", "DB3.DBX8.0").SetTagPollIng(false);
+        plc.AddUpdateTagItem<int>("RecipeNumber", "DB3.DBD10").SetTagPollIng(false);
 
         // Define values to write
         var writeValues = new Dictionary<string, object>
@@ -112,29 +116,30 @@ public static class AdvancedExamples
     /// Demonstrates high-performance tag groups for related operations.
     /// Optimizes batch operations for logically grouped tags.
     /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static async Task HighPerformanceTagGroupExample()
+    /// <param name="plc">The PLC.</param>
+    /// <returns>
+    /// A <see cref="Task" /> representing the asynchronous operation.
+    /// </returns>
+    public static async Task HighPerformanceTagGroupExample(RxS7 plc)
     {
-        using var plc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1);
-
         // Create specialized tag groups for different process areas
-        var temperatureGroup = plc.CreateTagGroup(
+        var temperatureGroup = plc.CreateTagGroup<float>(
             "Temperatures",
-            "DB1.DBD0",   // Reactor temperature
-            "DB1.DBD4",   // Cooling temperature
-            "DB1.DBD8",   // Ambient temperature
-            "DB1.DBD12");   // Exhaust temperature
+            "DB4.DBD0",   // Reactor temperature
+            "DB4.DBD4",   // Cooling temperature
+            "DB4.DBD8",   // Ambient temperature
+            "DB4.DBD12");   // Exhaust temperature
 
-        var pressureGroup = plc.CreateTagGroup(
+        var pressureGroup = plc.CreateTagGroup<float>(
             "Pressures",
-            "DB2.DBD0",   // System pressure
-            "DB2.DBD4",   // Line pressure
-            "DB2.DBD8");   // Vacuum pressure
+            "DB5.DBD0",   // System pressure
+            "DB5.DBD4",   // Line pressure
+            "DB5.DBD8");   // Vacuum pressure
 
         Console.WriteLine("=== HIGH-PERFORMANCE TAG GROUPS ===");
 
         // Read all temperatures efficiently
-        var temperatures = await temperatureGroup.ReadAll<float>();
+        var temperatures = await temperatureGroup.ReadAll();
         Console.WriteLine("Temperature Readings:");
         foreach (var temp in temperatures)
         {
@@ -142,17 +147,17 @@ public static class AdvancedExamples
         }
 
         // Read all pressures efficiently
-        var pressures = await pressureGroup.ReadAll<float>();
+        var pressures = await pressureGroup.ReadAll();
         Console.WriteLine("Pressure Readings:");
         foreach (var pressure in pressures)
         {
-            Console.WriteLine($"  {pressure.Key}: {pressure.Value:F2} bar");
+            Console.WriteLine($"  {pressure.Key}: {pressure.Value:F6} bar");
         }
 
         // Monitor group changes in real-time
         var subscription = temperatureGroup.ObserveGroup().Subscribe(groupData =>
         {
-            var avgTemp = groupData.Values.OfType<float>().Average();
+            var avgTemp = groupData.Values.Average();
             Console.WriteLine($"Average Temperature: {avgTemp:F1}°C");
         });
 
@@ -169,15 +174,16 @@ public static class AdvancedExamples
     /// Demonstrates intelligent monitoring with change detection and filtering.
     /// Reduces noise and focuses on significant changes only.
     /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static async Task IntelligentMonitoringExample()
+    /// <param name="plc">The PLC.</param>
+    /// <returns>
+    /// A <see cref="Task" /> representing the asynchronous operation.
+    /// </returns>
+    public static async Task IntelligentMonitoringExample(RxS7 plc)
     {
-        using var plc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1);
-
         // Add monitoring tags
-        plc.AddUpdateTagItem<float>("ProcessValue", "DB1.DBD0");
-        plc.AddUpdateTagItem<float>("AnalogInput1", "DB1.DBD4");
-        plc.AddUpdateTagItem<bool>("AlarmStatus", "DB1.DBX8.0");
+        plc.AddUpdateTagItem<float>("ProcessValue", "DB6.DBD0");
+        plc.AddUpdateTagItem<float>("AnalogInput1", "DB6.DBD4");
+        plc.AddUpdateTagItem<bool>("AlarmStatus", "DB6.DBX8.0");
 
         Console.WriteLine("=== INTELLIGENT MONITORING ===");
 
@@ -229,11 +235,12 @@ public static class AdvancedExamples
     /// Demonstrates comprehensive performance analysis and optimization recommendations.
     /// Provides actionable insights for system optimization.
     /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static async Task PerformanceAnalysisExample()
+    /// <param name="plc">The PLC.</param>
+    /// <returns>
+    /// A <see cref="Task" /> representing the asynchronous operation.
+    /// </returns>
+    public static async Task PerformanceAnalysisExample(RxS7 plc)
     {
-        using var plc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1);
-
         Console.WriteLine("=== PERFORMANCE ANALYSIS ===");
 
         // Get comprehensive system diagnostics
@@ -320,11 +327,12 @@ public static class AdvancedExamples
     /// Demonstrates complete production workflow with all optimizations.
     /// Shows integration of batch operations, monitoring, and error handling.
     /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static async Task ProductionWorkflowExample()
+    /// <param name="plc">The PLC.</param>
+    /// <returns>
+    /// A <see cref="Task" /> representing the asynchronous operation.
+    /// </returns>
+    public static async Task ProductionWorkflowExample(RxS7 plc)
     {
-        using var plc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1);
-
         Console.WriteLine("=== PRODUCTION WORKFLOW EXAMPLE ===");
         Console.WriteLine("Simulating a complete production cycle with optimizations...");
         Console.WriteLine();
@@ -335,10 +343,10 @@ public static class AdvancedExamples
             Console.WriteLine("1️⃣ System Initialization");
             var initTags = new Dictionary<string, string>
             {
-                ["SystemReady"] = "DB1.DBX0.0",
-                ["RecipeLoaded"] = "DB1.DBX0.1",
-                ["ProcessStep"] = "DB1.DBW2",
-                ["BatchNumber"] = "DB1.DBD4"
+                ["SystemReady"] = "DB7.DBX0.0",
+                ["RecipeLoaded"] = "DB7.DBX0.1",
+                ["ProcessStep"] = "DB7.DBW2",
+                ["BatchNumber"] = "DB7.DBD4"
             };
 
             var systemState = await plc.ReadBatchOptimized<object>(initTags);
@@ -380,19 +388,19 @@ public static class AdvancedExamples
 
             // 3. Process Monitoring - Create monitoring groups
             Console.WriteLine("3️⃣ Process Monitoring Setup");
-            var processGroup = plc.CreateTagGroup(
+            var processGroup = plc.CreateTagGroup<float>(
                 "ProcessMonitoring",
-                "DB3.DBD0", // Actual temperature
-                "DB3.DBD4", // Actual pressure
-                "DB3.DBW8", // Actual mixer speed
-                "DB3.DBX10.0"); // Process running
+                "DB7.DBD0", // Actual temperature
+                "DB7.DBD4", // Actual pressure
+                "DB7.DBW8", // Actual mixer speed
+                "DB7.DBX10.0"); // Process running
 
-            var alarmGroup = plc.CreateTagGroup(
+            var alarmGroup = plc.CreateTagGroup<bool>(
                 "AlarmMonitoring",
-                "DB4.DBX0.0", // High temperature alarm
-                "DB4.DBX0.1", // High pressure alarm
-                "DB4.DBX0.2", // Equipment fault alarm
-                "DB4.DBX0.3"); // Emergency stop
+                "DB8.DBX0.0", // High temperature alarm
+                "DB8.DBX0.1", // High pressure alarm
+                "DB8.DBX0.2", // Equipment fault alarm
+                "DB8.DBX0.3"); // Emergency stop
 
             Console.WriteLine("   ✅ Monitoring groups created");
             Console.WriteLine();
@@ -456,22 +464,23 @@ public static class AdvancedExamples
 
         try
         {
-            await BasicBatchReadExample();
+            using var plc = new RxS7(PlcType, IpAddress, 0, 1);
+            await BasicBatchReadExample(plc);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await AdvancedBatchWriteExample();
+            await AdvancedBatchWriteExample(plc);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await HighPerformanceTagGroupExample();
+            await HighPerformanceTagGroupExample(plc);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await IntelligentMonitoringExample();
+            await IntelligentMonitoringExample(plc);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await PerformanceAnalysisExample();
+            await PerformanceAnalysisExample(plc);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await ProductionWorkflowExample();
+            await ProductionWorkflowExample(plc);
         }
         catch (Exception ex)
         {
