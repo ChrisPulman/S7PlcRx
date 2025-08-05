@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Linq;
-using FluentAssertions;
+using MockS7Plc;
 using S7PlcRx.Advanced;
 using S7PlcRx.Core;
 using S7PlcRx.Enterprise;
@@ -10,7 +10,6 @@ using S7PlcRx.Enums;
 using S7PlcRx.Optimization;
 using S7PlcRx.Performance;
 using S7PlcRx.Production;
-using Xunit;
 
 namespace S7PlcRx.Tests;
 
@@ -21,11 +20,18 @@ namespace S7PlcRx.Tests;
 public sealed class S7PlcRxOptimizationTests : IDisposable
 {
     private readonly RxS7 _plc;
+    private readonly MockServer _server;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="S7PlcRxOptimizationTests"/> class.
     /// </summary>
-    public S7PlcRxOptimizationTests() => _plc = new RxS7(CpuType.S71500, "127.0.0.1", 0, 1, null, 100);
+    public S7PlcRxOptimizationTests()
+    {
+        _server = new MockServer();
+        var rc = _server.StartTo(MockServer.Localhost);
+        rc.Should().Be(0);
+        _plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, 100);
+    }
 
     /// <summary>
     /// Test performance monitoring functionality.
@@ -43,7 +49,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
 
         // Assert
         firstMetrics.Should().NotBeNull();
-        firstMetrics.PLCIdentifier.Should().Contain("127.0.0.1");
+        firstMetrics.PLCIdentifier.Should().Contain(MockServer.Localhost);
         firstMetrics.PLCIdentifier.Should().Contain("S71500");
         firstMetrics.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
         firstMetrics.TagCount.Should().BeGreaterOrEqualTo(0);
@@ -133,7 +139,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
 
         // Assert
         result.Should().NotBeNull();
-        result.PLCIdentifier.Should().Contain("127.0.0.1");
+        result.PLCIdentifier.Should().Contain(MockServer.Localhost);
         result.TotalDuration.Should().BeGreaterThan(TimeSpan.Zero);
         result.OverallScore.Should().BeInRange(0, 100);
     }
@@ -149,7 +155,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
 
         // Assert
         stats.Should().NotBeNull();
-        stats.PLCIdentifier.Should().Contain("127.0.0.1");
+        stats.PLCIdentifier.Should().Contain(MockServer.Localhost);
         stats.TotalOperations.Should().BeGreaterOrEqualTo(0);
         stats.TotalErrors.Should().BeGreaterOrEqualTo(0);
         stats.ErrorRate.Should().BeInRange(0.0, 1.0);
@@ -308,7 +314,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
 
         // Assert
         result.Should().NotBeNull();
-        result.PLCIdentifier.Should().Contain("127.0.0.1");
+        result.PLCIdentifier.Should().Contain(MockServer.Localhost);
         result.ValidationTests.Should().NotBeEmpty();
         result.OverallScore.Should().BeInRange(0, 100);
         result.TotalValidationTime.Should().BeGreaterThan(TimeSpan.Zero);
@@ -378,7 +384,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         // Assert
         diagnostics.Should().NotBeNull();
         diagnostics.PLCType.Should().Be(CpuType.S71500);
-        diagnostics.IPAddress.Should().Be("127.0.0.1");
+        diagnostics.IPAddress.Should().Be(MockServer.Localhost);
         diagnostics.Rack.Should().Be(0);
         diagnostics.Slot.Should().Be(1);
         diagnostics.DiagnosticTime.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
@@ -586,5 +592,9 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     /// <summary>
     /// Disposes test resources.
     /// </summary>
-    public void Dispose() => _plc?.Dispose();
+    public void Dispose()
+    {
+        _plc?.Dispose();
+        _server?.Stop();
+    }
 }

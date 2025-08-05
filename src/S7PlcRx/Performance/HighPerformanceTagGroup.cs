@@ -101,14 +101,12 @@ public class HighPerformanceTagGroup<T> : IDisposable
     /// <summary>
     /// Reads all values in the group efficiently.
     /// </summary>
-    /// <typeparam name="T">The type of values to read.</typeparam>
     /// <returns>A dictionary of tag names and values.</returns>
     public async Task<Dictionary<string, T?>> ReadAll() => await _plc.ValueBatch<T>(_tagNames);
 
     /// <summary>
     /// Writes multiple values to the group.
     /// </summary>
-    /// <typeparam name="T">The type of values to write.</typeparam>
     /// <param name="values">The values to write.</param>
     /// <returns>A task representing the write operation.</returns>
     public async Task WriteAll(Dictionary<string, T> values)

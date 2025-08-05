@@ -9,7 +9,6 @@ namespace S7PlcRx.Production;
 /// <remarks>
 /// Initializes a new instance of the <see cref="ProductionErrorHandler"/> class.
 /// </remarks>
-/// <param name="plc">The PLC instance.</param>
 /// <param name="config">The error handling configuration.</param>
 public sealed class ProductionErrorHandler(ProductionErrorConfig config)
 {

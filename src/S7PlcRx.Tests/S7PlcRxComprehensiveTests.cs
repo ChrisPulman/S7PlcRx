@@ -1,7 +1,7 @@
 // Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using MockS7Plc;
 using S7PlcRx.Enums;
 
 namespace S7PlcRx.Tests;
@@ -12,6 +12,8 @@ namespace S7PlcRx.Tests;
 /// </summary>
 public class S7PlcRxComprehensiveTests
 {
+    private static readonly float[] value = [1.1f, 2.2f, 3.3f, 4.4f, 5.5f];
+
     /// <summary>
     /// Test creation of all supported PLC types.
     /// </summary>
@@ -26,12 +28,12 @@ public class S7PlcRxComprehensiveTests
     public void CreatePLC_AllSupportedTypes_ShouldSetCorrectProperties(CpuType cpuType)
     {
         // Arrange & Act
-        using var plc = new RxS7(cpuType, "192.168.1.100", 0, 1, null, 100);
+        using var plc = new RxS7(cpuType, MockServer.Localhost, 0, 1, null, 100);
 
         // Assert
         plc.Should().NotBeNull();
         plc.PLCType.Should().Be(cpuType);
-        plc.IP.Should().Be("192.168.1.100");
+        plc.IP.Should().Be(MockServer.Localhost);
         plc.Rack.Should().Be(0);
         plc.Slot.Should().Be(1);
         plc.IsDisposed.Should().BeFalse();
@@ -44,15 +46,15 @@ public class S7PlcRxComprehensiveTests
     public void S71500Factory_WithDifferentConfigurations_ShouldCreateCorrectly()
     {
         // Test basic creation
-        using var plc1 = S71500.Create("192.168.1.100", 0, 1);
+        using var plc1 = S71500.Create(MockServer.Localhost, 0, 1);
         plc1.PLCType.Should().Be(CpuType.S71500);
 
         // Test with interval
-        using var plc2 = S71500.Create("192.168.1.100", 0, 1, null, 50);
+        using var plc2 = S71500.Create(MockServer.Localhost, 0, 1, null, 50);
         plc2.PLCType.Should().Be(CpuType.S71500);
 
         // Test with watchdog
-        using var plc3 = S71500.Create("192.168.1.100", 0, 1, "DB1.DBW0", 100);
+        using var plc3 = S71500.Create(MockServer.Localhost, 0, 1, "DB1.DBW0", 100);
         plc3.WatchDogAddress.Should().Be("DB1.DBW0");
     }
 
@@ -63,7 +65,7 @@ public class S7PlcRxComprehensiveTests
     public void TagCreation_AllDataTypes_ShouldWorkCorrectly()
     {
         // Arrange
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Act & Assert - Basic types
         var (byteTag, _) = plc.AddUpdateTagItem<byte>("TestByte", "DB1.DBB0");
@@ -116,7 +118,7 @@ public class S7PlcRxComprehensiveTests
     public void MemoryAreaAddressing_AllTypes_ShouldBeSupported()
     {
         // Arrange
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Data Block addressing
         var dbTests = new[]
@@ -187,7 +189,7 @@ public class S7PlcRxComprehensiveTests
     public void TagManagement_Operations_ShouldWorkCorrectly()
     {
         // Arrange
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Add initial tags
         plc.AddUpdateTagItem<byte>("Tag1", "DB1.DBB0");
@@ -226,7 +228,7 @@ public class S7PlcRxComprehensiveTests
     public void Observables_ShouldBeCreatedAndFunctional()
     {
         // Arrange
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Test core observables exist
         plc.IsConnected.Should().NotBeNull();
@@ -256,18 +258,18 @@ public class S7PlcRxComprehensiveTests
     public void WatchdogConfiguration_ShouldWorkCorrectly()
     {
         // Test valid watchdog configuration
-        using var plc1 = new RxS7(CpuType.S71500, "127.0.0.1", 0, 1, "DB10.DBW100", 100, 4500, 15);
+        using var plc1 = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBW100", 100, 4500, 15);
         plc1.WatchDogAddress.Should().Be("DB10.DBW100");
         plc1.WatchDogValueToWrite.Should().Be(4500);
         plc1.WatchDogWritingTime.Should().Be(15);
 
         // Test invalid watchdog address (non-DBW)
-        var invalidWatchdogAction = () => new RxS7(CpuType.S71500, "127.0.0.1", 0, 1, "DB10.DBB100", 100);
+        var invalidWatchdogAction = () => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB100", 100);
         invalidWatchdogAction.Should().Throw<ArgumentException>()
             .WithMessage("*WatchDogAddress must be a DBW address*");
 
         // Test without watchdog
-        using var plc2 = new RxS7(CpuType.S71500, "127.0.0.1", 0, 1, null, 100);
+        using var plc2 = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, 100);
         plc2.WatchDogAddress.Should().BeNull();
     }
 
@@ -278,21 +280,21 @@ public class S7PlcRxComprehensiveTests
     public void ErrorHandling_InvalidParameters_ShouldThrowCorrectExceptions()
     {
         // Invalid rack values
-        var invalidRack1 = () => S71500.Create("127.0.0.1", -1, 1);
+        var invalidRack1 = () => S71500.Create(MockServer.Localhost, -1, 1);
         invalidRack1.Should().Throw<ArgumentOutOfRangeException>().And.ParamName.Should().Be("rack");
 
-        var invalidRack2 = () => S71500.Create("127.0.0.1", 8, 1);
+        var invalidRack2 = () => S71500.Create(MockServer.Localhost, 8, 1);
         invalidRack2.Should().Throw<ArgumentOutOfRangeException>().And.ParamName.Should().Be("rack");
 
         // Invalid slot values
-        var invalidSlot1 = () => S71500.Create("127.0.0.1", 0, 0);
+        var invalidSlot1 = () => S71500.Create(MockServer.Localhost, 0, 0);
         invalidSlot1.Should().Throw<ArgumentOutOfRangeException>().And.ParamName.Should().Be("slot");
 
-        var invalidSlot2 = () => S71500.Create("127.0.0.1", 0, 32);
+        var invalidSlot2 = () => S71500.Create(MockServer.Localhost, 0, 32);
         invalidSlot2.Should().Throw<ArgumentOutOfRangeException>().And.ParamName.Should().Be("slot");
 
         // Invalid tag operations
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         var nullTagName = () => plc.RemoveTagItem(null!);
         nullTagName.Should().Throw<ArgumentNullException>();
@@ -308,7 +310,7 @@ public class S7PlcRxComprehensiveTests
     public void Performance_HighVolumeOperations_ShouldBeEfficient()
     {
         // Test rapid tag creation
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 10); // Fast interval
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 10); // Fast interval
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         const int tagCount = 100;
@@ -405,7 +407,7 @@ public class S7PlcRxComprehensiveTests
     public void Disposal_ShouldCleanupResourcesProperly()
     {
         // Arrange
-        var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
         plc.AddUpdateTagItem<byte>("TestTag", "DB1.DBB0");
 
         plc.IsDisposed.Should().BeFalse();
@@ -430,7 +432,7 @@ public class S7PlcRxComprehensiveTests
     public void TagPolling_Control_ShouldWorkCorrectly()
     {
         // Arrange
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Test tag polling configuration
         var (tag, _) = plc.AddUpdateTagItem<ushort>("TestTag", "DB1.DBW0");
@@ -455,7 +457,7 @@ public class S7PlcRxComprehensiveTests
     public void ValueOperations_SynchronousAPI_ShouldWorkCorrectly()
     {
         // Arrange
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
         plc.AddUpdateTagItem<ushort>("TestWord", "DB1.DBW0");
         plc.AddUpdateTagItem<float>("TestReal", "DB1.DBD4");
 
@@ -483,7 +485,7 @@ public class S7PlcRxComprehensiveTests
     public void ReactiveExtensions_Integration_ShouldWorkCorrectly()
     {
         // Arrange
-        using var plc = S71500.Create("127.0.0.1", 0, 1, null, 100);
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Test tag to dictionary conversion
         plc.AddUpdateTagItem<ushort>("Tag1", "DB1.DBW0");
@@ -508,7 +510,7 @@ public class S7PlcRxComprehensiveTests
     public void ComprehensiveScenario_MixedOperations_ShouldWorkTogether()
     {
         // Arrange - Create PLC with watchdog
-        using var plc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1, "DB100.DBW0", 50, 4500, 10);
+        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB100.DBW0", 50, 4500, 10);
 
         // Add various tags
         plc.AddUpdateTagItem<byte>("ProcessByte", "DB1.DBB0");
@@ -553,7 +555,7 @@ public class S7PlcRxComprehensiveTests
             () => plc.Value("ProcessWord", (ushort)1000),
             () => plc.Value("ProcessReal", 123.456f),
             () => plc.Value("ProcessBit", true),
-            () => plc.Value("ProcessArray", new float[] { 1.1f, 2.2f, 3.3f, 4.4f, 5.5f }),
+            () => plc.Value("ProcessArray", value),
             () => plc.Value("InputWord", (ushort)2000),
             () => plc.Value("OutputWord", (ushort)3000),
             () => plc.Value("MemoryByte", (byte)200),
@@ -580,7 +582,7 @@ public class S7PlcRxComprehensiveTests
 
         // Test tag polling control
         plc.GetTag("ProcessWord").SetTagPollIng(false);
-        ((Tag)plc.TagList["ProcessWord"]).DoNotPoll.Should().BeTrue();
+        ((Tag)plc.TagList["ProcessWord"]!).DoNotPoll.Should().BeTrue();
 
         // Test system observables
         var statusObs = plc.Status;
