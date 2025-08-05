@@ -172,7 +172,7 @@ internal class S7SocketRx : IDisposable
     /// <summary>
     /// Gets the optimized data read length based on PLC type capabilities.
     /// </summary>
-    public ushort DataReadLength { get; private set; }
+    public ushort DataReadLength { get; }
 
     /// <summary>
     /// Gets the enhanced availability check with optimized ping strategy.

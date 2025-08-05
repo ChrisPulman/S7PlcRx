@@ -38,8 +38,8 @@ public class ProductionDiagnostics
     public ProductionTagMetrics TagMetrics { get; set; } = new ProductionTagMetrics();
 
     /// <summary>Gets or sets the optimization recommendations.</summary>
-    public List<string> Recommendations { get; set; } = new List<string>();
+    public List<string> Recommendations { get; set; } = [];
 
     /// <summary>Gets or sets any errors encountered during diagnostics.</summary>
-    public List<string> Errors { get; set; } = new List<string>();
+    public List<string> Errors { get; set; } = [];
 }

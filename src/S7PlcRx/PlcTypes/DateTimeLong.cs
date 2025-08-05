@@ -204,7 +204,7 @@ public static class DateTimeLong
         var year = AssertRangeInclusive(Word.FromSpan(bytes.Slice(0, 2)), (ushort)1970, (ushort)2262, "year");
         var month = AssertRangeInclusive(bytes[2], (byte)1, (byte)12, "month");
         var day = AssertRangeInclusive(bytes[3], (byte)1, (byte)31, "day of month");
-        var dayOfWeek = AssertRangeInclusive(bytes[4], (byte)1, (byte)7, "day of week");
+        ////var dayOfWeek = AssertRangeInclusive(bytes[4], (byte)1, (byte)7, "day of week");
         var hour = AssertRangeInclusive(bytes[5], (byte)0, (byte)23, "hour");
         var minute = AssertRangeInclusive(bytes[6], (byte)0, (byte)59, "minute");
         var second = AssertRangeInclusive(bytes[7], (byte)0, (byte)59, "second");

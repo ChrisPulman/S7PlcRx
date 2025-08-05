@@ -6,22 +6,18 @@ namespace S7PlcRx.Production;
 /// <summary>
 /// Circuit breaker implementation for production reliability.
 /// </summary>
-public sealed class CircuitBreaker
+/// <remarks>
+/// Initializes a new instance of the <see cref="CircuitBreaker"/> class.
+/// </remarks>
+/// <param name="config">The configuration.</param>
+public sealed class CircuitBreaker(ProductionErrorConfig config)
 {
-    private readonly ProductionErrorConfig _config;
     private readonly object _lock = new();
     private int _consecutiveFailures;
     private DateTime _lastFailureTime;
-    private CircuitBreakerState _state = CircuitBreakerState.Closed;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CircuitBreaker"/> class.
-    /// </summary>
-    /// <param name="config">The configuration.</param>
-    public CircuitBreaker(ProductionErrorConfig config) => _config = config;
 
     /// <summary>Gets the current circuit breaker state.</summary>
-    public CircuitBreakerState State => _state;
+    public CircuitBreakerState State { get; private set; } = CircuitBreakerState.Closed;
 
     /// <summary>Gets the total number of operations executed.</summary>
     public long TotalOperations { get; private set; }
@@ -52,14 +48,14 @@ public sealed class CircuitBreaker
         {
             TotalOperations++;
 
-            if (_state == CircuitBreakerState.Open)
+            if (State == CircuitBreakerState.Open)
             {
-                if (DateTime.UtcNow - _lastFailureTime < _config.CircuitBreakerTimeout)
+                if (DateTime.UtcNow - _lastFailureTime < config.CircuitBreakerTimeout)
                 {
                     throw new InvalidOperationException("Circuit breaker is open - operation blocked");
                 }
 
-                _state = CircuitBreakerState.HalfOpen;
+                State = CircuitBreakerState.HalfOpen;
             }
         }
 
@@ -71,7 +67,7 @@ public sealed class CircuitBreaker
             {
                 SuccessfulOperations++;
                 _consecutiveFailures = 0;
-                _state = CircuitBreakerState.Closed;
+                State = CircuitBreakerState.Closed;
             }
 
             return result;
@@ -84,9 +80,9 @@ public sealed class CircuitBreaker
                 _consecutiveFailures++;
                 _lastFailureTime = DateTime.UtcNow;
 
-                if (_consecutiveFailures >= _config.CircuitBreakerThreshold)
+                if (_consecutiveFailures >= config.CircuitBreakerThreshold)
                 {
-                    _state = CircuitBreakerState.Open;
+                    State = CircuitBreakerState.Open;
                 }
             }
 
@@ -99,7 +95,7 @@ public sealed class CircuitBreaker
         var attempts = 0;
         Exception? lastException = null;
 
-        while (attempts <= _config.MaxRetryAttempts)
+        while (attempts <= config.MaxRetryAttempts)
         {
             try
             {
@@ -110,11 +106,11 @@ public sealed class CircuitBreaker
                 lastException = ex;
                 attempts++;
 
-                if (attempts <= _config.MaxRetryAttempts)
+                if (attempts <= config.MaxRetryAttempts)
                 {
-                    var delay = _config.UseExponentialBackoff
-                        ? _config.BaseRetryDelayMs * (int)Math.Pow(2, attempts - 1)
-                        : _config.BaseRetryDelayMs;
+                    var delay = config.UseExponentialBackoff
+                        ? config.BaseRetryDelayMs * (int)Math.Pow(2, attempts - 1)
+                        : config.BaseRetryDelayMs;
 
                     await Task.Delay(delay);
                 }

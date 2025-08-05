@@ -10,23 +10,21 @@ namespace S7PlcRx.Optimization;
 /// <summary>
 /// Advanced batch processing and caching optimizations for S7 PLC communication.
 /// </summary>
-internal class S7OptimizationEngine : IDisposable
+internal class OptimizationEngine : IDisposable
 {
     private readonly ConcurrentQueue<OptimizedRequest> _requestQueue = new();
     private readonly ConcurrentDictionary<string, CachedValue> _valueCache = new();
     private readonly Timer _batchTimer;
     private readonly SemaphoreSlim _processingLock = new(1, 1);
-    private readonly int _batchIntervalMs;
     private readonly int _maxBatchSize;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="S7OptimizationEngine"/> class.
+    /// Initializes a new instance of the <see cref="OptimizationEngine"/> class.
     /// </summary>
     /// <param name="batchIntervalMs">The batch processing interval in milliseconds.</param>
     /// <param name="maxBatchSize">The maximum batch size per request.</param>
-    public S7OptimizationEngine(int batchIntervalMs = 50, int maxBatchSize = 20)
+    public OptimizationEngine(int batchIntervalMs = 50, int maxBatchSize = 20)
     {
-        _batchIntervalMs = batchIntervalMs;
         _maxBatchSize = maxBatchSize;
         _batchTimer = new Timer(
             ProcessBatchedRequests,
@@ -75,13 +73,10 @@ internal class S7OptimizationEngine : IDisposable
     /// <param name="tagName">The tag name.</param>
     /// <param name="value">The value to cache.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void UpdateCache(string tagName, object value)
-    {
-        _valueCache.AddOrUpdate(
+    public void UpdateCache(string tagName, object value) => _valueCache.AddOrUpdate(
             tagName,
             new CachedValue(value, DateTime.UtcNow),
             (_, existing) => new CachedValue(value, DateTime.UtcNow, existing.HitCount));
-    }
 
     /// <summary>
     /// Clears expired cache entries.
@@ -140,7 +135,7 @@ internal class S7OptimizationEngine : IDisposable
         {
             try
             {
-                ProcessDataBlockBatch(group.ToList());
+                ProcessDataBlockBatch([.. group]);
             }
             catch (Exception ex)
             {
@@ -183,13 +178,11 @@ internal class S7OptimizationEngine : IDisposable
         try
         {
             var requests = new List<OptimizedRequest>();
-            var processed = 0;
 
             // Dequeue up to maxBatchSize requests
-            while (_requestQueue.TryDequeue(out var request) && processed < _maxBatchSize)
+            for (var processed = 0; _requestQueue.TryDequeue(out var request) && processed < _maxBatchSize; processed++)
             {
                 requests.Add(request);
-                processed++;
             }
 
             if (requests.Count > 0)

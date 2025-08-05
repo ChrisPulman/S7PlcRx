@@ -11,7 +11,7 @@ namespace S7PlcRx.Performance;
 internal sealed class PerformanceCounter
 {
     private readonly object _lock = new();
-    private readonly List<double> _responseTimes = new();
+    private readonly List<double> _responseTimes = [];
     private readonly DateTime _startTime = DateTime.UtcNow;
 
     /// <summary>Gets the total number of operations.</summary>

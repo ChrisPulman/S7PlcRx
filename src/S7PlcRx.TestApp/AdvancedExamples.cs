@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using S7PlcRx.Advanced;
 using S7PlcRx.Enums;
 using S7PlcRx.Optimization;
 
@@ -10,7 +11,7 @@ namespace S7PlcRx.Examples;
 /// Comprehensive examples demonstrating S7PlcRx optimizations for industrial automation.
 /// Shows batch operations, performance monitoring, and advanced PLC communication patterns.
 /// </summary>
-public static class S7OptimizationExamples
+public static class AdvancedExamples
 {
     /// <summary>
     /// Demonstrates basic batch reading optimization for multiple tags.

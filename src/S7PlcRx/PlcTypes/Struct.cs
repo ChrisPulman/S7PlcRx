@@ -39,7 +39,7 @@ public static class Struct
                 case "Int16":
                 case "UInt16":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -50,7 +50,7 @@ public static class Struct
                 case "UInt32":
                 case "TimeSpan":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -59,7 +59,7 @@ public static class Struct
                     break;
                 case "Single":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -68,7 +68,7 @@ public static class Struct
                     break;
                 case "Double":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -83,7 +83,7 @@ public static class Struct
                     }
 
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -157,7 +157,7 @@ public static class Struct
                     break;
                 case "Int16":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -169,7 +169,7 @@ public static class Struct
                     break;
                 case "UInt16":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -180,7 +180,7 @@ public static class Struct
                     break;
                 case "Int32":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -196,7 +196,7 @@ public static class Struct
                     break;
                 case "UInt32":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -211,7 +211,7 @@ public static class Struct
                     break;
                 case "Single":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -226,7 +226,7 @@ public static class Struct
                     break;
                 case "Double":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -245,7 +245,7 @@ public static class Struct
                     }
 
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -269,7 +269,7 @@ public static class Struct
                     break;
                 case "TimeSpan":
                     numBytes = Math.Ceiling(numBytes);
-                    if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                     {
                         numBytes++;
                     }
@@ -320,29 +320,21 @@ public static class Struct
         byte[]? bytes2 = null;
 
         var bytePos = 0;
-        var bitPos = 0;
         var numBytes = 0.0;
 
-        var infos = type.GetFields();
-
-        foreach (var info in infos)
+        foreach (var info in type.GetFields())
         {
             static TValue GetValueOrThrow<TValue>(FieldInfo fi, object structValue)
-                where TValue : struct
-            {
-                var value = fi.GetValue(structValue) as TValue? ??
+                where TValue : struct => fi.GetValue(structValue) as TValue? ??
                     throw new ArgumentException($"Failed to convert value of field {fi.Name} of {structValue} to type {typeof(TValue)}");
-
-                return value;
-            }
 
             bytes2 = null;
             switch (info.FieldType.Name)
             {
                 case "Boolean":
                     // get the value
-                    bytePos = (int)Math.Floor(numBytes);
-                    bitPos = (int)((numBytes - (double)bytePos) / 0.125);
+                    var bitPos = (int)Math.Floor(numBytes);
+                    bitPos = (int)((numBytes - bytePos) / 0.125);
                     if (GetValueOrThrow<bool>(info, structValue))
                     {
                         bytes[bytePos] |= (byte)Math.Pow(2, bitPos);            // is true
@@ -401,7 +393,7 @@ public static class Struct
             {
                 // add them
                 numBytes = Math.Ceiling(numBytes);
-                if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+                if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
                 {
                     numBytes++;
                 }

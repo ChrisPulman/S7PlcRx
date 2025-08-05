@@ -11,7 +11,7 @@ public sealed class SymbolTable
     /// <summary>
     /// Gets the collection of symbols indexed by name.
     /// </summary>
-    public Dictionary<string, Symbol> Symbols { get; } = new();
+    public Dictionary<string, Symbol> Symbols { get; } = [];
 
     /// <summary>
     /// Gets the timestamp when the symbol table was loaded.

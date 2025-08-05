@@ -24,7 +24,7 @@ public sealed class ValidationTest
     public string? ErrorMessage { get; set; }
 
     /// <summary>Gets additional test details.</summary>
-    public List<string> Details { get; } = new();
+    public List<string> Details { get; } = [];
 
     /// <summary>Gets the test duration.</summary>
     public TimeSpan Duration => EndTime - StartTime;

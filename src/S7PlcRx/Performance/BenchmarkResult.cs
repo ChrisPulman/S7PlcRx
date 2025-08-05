@@ -36,7 +36,7 @@ public sealed class BenchmarkResult
     public double OverallScore { get; set; }
 
     /// <summary>Gets any errors encountered during benchmarking.</summary>
-    public List<string> Errors { get; } = new();
+    public List<string> Errors { get; } = [];
 
     /// <summary>Gets the total benchmark duration.</summary>
     public TimeSpan TotalDuration => EndTime - StartTime;

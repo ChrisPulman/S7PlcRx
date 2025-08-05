@@ -1,7 +1,6 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Data.SqlTypes;
 using System.Reflection;
 using S7PlcRx.Enums;
 
@@ -56,7 +55,7 @@ public static class Class
         {
             // enlarge numBytes to next even number because S7-Structs in a DB always will be resized to an even byte count
             numBytes = Math.Ceiling(numBytes);
-            if (((numBytes / 2) - Math.Floor(numBytes / 2.0)) > 0)
+            if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
             {
                 numBytes++;
             }
@@ -223,15 +222,7 @@ public static class Class
                 // get the value
                 var bytePos = (int)Math.Floor(numBytes);
                 var bitPos = (int)((numBytes - bytePos) / 0.125);
-                if ((bytes[bytePos] & (int)Math.Pow(2, bitPos)) != 0)
-                {
-                    value = true;
-                }
-                else
-                {
-                    value = false;
-                }
-
+                value = (bytes[bytePos] & (int)Math.Pow(2, bitPos)) != 0;
                 numBytes += 0.125;
                 break;
             case "Byte":

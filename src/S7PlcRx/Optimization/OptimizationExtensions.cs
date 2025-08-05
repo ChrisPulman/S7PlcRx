@@ -10,7 +10,7 @@ namespace S7PlcRx.Optimization;
 /// <summary>
 /// Optimization extensions providing intelligent batching, caching, and performance monitoring.
 /// </summary>
-public static class S7OptimizationExtensions
+public static class OptimizationExtensions
 {
     private static readonly ConcurrentDictionary<string, CachedTagValue> _valueCache = new();
     private static readonly object _cacheLock = new();
@@ -186,6 +186,11 @@ public static class S7OptimizationExtensions
 
     private static bool IsSignificantChange<T>(T? previous, T? current, double threshold)
     {
+        if (previous == null || current == null)
+        {
+            return false;
+        }
+
         if (EqualityComparer<T>.Default.Equals(previous, current))
         {
             return false;

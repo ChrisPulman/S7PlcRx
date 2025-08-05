@@ -26,7 +26,7 @@ public class PerformanceAnalysis
     /// <summary>
     /// Gets or sets the tag change frequencies.
     /// </summary>
-    public Dictionary<string, int> TagChangeFrequencies { get; set; } = new Dictionary<string, int>();
+    public Dictionary<string, int> TagChangeFrequencies { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the total tag changes observed.
@@ -41,5 +41,5 @@ public class PerformanceAnalysis
     /// <summary>
     /// Gets or sets the optimization recommendations.
     /// </summary>
-    public List<string> Recommendations { get; set; } = new List<string>();
+    public List<string> Recommendations { get; set; } = [];
 }

@@ -11,7 +11,7 @@ namespace S7PlcRx.Performance;
 /// Performance optimization extensions for S7 PLC communications providing
 /// advanced metrics, connection pooling, and throughput optimization.
 /// </summary>
-public static class S7PerformanceExtensions
+public static class PerformanceExtensions
 {
     private static readonly ConcurrentDictionary<string, PerformanceCounter> _performanceCounters = new();
     private static readonly ConcurrentDictionary<string, SimpleConnectionMetrics> _connectionMetrics = new();
@@ -329,12 +329,13 @@ public static class S7PerformanceExtensions
         foreach (var tagName in tagNames)
         {
             var dataBlock = ExtractDataBlockFromTag(tagName, plc);
-            if (!grouped.ContainsKey(dataBlock))
+            if (!grouped.TryGetValue(dataBlock, out var value))
             {
-                grouped[dataBlock] = [];
+                value = [];
+                grouped[dataBlock] = value;
             }
 
-            grouped[dataBlock].Add(tagName);
+            value.Add(tagName);
         }
 
         return grouped;
@@ -348,12 +349,13 @@ public static class S7PerformanceExtensions
         foreach (var kvp in values)
         {
             var dataBlock = ExtractDataBlockFromTag(kvp.Key, plc);
-            if (!grouped.ContainsKey(dataBlock))
+            if (!grouped.TryGetValue(dataBlock, out var value))
             {
-                grouped[dataBlock] = [];
+                value = [];
+                grouped[dataBlock] = value;
             }
 
-            grouped[dataBlock][kvp.Key] = kvp.Value;
+            value[kvp.Key] = kvp.Value;
         }
 
         return grouped;

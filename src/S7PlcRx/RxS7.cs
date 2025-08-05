@@ -892,7 +892,7 @@ public class RxS7 : IRxS7
                             }
 
                             var obj2 = Read<byte>(tag, DataType.DataBlock, dB, mByte, VarType.Byte);
-                            objBoolArray = new BitArray(new byte[] { obj2 });
+                            objBoolArray = new BitArray([obj2]);
                             return objBoolArray[mBit];
 
                         default:
@@ -1111,7 +1111,7 @@ public class RxS7 : IRxS7
                     }
 
                     var obj3 = Read<byte>(tag, dataType, 0, mByte, VarType.Byte);
-                    objBoolArray = new BitArray(new byte[] { obj3 });
+                    objBoolArray = new BitArray([obj3]);
                     return objBoolArray[mBit];
             }
         }

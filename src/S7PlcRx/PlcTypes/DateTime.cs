@@ -224,7 +224,7 @@ public static class DateTime
         var second = AssertRangeInclusive(DecodeBcd(bytes[5]), 0, 59, "second");
         var hsec = AssertRangeInclusive(DecodeBcd(bytes[6]), 0, 99, "first two millisecond digits");
         var msec = AssertRangeInclusive(bytes[7] >> 4, 0, 9, "third millisecond digit");
-        var dayOfWeek = AssertRangeInclusive(bytes[7] & 0b00001111, 1, 7, "day of week");
+        ////var dayOfWeek = AssertRangeInclusive(bytes[7] & 0b00001111, 1, 7, "day of week");
 
         return new System.DateTime(year, month, day, hour, minute, second, (hsec * 10) + msec);
     }

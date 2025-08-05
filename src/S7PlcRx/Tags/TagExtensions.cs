@@ -8,7 +8,7 @@ namespace S7PlcRx;
 /// <summary>
 /// Extensions Class.
 /// </summary>
-public static class ExtensionsMixins
+public static class TagExtensions
 {
     /// <summary>
     /// Adds the update tag item.

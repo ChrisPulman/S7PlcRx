@@ -4,16 +4,15 @@
 using System.Collections.Concurrent;
 using System.Reactive.Linq;
 using S7PlcRx.BatchOperations;
-using S7PlcRx.Enums;
 using S7PlcRx.Performance;
 using S7PlcRx.Production;
 
-namespace S7PlcRx;
+namespace S7PlcRx.Advanced;
 
 /// <summary>
 /// Advanced extensions for enhanced S7 PLC functionality and performance optimization.
 /// </summary>
-public static class S7AdvancedExtensions
+public static class AdvancedExtensions
 {
     /// <summary>
     /// Observes multiple variables efficiently using batch optimization.
@@ -414,10 +413,7 @@ public static class S7AdvancedExtensions
     /// <param name="groupName">The name of the tag group.</param>
     /// <param name="tagNames">The tags to include in the group.</param>
     /// <returns>A high-performance tag group.</returns>
-    public static HighPerformanceTagGroup CreateTagGroup(this IRxS7 plc, string groupName, params string[] tagNames)
-    {
-        return new HighPerformanceTagGroup(plc, groupName, tagNames);
-    }
+    public static HighPerformanceTagGroup CreateTagGroup(this IRxS7 plc, string groupName, params string[] tagNames) => new(plc, groupName, tagNames);
 
     private static string ExtractDataBlockId(string address)
     {

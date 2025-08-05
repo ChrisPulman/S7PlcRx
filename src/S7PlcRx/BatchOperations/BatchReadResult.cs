@@ -12,13 +12,13 @@ namespace S7PlcRx.BatchOperations;
 public class BatchReadResult<T>
 {
     /// <summary>Gets the successfully read values.</summary>
-    public Dictionary<string, T> Values { get; } = new Dictionary<string, T>();
+    public Dictionary<string, T> Values { get; } = [];
 
     /// <summary>Gets the success status for each tag.</summary>
-    public Dictionary<string, bool> Success { get; } = new Dictionary<string, bool>();
+    public Dictionary<string, bool> Success { get; } = [];
 
     /// <summary>Gets error messages for failed reads.</summary>
-    public Dictionary<string, string> Errors { get; } = new Dictionary<string, string>();
+    public Dictionary<string, string> Errors { get; } = [];
 
     /// <summary>Gets or sets a value indicating whether gets whether all reads were successful.</summary>
     public bool OverallSuccess { get; set; }

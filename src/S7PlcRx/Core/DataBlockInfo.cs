@@ -24,5 +24,5 @@ public class DataBlockInfo
     public bool IsBatchOptimized { get; set; }
 
     /// <summary>Gets the tags in this data block.</summary>
-    public List<string> TagNames { get; } = new();
+    public List<string> TagNames { get; } = [];
 }

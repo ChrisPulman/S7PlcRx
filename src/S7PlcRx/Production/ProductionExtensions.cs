@@ -3,16 +3,14 @@
 
 using System.Collections.Concurrent;
 using System.Reactive.Linq;
-using S7PlcRx.Enums;
 
 namespace S7PlcRx.Production;
 
 /// <summary>
 /// Production-ready S7 PLC extensions providing enterprise-grade functionality.
 /// </summary>
-public static class S7ProductionExtensions
+public static class ProductionExtensions
 {
-    private static readonly ConcurrentDictionary<string, ProductionMetrics> _productionMetrics = new();
     private static readonly ConcurrentDictionary<string, CircuitBreaker> _circuitBreakers = new();
 
     /// <summary>
@@ -35,7 +33,7 @@ public static class S7ProductionExtensions
             throw new ArgumentNullException(nameof(config));
         }
 
-        return new ProductionErrorHandler(plc, config);
+        return new ProductionErrorHandler(config);
     }
 
     /// <summary>
@@ -92,7 +90,7 @@ public static class S7ProductionExtensions
 
         try
         {
-            await ValidateConnectivity(plc, result, config);
+            await ValidateConnectivity(plc, result);
             await ValidatePerformance(plc, result, config);
             await ValidateReliability(plc, result, config);
 
@@ -109,7 +107,7 @@ public static class S7ProductionExtensions
         return result;
     }
 
-    private static async Task ValidateConnectivity(IRxS7 plc, SystemValidationResult result, ProductionValidationConfig config)
+    private static async Task ValidateConnectivity(IRxS7 plc, SystemValidationResult result)
     {
         var connectivityTest = new ValidationTest { TestName = "Connectivity", StartTime = DateTime.UtcNow };
 
@@ -124,7 +122,7 @@ public static class S7ProductionExtensions
             {
                 var cpuInfo = await plc.GetCpuInfo().FirstAsync();
                 connectivityTest.Success = cpuInfo?.Length > 0;
-                connectivityTest.Details.Add($"CPU Info: {string.Join(", ", cpuInfo ?? Array.Empty<string>())}");
+                connectivityTest.Details.Add($"CPU Info: {string.Join(", ", cpuInfo ?? [])}");
             }
         }
         catch (Exception ex)

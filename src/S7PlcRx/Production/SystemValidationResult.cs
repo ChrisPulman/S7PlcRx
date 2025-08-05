@@ -24,10 +24,10 @@ public sealed class SystemValidationResult
     public double OverallScore { get; set; }
 
     /// <summary>Gets the individual validation tests.</summary>
-    public List<ValidationTest> ValidationTests { get; } = new();
+    public List<ValidationTest> ValidationTests { get; } = [];
 
     /// <summary>Gets critical errors that prevent production use.</summary>
-    public List<string> CriticalErrors { get; } = new();
+    public List<string> CriticalErrors { get; } = [];
 
     /// <summary>Gets the total validation time.</summary>
     public TimeSpan TotalValidationTime => ValidationEndTime - ValidationStartTime;

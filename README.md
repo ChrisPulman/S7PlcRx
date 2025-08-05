@@ -15,6 +15,15 @@
 
 S7PlcRx is a comprehensive, production-ready reactive library for communicating with Siemens S7 PLCs. Built on Reactive Extensions (Rx.NET), it provides real-time data streaming, advanced performance optimizations, enterprise-grade reliability, and comprehensive industrial automation features.
 
+### Disclaimer
+This project is not affiliated with or endorsed by Siemens AG. It is an independent implementation for educational and industrial use.
+S7PlcRx is designed to work with Siemens S7 PLCs, including S7-1500, S7-1200, S7-400, S7-300, S7-200, and Logo 0BA8 models.
+The use of this libarary is at your own risk. The author is not responsible for any damages or losses incurred from using this library in production environments.
+Ensure that you test thoroughly in a safe environment before deploying to production systems and always follow best practices for industrial automation.
+
+## 🏭 Why S7PlcRx?
+S7PlcRx is designed to meet the demanding requirements of modern industrial automation systems. It combines the power of reactive programming with high-performance optimizations, making it ideal for real-time PLC data monitoring, control, and diagnostics.
+
 ### ✨ Key Features
 
 - **🔄 Reactive Data Streaming** - Real-time PLC data observation using Rx.NET
@@ -787,11 +796,12 @@ var connection = pool.GetConnection();
 
 ### Extension Classes
 
-- **`S7PerformanceExtensions`** - Performance optimization methods
-- **`S7OptimizationExtensions`** - Caching and smart monitoring  
-- **`S7EnterpriseExtensions`** - Enterprise features (HA, security, symbols)
-- **`S7ProductionExtensions`** - Production reliability features
-- **`S7AdvancedExtensions`** - Advanced batch operations and diagnostics
+- **`TagExtensions`** - Tag management and operations`
+- **`PerformanceExtensions`** - Performance optimization methods
+- **`OptimizationExtensions`** - Caching and smart monitoring  
+- **`EnterpriseExtensions`** - Enterprise features (HA, security, symbols)
+- **`ProductionExtensions`** - Production reliability features
+- **`AdvancedExtensions`** - Advanced batch operations and diagnostics
 
 ### Factory Classes
 

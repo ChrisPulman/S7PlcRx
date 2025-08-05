@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Reactive.Linq;
+using S7PlcRx.Advanced;
 
 namespace S7PlcRx.Performance;
 
@@ -14,7 +15,7 @@ public class HighPerformanceTagGroup : IDisposable
     private readonly IRxS7 _plc;
     private readonly string[] _tagNames;
     private readonly Timer _updateTimer;
-    private readonly ConcurrentDictionary<string, object?> _currentValues = new ConcurrentDictionary<string, object?>();
+    private readonly ConcurrentDictionary<string, object?> _currentValues = new();
     private bool _disposed;
 
     /// <summary>
@@ -67,10 +68,7 @@ public class HighPerformanceTagGroup : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of values to read.</typeparam>
     /// <returns>A dictionary of tag names and values.</returns>
-    public async Task<Dictionary<string, T?>> ReadAll<T>()
-    {
-        return await _plc.ValueBatch<T>(_tagNames);
-    }
+    public async Task<Dictionary<string, T?>> ReadAll<T>() => await _plc.ValueBatch<T>(_tagNames);
 
     /// <summary>
     /// Writes multiple values to the group.

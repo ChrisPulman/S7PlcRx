@@ -6,29 +6,22 @@ namespace S7PlcRx.Cache;
 /// <summary>
 /// Represents a cached value with metadata.
 /// </summary>
-internal class CachedValue
+/// <remarks>
+/// Initializes a new instance of the <see cref="CachedValue"/> class.
+/// </remarks>
+/// <param name="value">The cached value.</param>
+/// <param name="timestamp">When the value was cached.</param>
+/// <param name="hitCount">The number of times this value has been accessed.</param>
+internal class CachedValue(object? value, DateTime timestamp, long hitCount = 0)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CachedValue"/> class.
-    /// </summary>
-    /// <param name="value">The cached value.</param>
-    /// <param name="timestamp">When the value was cached.</param>
-    /// <param name="hitCount">The number of times this value has been accessed.</param>
-    public CachedValue(object? value, DateTime timestamp, long hitCount = 0)
-    {
-        Value = value;
-        Timestamp = timestamp;
-        HitCount = hitCount;
-    }
-
     /// <summary>Gets the cached value.</summary>
-    public object? Value { get; }
+    public object? Value { get; } = value;
 
     /// <summary>Gets when the value was cached.</summary>
-    public DateTime Timestamp { get; }
+    public DateTime Timestamp { get; } = timestamp;
 
     /// <summary>Gets or sets the number of times this value has been accessed.</summary>
-    public long HitCount { get; set; }
+    public long HitCount { get; set; } = hitCount;
 
     /// <summary>Gets whether this cached value has expired.</summary>
     /// <param name="maxAge">The maximum age for cached values.</param>

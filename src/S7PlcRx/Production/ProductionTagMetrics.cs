@@ -18,5 +18,5 @@ public class ProductionTagMetrics
     public int InactiveTags { get; set; }
 
     /// <summary>Gets or sets the distribution of tags by data block.</summary>
-    public Dictionary<string, int> DataBlockDistribution { get; set; } = new Dictionary<string, int>();
+    public Dictionary<string, int> DataBlockDistribution { get; set; } = [];
 }

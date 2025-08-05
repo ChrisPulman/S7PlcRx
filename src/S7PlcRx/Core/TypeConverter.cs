@@ -4,7 +4,7 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
 
-namespace S7PlcRx;
+namespace S7PlcRx.Core;
 
 internal static class TypeConverter
 {
@@ -53,10 +53,7 @@ internal static class TypeConverter
     /// Converts an array of T represented as S7 binary data to an array of T.
     /// </summary>
     public static T[] ToArray<T>(byte[] bytes, Func<byte[], T> converter)
-        where T : struct
-    {
-        return ToArray(bytes.AsSpan(), converter);
-    }
+        where T : struct => ToArray(bytes.AsSpan(), converter);
 
     /// <summary>
     /// Converts a span of bytes represented as S7 binary data to an array of T.

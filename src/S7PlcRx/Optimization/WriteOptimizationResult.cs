@@ -15,10 +15,10 @@ public sealed class WriteOptimizationResult
     public DateTime EndTime { get; set; }
 
     /// <summary>Gets successful writes with their durations.</summary>
-    public Dictionary<string, TimeSpan> SuccessfulWrites { get; } = new();
+    public Dictionary<string, TimeSpan> SuccessfulWrites { get; } = [];
 
     /// <summary>Gets failed writes with error messages.</summary>
-    public Dictionary<string, string> FailedWrites { get; } = new();
+    public Dictionary<string, string> FailedWrites { get; } = [];
 
     /// <summary>Gets or sets any overall error message.</summary>
     public string? OverallError { get; set; }

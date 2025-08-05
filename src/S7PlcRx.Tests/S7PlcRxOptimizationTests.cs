@@ -3,6 +3,8 @@
 
 using System.Reactive.Linq;
 using FluentAssertions;
+using S7PlcRx.Advanced;
+using S7PlcRx.Core;
 using S7PlcRx.Enterprise;
 using S7PlcRx.Enums;
 using S7PlcRx.Optimization;
@@ -470,7 +472,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         };
 
         // Act
-        using var haManager = S7EnterpriseExtensions.CreateHighAvailabilityConnection(
+        using var haManager = EnterpriseExtensions.CreateHighAvailabilityConnection(
             primaryPlc, backupPlcs, TimeSpan.FromSeconds(10));
 
         // Assert

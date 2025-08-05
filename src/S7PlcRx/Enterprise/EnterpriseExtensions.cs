@@ -11,7 +11,7 @@ namespace S7PlcRx.Enterprise;
 /// Enterprise-grade S7 PLC extensions providing advanced security, symbol tables,
 /// high-availability features, and industrial IoT capabilities for production environments.
 /// </summary>
-public static class S7EnterpriseExtensions
+public static class EnterpriseExtensions
 {
     private static readonly ConcurrentDictionary<string, SymbolTable> _symbolTables = new();
     private static readonly ConcurrentDictionary<string, SecurityContext> _securityContexts = new();
@@ -273,6 +273,24 @@ public static class S7EnterpriseExtensions
     private static async Task<SymbolTable> ParseJsonSymbolTable(string jsonData)
     {
         var symbolTable = new SymbolTable();
+
+        // Assuming a simple JSON structure for symbols
+        try
+        {
+            var symbols = System.Text.Json.JsonSerializer.Deserialize<List<Symbol>>(jsonData);
+            if (symbols != null)
+            {
+                foreach (var symbol in symbols)
+                {
+                    symbolTable.Symbols[symbol.Name] = symbol;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to parse JSON symbol table: {ex.Message}", ex);
+        }
+
         await Task.Delay(1); // Placeholder implementation
         return symbolTable;
     }
@@ -280,6 +298,32 @@ public static class S7EnterpriseExtensions
     private static async Task<SymbolTable> ParseXmlSymbolTable(string xmlData)
     {
         var symbolTable = new SymbolTable();
+
+        // Assuming a simple XML structure for symbols
+        try
+        {
+            var doc = new System.Xml.Linq.XDocument();
+            doc = System.Xml.Linq.XDocument.Parse(xmlData);
+            var symbols = doc.Descendants("Symbol")
+                .Select(x => new Symbol
+                {
+                    Name = x.Element("Name")?.Value ?? string.Empty,
+                    Address = x.Element("Address")?.Value ?? string.Empty,
+                    DataType = x.Element("DataType")?.Value ?? string.Empty,
+                    Length = int.TryParse(x.Element("Length")?.Value, out var len) ? len : 1,
+                    Description = x.Element("Description")?.Value ?? string.Empty
+                })
+                .Where(s => !string.IsNullOrEmpty(s.Name));
+            foreach (var symbol in symbols)
+            {
+                symbolTable.Symbols[symbol.Name] = symbol;
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to parse XML symbol table: {ex.Message}", ex);
+        }
+
         await Task.Delay(1); // Placeholder implementation
         return symbolTable;
     }

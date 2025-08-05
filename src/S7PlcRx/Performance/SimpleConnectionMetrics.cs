@@ -15,14 +15,8 @@ internal sealed class SimpleConnectionMetrics
 
     /// <summary>Gets the connection uptime.</summary>
     /// <returns>Connection uptime.</returns>
-    public TimeSpan GetUptime()
-    {
-        return DateTime.UtcNow - _startTime;
-    }
+    public TimeSpan GetUptime() => DateTime.UtcNow - _startTime;
 
     /// <summary>Records a reconnection.</summary>
-    public void RecordReconnection()
-    {
-        ReconnectionCount++;
-    }
+    public void RecordReconnection() => ReconnectionCount++;
 }

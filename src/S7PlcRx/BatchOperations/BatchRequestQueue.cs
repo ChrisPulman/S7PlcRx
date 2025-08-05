@@ -27,10 +27,7 @@ internal class BatchRequestQueue
     /// Enqueues a batch request.
     /// </summary>
     /// <param name="request">The batch request to enqueue.</param>
-    public void Enqueue(BatchRequest request)
-    {
-        _requests.Enqueue(request);
-    }
+    public void Enqueue(BatchRequest request) => _requests.Enqueue(request);
 
     /// <summary>
     /// Dequeues all pending requests.

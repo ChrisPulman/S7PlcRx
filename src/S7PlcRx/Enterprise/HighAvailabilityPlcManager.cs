@@ -11,11 +11,9 @@ namespace S7PlcRx.Enterprise;
 /// </summary>
 public class HighAvailabilityPlcManager : IDisposable
 {
-    private readonly IRxS7 _primaryPlc;
     private readonly IList<IRxS7> _backupPlcs;
     private readonly Timer _healthCheckTimer;
     private readonly Subject<PlcFailoverEvent> _failoverEvents = new();
-    private IRxS7 _currentActivePlc;
     private bool _disposed;
 
     /// <summary>
@@ -29,9 +27,8 @@ public class HighAvailabilityPlcManager : IDisposable
         IList<IRxS7> backupPlcs,
         TimeSpan? healthCheckInterval = null)
     {
-        _primaryPlc = primaryPlc;
         _backupPlcs = backupPlcs;
-        _currentActivePlc = primaryPlc;
+        ActivePLC = primaryPlc;
 
         var interval = healthCheckInterval ?? TimeSpan.FromSeconds(30);
         _healthCheckTimer = new Timer(PerformHealthCheck, null, interval, interval);
@@ -40,7 +37,7 @@ public class HighAvailabilityPlcManager : IDisposable
     /// <summary>
     /// Gets the currently active PLC connection.
     /// </summary>
-    public IRxS7 ActivePLC => _currentActivePlc;
+    public IRxS7 ActivePLC { get; private set; }
 
     /// <summary>
     /// Gets observable stream of failover events.
@@ -51,10 +48,7 @@ public class HighAvailabilityPlcManager : IDisposable
     /// Manually triggers a failover to the next available backup.
     /// </summary>
     /// <returns>A value indicating whether failover was successful.</returns>
-    public async Task<bool> TriggerFailover()
-    {
-        return await PerformFailover("Manual failover triggered");
-    }
+    public async Task<bool> TriggerFailover() => await PerformFailover("Manual failover triggered");
 
     /// <summary>
     /// Disposes the high-availability manager.
@@ -88,7 +82,7 @@ public class HighAvailabilityPlcManager : IDisposable
 
         try
         {
-            if (!_currentActivePlc.IsConnectedValue)
+            if (!ActivePLC.IsConnectedValue)
             {
                 await PerformFailover("Primary PLC connection lost");
             }
@@ -105,8 +99,8 @@ public class HighAvailabilityPlcManager : IDisposable
         {
             if (backupPlc.IsConnectedValue)
             {
-                var oldPlc = _currentActivePlc;
-                _currentActivePlc = backupPlc;
+                var oldPlc = ActivePLC;
+                ActivePLC = backupPlc;
 
                 _failoverEvents.OnNext(new PlcFailoverEvent
                 {
@@ -116,7 +110,7 @@ public class HighAvailabilityPlcManager : IDisposable
                     NewPlc = $"{backupPlc.IP}:{backupPlc.PLCType}"
                 });
 
-                return true;
+                return await Task.FromResult(true);
             }
         }
 

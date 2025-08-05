@@ -34,8 +34,8 @@ public class BatchOperationResult
         : 0;
 
     /// <summary>Gets operation details.</summary>
-    public List<OperationDetail> OperationDetails { get; } = new();
+    public List<OperationDetail> OperationDetails { get; } = [];
 
     /// <summary>Gets error details for failed operations.</summary>
-    public List<string> ErrorDetails { get; } = new();
+    public List<string> ErrorDetails { get; } = [];
 }
