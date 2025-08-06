@@ -74,7 +74,7 @@ partial class Build : NukeBuild
     .DependsOn(Compile)
     .Executes(() =>
     {
-        var testProjects = Solution.GetTestProjects();
+        var testProjects = Solution.AllProjects;
         if (testProjects is null || testProjects.Count == 0)
         {
             Log.Warning("No test projects found.");
