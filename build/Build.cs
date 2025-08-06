@@ -57,6 +57,7 @@ partial class Build : NukeBuild
 
             PackagesDirectory.CreateOrCleanDirectory();
             await this.InstallDotNetSdk("8.x.x", "9.x.x");
+            DotNetWorkloadUpdate();
         });
 
     Target Restore => _ => _
