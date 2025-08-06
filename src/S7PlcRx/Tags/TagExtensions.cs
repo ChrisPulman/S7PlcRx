@@ -8,7 +8,7 @@ namespace S7PlcRx;
 /// <summary>
 /// Extensions Class.
 /// </summary>
-public static class ExtensionsMixins
+public static class TagExtensions
 {
     /// <summary>
     /// Adds the update tag item.
@@ -176,7 +176,7 @@ public static class ExtensionsMixins
     /// </returns>
     public static IObservable<IDictionary<string, TValue>> TagToDictionary<TValue>(this IObservable<Tag?> source)
     {
-        IDictionary<string, TValue> tagValues = new Dictionary<string, TValue>();
+        var tagValues = new Dictionary<string, TValue>();
         return source
             .Where(t => t != null && t?.Value is TValue)
             .Select(t => (Name: t!.Name!, Value: (TValue)t!.Value!))

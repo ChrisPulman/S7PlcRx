@@ -29,7 +29,8 @@
         "Deploy",
         "Pack",
         "Print",
-        "Restore"
+        "Restore",
+        "Test"
       ]
     },
     "Verbosity": {

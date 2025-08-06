@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Buffers;
+
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
@@ -8,6 +10,11 @@ namespace S7PlcRx.PlcTypes;
 /// </summary>
 public static class TimeSpan
 {
+    /// <summary>
+    /// The type length in bytes.
+    /// </summary>
+    public const int TypeLengthInBytes = 4;
+
     /// <summary>
     /// The minimum <see cref="T:System.TimeSpan"/> value supported by the specification.
     /// </summary>
@@ -23,17 +30,21 @@ public static class TimeSpan
     /// </summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
     /// <returns>A <see cref="T:System.TimeSpan"/> object representing the value read from PLC.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the length of
-    ///   <paramref name="bytes"/> is not 4 or any value in <paramref name="bytes"/>
-    ///   is outside the valid range of values.</exception>
-    public static System.TimeSpan FromByteArray(byte[] bytes)
+    public static System.TimeSpan FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
+
+    /// <summary>
+    /// Parses a <see cref="T:System.TimeSpan"/> value from a span.
+    /// </summary>
+    /// <param name="bytes">Input bytes span read from PLC.</param>
+    /// <returns>A <see cref="T:System.TimeSpan"/> object representing the value read from PLC.</returns>
+    public static System.TimeSpan FromSpan(ReadOnlySpan<byte> bytes)
     {
-        if (bytes == null)
+        if (bytes.Length < TypeLengthInBytes)
         {
-            throw new ArgumentNullException(nameof(bytes));
+            throw new ArgumentOutOfRangeException(nameof(bytes), bytes.Length, $"Parsing a TimeSpan requires exactly 4 bytes of input data, input data is '{bytes.Length}' long.");
         }
 
-        var milliseconds = DInt.FromByteArray(bytes);
+        var milliseconds = DInt.FromSpan(bytes);
         return System.TimeSpan.FromMilliseconds(milliseconds);
     }
 
@@ -42,25 +53,23 @@ public static class TimeSpan
     /// </summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
     /// <returns>An array of <see cref="T:System.TimeSpan"/> objects representing the values read from PLC.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the length of
-    ///   <paramref name="bytes"/> is not a multiple of 4 or any value in
-    ///   <paramref name="bytes"/> is outside the valid range of values.</exception>
-    public static System.TimeSpan[] ToArray(byte[] bytes)
+    public static System.TimeSpan[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
+
+    /// <summary>
+    /// Parses an array of <see cref="T:System.TimeSpan"/> values from a span.
+    /// </summary>
+    /// <param name="bytes">Input bytes span read from PLC.</param>
+    /// <returns>An array of <see cref="T:System.TimeSpan"/> objects representing the values read from PLC.</returns>
+    public static System.TimeSpan[] ToArray(ReadOnlySpan<byte> bytes)
     {
-        const int singleTimeSpanLength = 4;
-        if (bytes == null)
+        if (bytes.Length % TypeLengthInBytes != 0)
         {
-            throw new ArgumentNullException(nameof(bytes));
+            throw new ArgumentOutOfRangeException(nameof(bytes), bytes.Length, $"Parsing an array of TimeSpan requires a multiple of {TypeLengthInBytes} bytes of input data, input data is '{bytes.Length}' long.");
         }
 
-        if (bytes.Length % singleTimeSpanLength != 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(bytes), bytes.Length, $"Parsing an array of {nameof(System.TimeSpan)} requires a multiple of {singleTimeSpanLength} bytes of input data, input data is '{bytes.Length}' long.");
-        }
-
-        var result = new System.TimeSpan[bytes.Length / singleTimeSpanLength];
-
+        var result = new System.TimeSpan[bytes.Length / TypeLengthInBytes];
         var milliseconds = DInt.ToArray(bytes);
+
         for (var i = 0; i < milliseconds.Length; i++)
         {
             result[i] = System.TimeSpan.FromMilliseconds(milliseconds[i]);
@@ -73,12 +82,26 @@ public static class TimeSpan
     /// Converts a <see cref="T:System.TimeSpan"/> value to a byte array.
     /// </summary>
     /// <param name="timeSpan">The TimeSpan value to convert.</param>
-    /// <returns>A byte array containing the S7 date time representation of <paramref name="timeSpan"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value of
-    ///   <paramref name="timeSpan"/> is before <see cref="P:SpecMinimumTimeSpan"/>
-    ///   or after <see cref="P:SpecMaximumTimeSpan"/>.</exception>
+    /// <returns>A byte array containing the S7 time representation of <paramref name="timeSpan"/>.</returns>
     public static byte[] ToByteArray(System.TimeSpan timeSpan)
     {
+        Span<byte> bytes = stackalloc byte[TypeLengthInBytes];
+        ToSpan(timeSpan, bytes);
+        return bytes.ToArray();
+    }
+
+    /// <summary>
+    /// Converts a <see cref="T:System.TimeSpan"/> value to a span.
+    /// </summary>
+    /// <param name="timeSpan">The TimeSpan value to convert.</param>
+    /// <param name="destination">The destination span.</param>
+    public static void ToSpan(System.TimeSpan timeSpan, Span<byte> destination)
+    {
+        if (destination.Length < TypeLengthInBytes)
+        {
+            throw new ArgumentException("Destination span must be at least 4 bytes", nameof(destination));
+        }
+
         if (timeSpan < SpecMinimumTimeSpan)
         {
             throw new ArgumentOutOfRangeException(nameof(timeSpan), timeSpan, $"Time span '{timeSpan}' is before the minimum '{SpecMinimumTimeSpan}' supported in S7 time representation.");
@@ -89,17 +112,15 @@ public static class TimeSpan
             throw new ArgumentOutOfRangeException(nameof(timeSpan), timeSpan, $"Time span '{timeSpan}' is after the maximum '{SpecMaximumTimeSpan}' supported in S7 time representation.");
         }
 
-        return DInt.ToByteArray(Convert.ToInt32(timeSpan.TotalMilliseconds));
+        var milliseconds = (int)timeSpan.TotalMilliseconds;
+        DInt.ToSpan(milliseconds, destination);
     }
 
     /// <summary>
     /// Converts an array of <see cref="T:System.TimeSpan"/> values to a byte array.
     /// </summary>
     /// <param name="timeSpans">The TimeSpan values to convert.</param>
-    /// <returns>A byte array containing the S7 date time representations of <paramref name="timeSpans"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when any value of
-    ///   <paramref name="timeSpans"/> is before <see cref="P:SpecMinimumTimeSpan"/>
-    ///   or after <see cref="P:SpecMaximumTimeSpan"/>.</exception>
+    /// <returns>A byte array containing the S7 time representations of <paramref name="timeSpans"/>.</returns>
     public static byte[] ToByteArray(System.TimeSpan[] timeSpans)
     {
         if (timeSpans == null)
@@ -107,12 +128,47 @@ public static class TimeSpan
             throw new ArgumentNullException(nameof(timeSpans));
         }
 
-        var bytes = new List<byte>(timeSpans.Length * 4);
-        foreach (var timeSpan in timeSpans)
+        // Use ArrayPool for large allocations
+        var totalBytes = timeSpans.Length * TypeLengthInBytes;
+        byte[]? pooledArray = null;
+        var buffer = totalBytes > 1024
+            ? pooledArray = ArrayPool<byte>.Shared.Rent(totalBytes)
+            : new byte[totalBytes];
+
+        try
         {
-            bytes.AddRange(ToByteArray(timeSpan));
+            var span = buffer.AsSpan(0, totalBytes);
+            for (var i = 0; i < timeSpans.Length; i++)
+            {
+                ToSpan(timeSpans[i], span.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
+            }
+
+            return span.ToArray();
+        }
+        finally
+        {
+            if (pooledArray != null)
+            {
+                ArrayPool<byte>.Shared.Return(pooledArray);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Converts multiple TimeSpan values to the specified span.
+    /// </summary>
+    /// <param name="timeSpans">The TimeSpan values.</param>
+    /// <param name="destination">The destination span.</param>
+    public static void ToSpan(ReadOnlySpan<System.TimeSpan> timeSpans, Span<byte> destination)
+    {
+        if (destination.Length < timeSpans.Length * TypeLengthInBytes)
+        {
+            throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
-        return bytes.ToArray();
+        for (var i = 0; i < timeSpans.Length; i++)
+        {
+            ToSpan(timeSpans[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
+        }
     }
 }

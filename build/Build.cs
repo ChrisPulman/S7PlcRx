@@ -9,6 +9,7 @@ using Serilog;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 using Nuke.Common.Tools.PowerShell;
 using CP.BuildTools;
+using System.Linq;
 
 ////[GitHubActions(
 ////    "BuildOnly",
@@ -55,7 +56,8 @@ partial class Build : NukeBuild
             }
 
             PackagesDirectory.CreateOrCleanDirectory();
-            await this.InstallDotNetSdk("6.x.x", "7.x.x", "8.x.x");
+            await this.InstallDotNetSdk("8.x.x", "9.x.x");
+            DotNetWorkloadUpdate();
         });
 
     Target Restore => _ => _
@@ -68,6 +70,27 @@ partial class Build : NukeBuild
                 .SetProjectFile(Solution)
                 .SetConfiguration(Configuration)
                 .EnableNoRestore()));
+
+    ////Target Test => _ => _
+    ////.DependsOn(Compile)
+    ////.Executes(() =>
+    ////{
+    ////    var testProjects = Solution.AllProjects.Where(x => x.Name.Contains("Tests")).ToList();
+    ////    if (testProjects is null || testProjects.Count == 0)
+    ////    {
+    ////        Log.Warning("No test projects found.");
+    ////        return;
+    ////    }
+    ////    foreach (var project in testProjects)
+    ////    {
+    ////        Log.Information("Running tests for {Project}", project.Name);
+    ////    }
+    ////    DotNetTest(settings => settings
+    ////            .SetConfiguration(Configuration)
+    ////            .SetNoBuild(true)
+    ////            .CombineWith(testProjects, (testSettings, project) =>
+    ////                testSettings.SetProjectFile(project)));
+    ////});
 
     Target Pack => _ => _
     .After(Compile)

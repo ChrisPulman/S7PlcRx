@@ -12,6 +12,8 @@ namespace S7PlcRx;
 [Serializable]
 public class Tags : Hashtable
 {
+    private object _lockObject = new object();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Tags"/> class.
     /// </summary>
@@ -31,7 +33,13 @@ public class Tags : Hashtable
 #pragma warning restore RCS1163 // Unused parameter.
     {
         get => base[key];
-        set => base[key] = value;
+        set
+        {
+            lock (_lockObject)
+            {
+                base[key] = value;
+            }
+        }
     }
 
     /// <summary>
@@ -55,31 +63,51 @@ public class Tags : Hashtable
     /// </summary>
     /// <param name="key">The key of the element to add.</param>
     /// <param name="value">The value of the element to add. The value can be null.</param>
-    public new void Add(object key, object value) =>
-        base.Add(key, value);
+    public new void Add(object key, object value)
+    {
+        lock (_lockObject)
+        {
+            base.Add(key, value);
+        }
+    }
 
     /// <summary>
     /// Adds the specified key.
     /// </summary>
     /// <param name="key">The key.</param>
     /// <param name="tag">The tag.</param>
-    public void Add(object key, Tag tag) =>
-        base.Add(key, tag);
+    public void Add(object key, Tag tag)
+    {
+        lock (_lockObject)
+        {
+            base.Add(key, tag);
+        }
+    }
 
     /// <summary>
     /// Adds the specified tag.
     /// </summary>
     /// <param name="tag">The tag.</param>
-    public void Add(Tag tag) =>
-        base.Add(tag?.Name!, tag);
+    public void Add(Tag tag)
+    {
+        lock (_lockObject)
+        {
+            base.Add(tag?.Name!, tag);
+        }
+    }
 
     /// <summary>
     /// Adds the specified key.
     /// </summary>
     /// <param name="key">The key.</param>
     /// <param name="tags">The tags.</param>
-    public void Add(object key, Tags tags) =>
-        base.Add(key, tags);
+    public void Add(object key, Tags tags)
+    {
+        lock (_lockObject)
+        {
+            base.Add(key, tags);
+        }
+    }
 
     /// <summary>
     /// Adds the range.
@@ -92,11 +120,14 @@ public class Tags : Hashtable
             throw new ArgumentNullException(nameof(tags));
         }
 
-        foreach (var tag in tags)
+        lock (_lockObject)
         {
-            if (tag.Value != null)
+            foreach (var tag in tags)
             {
-                base.Add(tag.Name!, tag);
+                if (tag.Value != null)
+                {
+                    base.Add(tag.Name!, tag);
+                }
             }
         }
     }
@@ -117,5 +148,20 @@ public class Tags : Hashtable
     /// Gets the tag list.
     /// </summary>
     /// <returns>An IEnumerable of Tag.</returns>
-    public List<Tag> ToList() => Values.OfType<Tag>().ToList();
+    public List<Tag> ToList()
+    {
+        var result = new List<Tag>();
+        lock (_lockObject)
+        {
+            foreach (DictionaryEntry entry in this)
+            {
+                if (entry.Value is Tag tag)
+                {
+                    result.Add(tag);
+                }
+            }
+        }
+
+        return result;
+    }
 }

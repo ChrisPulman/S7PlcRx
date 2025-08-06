@@ -1,6 +1,9 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Runtime.InteropServices;
+using S7PlcRx.Core;
+
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
@@ -13,33 +16,39 @@ internal static class LReal
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A double.</returns>
-    public static double FromByteArray(byte[] bytes) => FromByteArray(bytes, 0);
+    public static double FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
     /// <summary>
     /// Froms the byte array.
     /// </summary>
     /// <param name="bytes">The bytes.</param>
     /// <param name="start">The start.</param>
-    /// <returns>
-    /// A double.
-    /// </returns>
-    /// <exception cref="System.ArgumentNullException">bytes.</exception>
-    public static double FromByteArray(byte[] bytes, int start)
+    /// <returns>A double.</returns>
+    public static double FromByteArray(byte[] bytes, int start) => FromSpan(bytes.AsSpan(start));
+
+    /// <summary>
+    /// Converts a S7 LReal from span to double.
+    /// </summary>
+    /// <param name="bytes">The bytes span.</param>
+    /// <returns>A double value.</returns>
+    public static double FromSpan(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length != 8)
+        if (bytes.Length < 8)
         {
-            throw new ArgumentException("Wrong number of bytes. Bytes array must contain 8 bytes.");
+            throw new ArgumentException("Wrong number of bytes. Bytes span must contain at least 8 bytes.");
         }
 
-        var buffer = bytes;
-
-        // sps uses bigending so we have to reverse if platform needs
+        // S7 uses big-endian, so we need to handle endianness
         if (BitConverter.IsLittleEndian)
         {
-            Array.Reverse(buffer);
+            // Create a temporary span and reverse for big-endian
+            Span<byte> temp = stackalloc byte[8];
+            bytes.Slice(0, 8).CopyTo(temp);
+            temp.Reverse();
+            return MemoryMarshal.Read<double>(temp);
         }
 
-        return BitConverter.ToDouble(buffer, start);
+        return MemoryMarshal.Read<double>(bytes);
     }
 
     /// <summary>
@@ -60,31 +69,83 @@ internal static class LReal
     /// To the array.
     /// </summary>
     /// <param name="bytes">The bytes.</param>
-    /// <returns>A double.</returns>
-    public static double[] ToArray(byte[] bytes) => TypeConverter.ToArray(bytes, FromByteArray);
+    /// <returns>A double array.</returns>
+    public static double[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
 
     /// <summary>
-    /// To the byte array.
+    /// Converts a span of S7 LReal bytes to an array of double.
     /// </summary>
-    /// <param name="value">The value.</param>
-    /// <returns>A byte.</returns>
-    public static byte[] ToByteArray(double value)
+    /// <param name="bytes">The bytes span.</param>
+    /// <returns>An array of double values.</returns>
+    public static double[] ToArray(ReadOnlySpan<byte> bytes)
     {
-        var bytes = BitConverter.GetBytes(value);
+        const int typeSize = 8;
+        var entries = bytes.Length / typeSize;
+        var values = new double[entries];
 
-        // sps uses big endian so we have to check if platform is same
-        if (BitConverter.IsLittleEndian)
+        for (var i = 0; i < entries; ++i)
         {
-            Array.Reverse(bytes);
+            values[i] = FromSpan(bytes.Slice(i * typeSize, typeSize));
         }
 
-        return bytes;
+        return values;
     }
 
     /// <summary>
     /// To the byte array.
     /// </summary>
     /// <param name="value">The value.</param>
-    /// <returns>A byte.</returns>
+    /// <returns>A byte array.</returns>
+    public static byte[] ToByteArray(double value)
+    {
+        Span<byte> bytes = stackalloc byte[8];
+        ToSpan(value, bytes);
+        return bytes.ToArray();
+    }
+
+    /// <summary>
+    /// Writes a double value to the specified span in S7 LReal format.
+    /// </summary>
+    /// <param name="value">The double value.</param>
+    /// <param name="destination">The destination span.</param>
+    public static void ToSpan(double value, Span<byte> destination)
+    {
+        if (destination.Length < 8)
+        {
+            throw new ArgumentException("Destination span must be at least 8 bytes", nameof(destination));
+        }
+
+        MemoryMarshal.Write(destination, ref value);
+
+        // S7 uses big-endian, so reverse if we're on little-endian platform
+        if (BitConverter.IsLittleEndian)
+        {
+            destination.Slice(0, 8).Reverse();
+        }
+    }
+
+    /// <summary>
+    /// Converts multiple double values to the specified span.
+    /// </summary>
+    /// <param name="values">The double values.</param>
+    /// <param name="destination">The destination span.</param>
+    public static void ToSpan(ReadOnlySpan<double> values, Span<byte> destination)
+    {
+        if (destination.Length < values.Length * 8)
+        {
+            throw new ArgumentException("Destination span is too small", nameof(destination));
+        }
+
+        for (var i = 0; i < values.Length; i++)
+        {
+            ToSpan(values[i], destination.Slice(i * 8, 8));
+        }
+    }
+
+    /// <summary>
+    /// To the byte array.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns>A byte array.</returns>
     public static byte[] ToByteArray(double[] value) => TypeConverter.ToByteArray(value, ToByteArray);
 }
