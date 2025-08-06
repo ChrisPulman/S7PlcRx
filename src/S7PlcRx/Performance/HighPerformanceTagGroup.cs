@@ -17,6 +17,7 @@ public class HighPerformanceTagGroup<T> : IDisposable
     private readonly IRxS7 _plc;
     private readonly string[] _tagNames;
     private readonly ConcurrentDictionary<string, T?> _currentValues = new();
+    private readonly List<string> _tagsAdded = [];
     private bool _disposed;
 
     /// <summary>
@@ -53,8 +54,12 @@ public class HighPerformanceTagGroup<T> : IDisposable
         _tagNames = tagNames;
         foreach (var tagName in tagNames)
         {
-            plc.AddUpdateTagItem<T>(tagName, tagName)
+            if (!plc.TagList.ContainsKey(tagName) && tagName.StartsWith("DB"))
+            {
+                plc.AddUpdateTagItem<T>(tagName, tagName)
                 .SetTagPollIng(false); // Disable individual polling for performance
+                _tagsAdded.Add(tagName);
+            }
         }
     }
 
@@ -84,7 +89,7 @@ public class HighPerformanceTagGroup<T> : IDisposable
         }
 
         return _plc.ObserveAll
-            .Where(t => t != null && _tagNames.Contains(t.Name))
+            .Where(t => t != null && _tagNames.Contains(t.Name) && t.Value is T)
             .Select(t => new { t!.Name, t.Value })
             .Scan(
                 _currentValues.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
@@ -140,6 +145,17 @@ public class HighPerformanceTagGroup<T> : IDisposable
                     _plc.GetTag(tagName)
                         .SetTagPollIng(false); // Disable individual polling for performance
                 }
+
+                // Remove tags added by this group
+                foreach (var tagName in _tagsAdded)
+                {
+                    if (_plc.TagList.ContainsKey(tagName))
+                    {
+                        _plc.RemoveTagItem(tagName);
+                    }
+                }
+
+                _tagsAdded.Clear();
 
                 _disposed = true;
             }

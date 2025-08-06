@@ -29,7 +29,6 @@ S7PlcRx is designed to meet the demanding requirements of modern industrial auto
 - **🔄 Reactive Data Streaming** - Real-time PLC data observation using Rx.NET
 - **⚡ High-Performance Optimizations** - 5-10x faster with intelligent batching and caching
 - **🏭 Enterprise-Grade Reliability** - Circuit breakers, failover, and 99.9% uptime
-- **🔐 Industrial Security** - Encrypted communication and secure session management  
 - **📊 Advanced Analytics** - Performance monitoring and AI-driven optimization
 - **🎯 Symbolic Addressing** - CSV/JSON/XML symbol table support
 - **🌐 Multi-PLC Support** - High-availability with automatic failover
@@ -65,7 +64,6 @@ Before using S7PlcRx, configure your Siemens PLC:
 1. **Enable PUT/GET Communication** in PLC settings
 2. **Set Data Blocks to Non-Optimized** for direct address access
 3. **Configure Network Parameters** (IP address, subnet)
-4. **Set Security Settings** (if using encrypted communication)
 
 ### 🔌 Basic Connection
 
@@ -419,18 +417,6 @@ plc.Observe<float>("ProcessTemperature")
     .Subscribe(temp => Console.WriteLine($"Process Temp: {temp:F1}°C"));
 ```
 
-### 🔐 Secure Communication
-
-```csharp
-// Enable encrypted communication
-var securityContext = plc.EnableSecureCommunication(
-    encryptionKey: "MySecureKey123!",
-    sessionTimeout: TimeSpan.FromHours(8)
-);
-
-Console.WriteLine($"🔐 Secure session started: {securityContext.IsEnabled}");
-```
-
 ### 🌐 High Availability & Failover
 
 ```csharp
@@ -556,8 +542,8 @@ using System.Reactive.Linq;
 class ProductionSystem
 {
     private readonly IRxS7 _plc;
-    private readonly HighPerformanceTagGroup _processGroup;
-    private readonly HighPerformanceTagGroup _alarmGroup;
+    private readonly HighPerformanceTagGroup<float> _processGroup;
+    private readonly HighPerformanceTagGroup<bool> _alarmGroup;
 
     public async Task StartAsync()
     {
@@ -756,7 +742,7 @@ var connectionConfigs = new[]
 };
 
 using var pool = S7EnterpriseExtensions.CreateConnectionPool(connectionConfigs, poolConfig);
-var connection = pool.GetConnection();
+var connection = pool.GetConnection;
 ```
 
 ## 🔧 Best Practices
@@ -777,14 +763,6 @@ var connection = pool.GetConnection();
 4. **Monitor System Health** - Proactive issue detection
 5. **Validate Production Readiness** - Ensure system reliability
 
-### 🔐 Security
-
-1. **Enable Encrypted Communication** - Protect sensitive data
-2. **Use Session Management** - Control access timeouts
-3. **Implement Access Controls** - Restrict PLC operations
-4. **Monitor Security Events** - Track unauthorized access
-5. **Regular Security Audits** - Maintain security posture
-
 ## 📖 API Reference
 
 ### Core Classes
@@ -799,7 +777,7 @@ var connection = pool.GetConnection();
 - **`TagExtensions`** - Tag management and operations`
 - **`PerformanceExtensions`** - Performance optimization methods
 - **`OptimizationExtensions`** - Caching and smart monitoring  
-- **`EnterpriseExtensions`** - Enterprise features (HA, security, symbols)
+- **`EnterpriseExtensions`** - Enterprise features (High Availability, symbols)
 - **`ProductionExtensions`** - Production reliability features
 - **`AdvancedExtensions`** - Advanced batch operations and diagnostics
 

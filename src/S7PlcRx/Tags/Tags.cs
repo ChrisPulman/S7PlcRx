@@ -12,7 +12,7 @@ namespace S7PlcRx;
 [Serializable]
 public class Tags : Hashtable
 {
-    private object _lockObject = new object();
+    private readonly object _lockObject = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Tags"/> class.
@@ -150,15 +150,23 @@ public class Tags : Hashtable
     /// <returns>An IEnumerable of Tag.</returns>
     public List<Tag> ToList()
     {
+        if (Count == 0)
+        {
+            return [];
+        }
+
         var result = new List<Tag>();
         lock (_lockObject)
         {
-            foreach (DictionaryEntry entry in this)
+            try
             {
-                if (entry.Value is Tag tag)
-                {
-                    result.Add(tag);
-                }
+                // make a copy of the hashtable to avoid modifying it while iterating
+                var hashtableCopy = new Hashtable(this);
+                result = [.. hashtableCopy.Values.OfType<Tag>()];
+            }
+            catch
+            {
+                return [];
             }
         }
 

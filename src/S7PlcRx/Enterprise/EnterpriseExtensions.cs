@@ -14,7 +14,7 @@ namespace S7PlcRx.Enterprise;
 public static class EnterpriseExtensions
 {
     private static readonly ConcurrentDictionary<string, SymbolTable> _symbolTables = new();
-    private static readonly ConcurrentDictionary<string, SecurityContext> _securityContexts = new();
+    ////private static readonly ConcurrentDictionary<string, SecurityContext> _securityContexts = new();
     private static readonly ConcurrentDictionary<string, ConnectionPool> _connectionPools = new();
 
     /// <summary>
@@ -126,43 +126,43 @@ public static class EnterpriseExtensions
         throw new ArgumentException($"Symbol '{symbolName}' not found in symbol table");
     }
 
-    /// <summary>
-    /// Enables secure communication with encrypted credentials and session management.
-    /// </summary>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="encryptionKey">Encryption key for secure communication.</param>
-    /// <param name="sessionTimeout">Session timeout duration.</param>
-    /// <returns>Security context for the connection.</returns>
-    public static SecurityContext EnableSecureCommunication(
-        this IRxS7 plc,
-        string encryptionKey,
-        TimeSpan? sessionTimeout = null)
-    {
-        if (plc == null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
+    /////// <summary>
+    /////// Enables secure communication with encrypted credentials and session management.
+    /////// </summary>
+    /////// <param name="plc">The PLC instance.</param>
+    /////// <param name="encryptionKey">Encryption key for secure communication.</param>
+    /////// <param name="sessionTimeout">Session timeout duration.</param>
+    /////// <returns>Security context for the connection.</returns>
+    ////public static SecurityContext EnableSecureCommunication(
+    ////    this IRxS7 plc,
+    ////    string encryptionKey,
+    ////    TimeSpan? sessionTimeout = null)
+    ////{
+    ////    if (plc == null)
+    ////    {
+    ////        throw new ArgumentNullException(nameof(plc));
+    ////    }
 
-        if (string.IsNullOrWhiteSpace(encryptionKey))
-        {
-            throw new ArgumentException("Encryption key cannot be null or empty", nameof(encryptionKey));
-        }
+    ////    if (string.IsNullOrWhiteSpace(encryptionKey))
+    ////    {
+    ////        throw new ArgumentException("Encryption key cannot be null or empty", nameof(encryptionKey));
+    ////    }
 
-        var key = $"{plc.IP}_{plc.PLCType}_{plc.Rack}_{plc.Slot}";
-        var timeout = sessionTimeout ?? TimeSpan.FromHours(8);
+    ////    var key = $"{plc.IP}_{plc.PLCType}_{plc.Rack}_{plc.Slot}";
+    ////    var timeout = sessionTimeout ?? TimeSpan.FromHours(8);
 
-        var securityContext = new SecurityContext
-        {
-            PLCKey = key,
-            EncryptionKey = encryptionKey,
-            SessionStartTime = DateTime.UtcNow,
-            SessionTimeout = timeout,
-            IsEnabled = true
-        };
+    ////    var securityContext = new SecurityContext
+    ////    {
+    ////        PLCKey = key,
+    ////        EncryptionKey = encryptionKey,
+    ////        SessionStartTime = DateTime.UtcNow,
+    ////        SessionTimeout = timeout,
+    ////        IsEnabled = true
+    ////    };
 
-        _securityContexts.AddOrUpdate(key, securityContext, (_, _) => securityContext);
-        return securityContext;
-    }
+    ////    _securityContexts.AddOrUpdate(key, securityContext, (_, _) => securityContext);
+    ////    return securityContext;
+    ////}
 
     /// <summary>
     /// Creates a high-availability PLC connection with automatic failover capabilities.
