@@ -529,9 +529,9 @@ internal class S7SocketRx : IDisposable
     {
         CpuType.Logo0BA8 => 240,
         CpuType.S7200 => 480,
-        CpuType.S71200 => 960,  // Enhanced for newer PLCs
         CpuType.S7300 => 480,
         CpuType.S7400 => 960,   // Enhanced for high-end PLCs
+        CpuType.S71200 => 960,  // Enhanced for newer PLCs
         CpuType.S71500 => 1440, // Maximum for S7-1500
         _ => 480
     };

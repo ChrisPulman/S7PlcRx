@@ -595,6 +595,6 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     public void Dispose()
     {
         _plc?.Dispose();
-        _server?.Stop();
+        _server?.Dispose();
     }
 }

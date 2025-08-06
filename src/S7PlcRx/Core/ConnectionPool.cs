@@ -55,20 +55,23 @@ public class ConnectionPool : IDisposable
     /// Gets a connection from the pool using load balancing.
     /// </summary>
     /// <returns>An available PLC connection.</returns>
-    public IRxS7 GetConnection()
+    public IRxS7 GetConnection
     {
-        lock (_lock)
+        get
         {
-            if (_config.EnableConnectionReuse)
+            lock (_lock)
             {
-                // Round-robin load balancing
-                var connection = _connections[_currentIndex];
-                _currentIndex = (_currentIndex + 1) % _connections.Count;
-                return connection;
-            }
+                if (_config.EnableConnectionReuse)
+                {
+                    // Round-robin load balancing
+                    var connection = _connections[_currentIndex];
+                    _currentIndex = (_currentIndex + 1) % _connections.Count;
+                    return connection;
+                }
 
-            // Return first available connection
-            return _connections.FirstOrDefault(c => c.IsConnectedValue) ?? _connections[0];
+                // Return first available connection
+                return _connections.FirstOrDefault(c => c.IsConnectedValue) ?? _connections[0];
+            }
         }
     }
 

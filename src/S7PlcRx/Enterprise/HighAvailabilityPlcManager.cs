@@ -27,7 +27,13 @@ public class HighAvailabilityPlcManager : IDisposable
         IList<IRxS7> backupPlcs,
         TimeSpan? healthCheckInterval = null)
     {
+        if (primaryPlc == null)
+        {
+            throw new ArgumentNullException(nameof(primaryPlc), "Primary PLC cannot be null.");
+        }
+
         _backupPlcs = backupPlcs;
+        _backupPlcs.Insert(0, primaryPlc); // Ensure primary is first in the list
         ActivePLC = primaryPlc;
 
         var interval = healthCheckInterval ?? TimeSpan.FromSeconds(30);

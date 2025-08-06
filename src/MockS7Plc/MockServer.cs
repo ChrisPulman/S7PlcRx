@@ -9,7 +9,7 @@ namespace MockS7Plc;
 /// <summary>
 /// S7Server.
 /// </summary>
-public class MockServer
+public class MockServer : IDisposable
 {
     /// <summary>
     /// The localhost.
@@ -91,6 +91,7 @@ public class MockServer
 
     private readonly Dictionary<int, GCHandle> _hArea;
     private nint _server;
+    private bool _disposedValue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MockServer"/> class.
@@ -106,17 +107,7 @@ public class MockServer
     /// </summary>
     ~MockServer()
     {
-        foreach (var item in _hArea)
-        {
-            var handle = item.Value;
-            if (handle.IsAllocated)
-            {
-                // Free the handle
-                handle.Free();
-            }
-        }
-
-        _ = NativeMethods.Srv_Destroy(ref _server);
+        Dispose(false);
     }
 
     /// <summary>
@@ -402,4 +393,44 @@ public class MockServer
     /// </summary>
     /// <returns>Result.</returns>
     public int ClearEvents() => NativeMethods.Srv_ClearEvents(_server);
+
+    /// <summary>
+    /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+    /// </summary>
+    public void Dispose()
+    {
+        // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases unmanaged and - optionally - managed resources.
+    /// </summary>
+    /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposedValue)
+        {
+            if (disposing)
+            {
+                ClearEvents();
+                Stop();
+            }
+
+            foreach (var item in _hArea)
+            {
+                var handle = item.Value;
+                if (handle.IsAllocated)
+                {
+                    // Free the handle
+                    handle.Free();
+                }
+            }
+
+            _ = NativeMethods.Srv_Destroy(ref _server);
+
+            _disposedValue = true;
+        }
+    }
 }

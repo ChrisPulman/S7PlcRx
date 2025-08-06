@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using S7PlcRx.Advanced;
+using S7PlcRx.Core;
+using S7PlcRx.Enterprise;
 using S7PlcRx.Enums;
 using S7PlcRx.Optimization;
 
@@ -24,7 +26,7 @@ public static class AdvancedExamples
     /// <returns>
     /// A <see cref="Task" /> representing the asynchronous operation.
     /// </returns>
-    public static async Task BasicBatchReadExample(RxS7 plc)
+    public static async Task BasicBatchReadExample(IRxS7 plc)
     {
         // Define tag mapping for batch operations
         var tagMapping = new Dictionary<string, string>
@@ -67,7 +69,7 @@ public static class AdvancedExamples
     /// <returns>
     /// A <see cref="Task" /> representing the asynchronous operation.
     /// </returns>
-    public static async Task AdvancedBatchWriteExample(RxS7 plc)
+    public static async Task AdvancedBatchWriteExample(IRxS7 plc)
     {
         // Add tags for writing
         plc.AddUpdateTagItem<float>("SetPoint1", "DB3.DBD0").SetTagPollIng(false);
@@ -120,7 +122,7 @@ public static class AdvancedExamples
     /// <returns>
     /// A <see cref="Task" /> representing the asynchronous operation.
     /// </returns>
-    public static async Task HighPerformanceTagGroupExample(RxS7 plc)
+    public static async Task HighPerformanceTagGroupExample(IRxS7 plc)
     {
         // Create specialized tag groups for different process areas
         var temperatureGroup = plc.CreateTagGroup<float>(
@@ -178,7 +180,7 @@ public static class AdvancedExamples
     /// <returns>
     /// A <see cref="Task" /> representing the asynchronous operation.
     /// </returns>
-    public static async Task IntelligentMonitoringExample(RxS7 plc)
+    public static async Task IntelligentMonitoringExample(IRxS7 plc)
     {
         // Add monitoring tags
         plc.AddUpdateTagItem<float>("ProcessValue", "DB6.DBD0");
@@ -239,7 +241,7 @@ public static class AdvancedExamples
     /// <returns>
     /// A <see cref="Task" /> representing the asynchronous operation.
     /// </returns>
-    public static async Task PerformanceAnalysisExample(RxS7 plc)
+    public static async Task PerformanceAnalysisExample(IRxS7 plc)
     {
         Console.WriteLine("=== PERFORMANCE ANALYSIS ===");
 
@@ -331,7 +333,7 @@ public static class AdvancedExamples
     /// <returns>
     /// A <see cref="Task" /> representing the asynchronous operation.
     /// </returns>
-    public static async Task ProductionWorkflowExample(RxS7 plc)
+    public static async Task ProductionWorkflowExample(IRxS7 plc)
     {
         Console.WriteLine("=== PRODUCTION WORKFLOW EXAMPLE ===");
         Console.WriteLine("Simulating a complete production cycle with optimizations...");
@@ -367,11 +369,14 @@ public static class AdvancedExamples
                 ["RecipeID"] = 12345 // Recipe identifier
             };
 
+            var dbIndex = 0;
+
             // Add recipe tags
             foreach (var param in recipeParams)
             {
-                var address = $"DB2.DB{param.Key}"; // Simplified addressing
-                plc.AddUpdateTagItem(param.Value.GetType(), param.Key, address);
+                var address = $"DB9.DBD{dbIndex}"; // Simplified addressing
+                dbIndex += 4;
+                plc.AddUpdateTagItem(param.Value.GetType(), param.Key, address).SetTagPollIng(false);
             }
 
             var recipeResult = await plc.WriteBatchOptimized<object>(
@@ -392,15 +397,15 @@ public static class AdvancedExamples
                 "ProcessMonitoring",
                 "DB7.DBD0", // Actual temperature
                 "DB7.DBD4", // Actual pressure
-                "DB7.DBW8", // Actual mixer speed
-                "DB7.DBX10.0"); // Process running
+                "DB7.DBD8"); // Actual mixer speed
 
             var alarmGroup = plc.CreateTagGroup<bool>(
                 "AlarmMonitoring",
                 "DB8.DBX0.0", // High temperature alarm
                 "DB8.DBX0.1", // High pressure alarm
                 "DB8.DBX0.2", // Equipment fault alarm
-                "DB8.DBX0.3"); // Emergency stop
+                "DB8.DBX0.3", // Emergency stop
+                "DB7.DBX10.0"); // Process running
 
             Console.WriteLine("   ✅ Monitoring groups created");
             Console.WriteLine();
@@ -462,31 +467,50 @@ public static class AdvancedExamples
         Console.WriteLine("==================================");
         Console.WriteLine();
 
+        var connectionConfigs = new[]
+        {
+                new PlcConnectionConfig
+                {
+                    PLCType = PlcType,
+                    IPAddress = IpAddress,
+                    Rack = 0,
+                    Slot = 1
+                }
+        };
+
+        var poolConfig = new ConnectionPoolConfig
+        {
+            MaxConnections = 5,
+            ConnectionTimeout = TimeSpan.FromSeconds(30),
+            EnableConnectionReuse = true,
+            HealthCheckInterval = TimeSpan.FromMinutes(1)
+        };
+        var cons = EnterpriseExtensions.CreateConnectionPool(connectionConfigs, poolConfig);
         try
         {
-            using var plc = new RxS7(PlcType, IpAddress, 0, 1);
-            await BasicBatchReadExample(plc);
+            await BasicBatchReadExample(cons.GetConnection);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await AdvancedBatchWriteExample(plc);
+            await AdvancedBatchWriteExample(cons.GetConnection);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await HighPerformanceTagGroupExample(plc);
+            await HighPerformanceTagGroupExample(cons.GetConnection);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await IntelligentMonitoringExample(plc);
+            await IntelligentMonitoringExample(cons.GetConnection);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await PerformanceAnalysisExample(plc);
+            await PerformanceAnalysisExample(cons.GetConnection);
             Console.WriteLine("\n" + new string('─', 50) + "\n");
 
-            await ProductionWorkflowExample(plc);
+            await ProductionWorkflowExample(cons.GetConnection);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Example execution error: {ex.Message}");
         }
 
+        cons.Dispose();
         Console.WriteLine();
         Console.WriteLine("🎉 All optimization examples completed!");
     }

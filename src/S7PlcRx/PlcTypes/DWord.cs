@@ -111,7 +111,9 @@ internal static class DWord
             throw new ArgumentException("Destination span must be at least 4 bytes", nameof(destination));
         }
 
+#pragma warning disable CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
         MemoryMarshal.Write(destination, ref value);
+#pragma warning restore CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
 
         // S7 uses big-endian, so reverse if we're on little-endian platform
         if (BitConverter.IsLittleEndian)
