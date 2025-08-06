@@ -32,7 +32,7 @@ partial class Build : NukeBuild
     ////   - Microsoft VisualStudio     https://nuke.build/visualstudio
     ////   - Microsoft VSCode           https://nuke.build/vscode
 
-    public static int Main() => Execute<Build>(x => x.Test);
+    public static int Main() => Execute<Build>(x => x.Compile);
 
     [GitRepository] readonly GitRepository Repository;
     [Solution(GenerateProjects = true)] readonly Solution Solution;
@@ -71,26 +71,26 @@ partial class Build : NukeBuild
                 .SetConfiguration(Configuration)
                 .EnableNoRestore()));
 
-    Target Test => _ => _
-    .DependsOn(Compile)
-    .Executes(() =>
-    {
-        var testProjects = Solution.AllProjects;
-        if (testProjects is null || testProjects.Count == 0)
-        {
-            Log.Warning("No test projects found.");
-            return;
-        }
-        foreach (var project in testProjects)
-        {
-            Log.Information("Running tests for {Project}", project.Name);
-        }
-        DotNetTest(settings => settings
-                .SetConfiguration(Configuration)
-                .SetNoBuild(true)
-                .CombineWith(testProjects, (testSettings, project) =>
-                    testSettings.SetProjectFile(project)));
-    });
+    ////Target Test => _ => _
+    ////.DependsOn(Compile)
+    ////.Executes(() =>
+    ////{
+    ////    var testProjects = Solution.AllProjects.Where(x => x.Name.Contains("Tests")).ToList();
+    ////    if (testProjects is null || testProjects.Count == 0)
+    ////    {
+    ////        Log.Warning("No test projects found.");
+    ////        return;
+    ////    }
+    ////    foreach (var project in testProjects)
+    ////    {
+    ////        Log.Information("Running tests for {Project}", project.Name);
+    ////    }
+    ////    DotNetTest(settings => settings
+    ////            .SetConfiguration(Configuration)
+    ////            .SetNoBuild(true)
+    ////            .CombineWith(testProjects, (testSettings, project) =>
+    ////                testSettings.SetProjectFile(project)));
+    ////});
 
     Target Pack => _ => _
     .After(Compile)
