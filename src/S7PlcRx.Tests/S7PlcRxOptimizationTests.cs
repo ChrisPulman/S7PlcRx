@@ -52,7 +52,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         firstMetrics.PLCIdentifier.Should().Contain(MockServer.Localhost);
         firstMetrics.PLCIdentifier.Should().Contain("S71500");
         firstMetrics.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
-        firstMetrics.TagCount.Should().BeGreaterOrEqualTo(0);
+        firstMetrics.TagCount.Should().BeGreaterThanOrEqualTo(0);
     }
 
     /// <summary>
@@ -116,7 +116,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         // Assert
         result.Should().NotBeNull();
         result.TotalDuration.Should().BeGreaterThan(TimeSpan.Zero);
-        result.SuccessRate.Should().BeGreaterOrEqualTo(0.0);
+        result.SuccessRate.Should().BeGreaterThanOrEqualTo(0.0);
     }
 
     /// <summary>
@@ -156,8 +156,8 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         // Assert
         stats.Should().NotBeNull();
         stats.PLCIdentifier.Should().Contain(MockServer.Localhost);
-        stats.TotalOperations.Should().BeGreaterOrEqualTo(0);
-        stats.TotalErrors.Should().BeGreaterOrEqualTo(0);
+        stats.TotalOperations.Should().BeGreaterThanOrEqualTo(0);
+        stats.TotalErrors.Should().BeGreaterThanOrEqualTo(0);
         stats.ErrorRate.Should().BeInRange(0.0, 1.0);
         stats.LastUpdated.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
     }
@@ -290,7 +290,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         // Assert
         statsBefore.Should().NotBeNull();
         statsAfter.Should().NotBeNull();
-        statsAfter.TotalEntries.Should().BeLessOrEqualTo(statsBefore.TotalEntries);
+        statsAfter.TotalEntries.Should().BeLessThanOrEqualTo(statsBefore.TotalEntries);
     }
 
     /// <summary>
@@ -566,7 +566,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         analysis.MonitoringDuration.Should().Be(monitoringDuration);
         analysis.TagChangeFrequencies.Should().NotBeNull();
         analysis.Recommendations.Should().NotBeNull();
-        analysis.TotalTagChanges.Should().BeGreaterOrEqualTo(0);
+        analysis.TotalTagChanges.Should().BeGreaterThanOrEqualTo(0);
     }
 
     /// <summary>

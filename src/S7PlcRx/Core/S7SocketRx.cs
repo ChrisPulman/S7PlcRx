@@ -50,6 +50,9 @@ internal class S7SocketRx : IDisposable
     private DateTime _lastSuccessfulOperation = DateTime.MinValue;
     private int _consecutiveErrors;
 
+    // Active TSAP profile used to connect (for multi-connection compatibility)
+    private TsapProfile _activeTsapProfile = TsapProfile.PG;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="S7SocketRx" /> class.
     /// </summary>
@@ -102,12 +105,14 @@ internal class S7SocketRx : IDisposable
                     if (_initComplete && !deviceConnected)
                     {
                         CloseSocketOptimized(_socket);
+                        _socket = null;
                         obs.OnError(new S7Exception("Device not connected"));
                     }
                 },
                 ex =>
                 {
                     CloseSocketOptimized(_socket);
+                    _socket = null;
                     obs.OnError(ex);
                 }));
 
@@ -124,6 +129,7 @@ internal class S7SocketRx : IDisposable
                                 if (!_initComplete && !await InitializeSiemensConnectionOptimizedAsync())
                                 {
                                     CloseSocketOptimized(_socket);
+                                    _socket = null;
                                     obs.OnError(new S7Exception("Device not connected"));
                                     return;
                                 }
@@ -132,12 +138,14 @@ internal class S7SocketRx : IDisposable
                                 if (_initComplete && !isCon)
                                 {
                                     CloseSocketOptimized(_socket);
+                                    _socket = null;
                                     obs.OnError(new S7Exception("Device not connected"));
                                 }
                             }
                             else
                             {
                                 CloseSocketOptimized(_socket);
+                                _socket = null;
                                 obs.OnError(new S7Exception("Device Unavailable"));
                             }
                         }
@@ -145,12 +153,14 @@ internal class S7SocketRx : IDisposable
                     catch (Exception ex)
                     {
                         CloseSocketOptimized(_socket);
+                        _socket = null;
                         obs.OnError(ex);
                     }
                 },
                 ex =>
                 {
                     CloseSocketOptimized(_socket);
+                    _socket = null;
                     obs.OnError(ex);
                 }));
 
@@ -510,6 +520,7 @@ internal class S7SocketRx : IDisposable
             {
                 _metricsTimer?.Dispose();
                 CloseSocketOptimized(_socket);
+                _socket = null;
 
                 _disposable?.Dispose();
                 _socketExceptionSubject?.Dispose();
@@ -530,7 +541,7 @@ internal class S7SocketRx : IDisposable
         CpuType.Logo0BA8 => 240,
         CpuType.S7200 => 480,
         CpuType.S7300 => 480,
-        CpuType.S7400 => 960,   // Enhanced for high-end PLCs
+        CpuType.S7400 => 960,   // High-end PLCs
         CpuType.S71200 => 960,  // Enhanced for newer PLCs
         CpuType.S71500 => 1440, // Maximum for S7-1500
         _ => 480
@@ -542,20 +553,45 @@ internal class S7SocketRx : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void CloseSocketOptimized(Socket? socket)
     {
-        if (socket?.Connected == true)
+        if (socket == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (socket.Connected)
+            {
+                try
+                {
+                    socket.Shutdown(SocketShutdown.Both);
+                }
+                catch
+                {
+                    // Ignore shutdown errors
+                }
+            }
+        }
+        catch
+        {
+            // Ignore state inspection errors
+        }
+        finally
         {
             try
             {
-                socket.Shutdown(SocketShutdown.Both);
+                socket.Close();
             }
             catch
             {
-                // Ignore shutdown errors
             }
-            finally
+
+            try
             {
-                socket.Close();
                 socket.Dispose();
+            }
+            catch
+            {
             }
         }
     }
@@ -673,54 +709,61 @@ internal class S7SocketRx : IDisposable
         await _connectionLock.WaitAsync();
         try
         {
-            if (_socket == null)
+            // Try known TSAP profiles to maximize multi-connection compatibility
+            var profiles = new[] { TsapProfile.PG, TsapProfile.OP, TsapProfile.PGAlt };
+
+            foreach (var profile in profiles)
             {
-                return false;
-            }
+                // Ensure fresh socket per attempt
+                CloseSocketOptimized(_socket);
+                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            // Enhanced socket configuration for optimal performance
-            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, DefaultTimeout);
-            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, DefaultTimeout);
-            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            _socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
+                // Enhanced socket configuration for optimal performance
+                _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, DefaultTimeout);
+                _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, DefaultTimeout);
+                _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                _socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
 
-            // Set optimal buffer sizes based on PLC type
-            var bufferSize = DataReadLength * 2;
-            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, bufferSize);
-            _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendBuffer, bufferSize);
+                // Set optimal buffer sizes based on PLC type
+                var bufferSize = DataReadLength * 2;
+                _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, bufferSize);
+                _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendBuffer, bufferSize);
 
-            var server = new IPEndPoint(IPAddress.Parse(IP), 102);
+                var server = new IPEndPoint(IPAddress.Parse(IP), 102);
 
 #if NETSTANDARD2_0
-            // Use APM pattern for .NET Standard 2.0 compatibility
-            var connectTask = Task.Factory.FromAsync(
-                (callback, state) => _socket.BeginConnect(server, callback, state),
-                _socket.EndConnect,
-                null);
-            await connectTask.ConfigureAwait(false);
+                var connectTask = Task.Factory.FromAsync(
+                    (callback, state) => _socket.BeginConnect(server, callback, state),
+                    _socket.EndConnect,
+                    null);
+                await connectTask.ConfigureAwait(false);
 #else
-            // Use modern async API for .NET 8+
-            await _socket.ConnectAsync(server).ConfigureAwait(false);
+                await _socket.ConnectAsync(server).ConfigureAwait(false);
 #endif
 
-            _isConnected = CheckConnectionStatusOptimized();
-            if (_isConnected == false)
-            {
-                return false;
+                _isConnected = CheckConnectionStatusOptimized();
+                if (_isConnected == false)
+                {
+                    continue;
+                }
+
+                // Handshake with current profile
+                if (await PerformOptimizedHandshakeAsync(profile))
+                {
+                    _activeTsapProfile = profile;
+                    _initComplete = true;
+                    _lastSuccessfulOperation = DateTime.UtcNow;
+                    _consecutiveErrors = 0;
+                    LogInfo($"Successfully connected to {PLCType} at {IP}:102 with PDU length {DataReadLength}");
+                    return true;
+                }
+
+                // Handshake failed, try next profile
+                CloseSocketOptimized(_socket);
+                _socket = null;
             }
 
-            // Enhanced handshake with better error handling
-            if (!await PerformOptimizedHandshakeAsync())
-            {
-                return false;
-            }
-
-            _initComplete = true;
-            _lastSuccessfulOperation = DateTime.UtcNow;
-            _consecutiveErrors = 0;
-
-            LogInfo($"Successfully connected to {PLCType} at {IP}:102 with PDU length {DataReadLength}");
-            return true;
+            return false;
         }
         catch (Exception ex)
         {
@@ -736,15 +779,15 @@ internal class S7SocketRx : IDisposable
     /// <summary>
     /// Enhanced handshake procedure with async operations.
     /// </summary>
-    private async Task<bool> PerformOptimizedHandshakeAsync()
+    private async Task<bool> PerformOptimizedHandshakeAsync(TsapProfile profile)
     {
         var bReceive = _bufferPool.Rent(256);
         try
         {
 #if NETSTANDARD2_0
-            return await PerformOptimizedHandshakeNetStandardAsync(bReceive);
+            return await PerformOptimizedHandshakeNetStandardAsync(bReceive, profile);
 #else
-            return await PerformOptimizedHandshakeModernAsync(bReceive);
+            return await PerformOptimizedHandshakeModernAsync(bReceive, profile);
 #endif
         }
         finally
@@ -754,39 +797,30 @@ internal class S7SocketRx : IDisposable
     }
 
 #if NETSTANDARD2_0
-    /// <summary>
-    /// Enhanced handshake procedure for .NET Standard 2.0 compatibility.
-    /// </summary>
-    /// <param name="bReceive">The receive buffer.</param>
-    /// <returns>A task representing the handshake operation.</returns>
-    private async Task<bool> PerformOptimizedHandshakeNetStandardAsync(byte[] bReceive)
+    private async Task<bool> PerformOptimizedHandshakeNetStandardAsync(byte[] bReceive, TsapProfile profile)
     {
         try
         {
             // Step 1: Initial connection request
-            var bSend1 = GetConnectionRequestBytes();
+            var bSend1 = GetConnectionRequestBytes(profile);
             var sentTask = Task.Factory.FromAsync(
                 (callback, state) => _socket!.BeginSend(bSend1, 0, bSend1.Length, SocketFlags.None, callback, state),
                 _socket!.EndSend,
                 null);
             var sent = await sentTask.ConfigureAwait(false);
-
             if (sent != bSend1.Length)
             {
                 LogError("Failed to send initial connection request");
                 return false;
             }
 
-            // Step 2: Receive connection response
-            var receiveTask = Task.Factory.FromAsync(
-                (callback, state) => _socket.BeginReceive(bReceive, 0, 22, SocketFlags.None, callback, state),
-                _socket.EndReceive,
-                null);
-            var received = await receiveTask.ConfigureAwait(false);
+            // Step 2: Receive connection response (TPKT length based)
+            var received = await ReceiveTpktExactNetStandardAsync(bReceive, 22).ConfigureAwait(false);
 
-            if (received != 22)
+            // minimal TPKT+COTP length sanity
+            if (received < 7)
             {
-                LogError($"Expected 22 bytes in connection response, received {received}");
+                LogError($"Invalid connection response length {received}");
                 return false;
             }
 
@@ -797,23 +831,17 @@ internal class S7SocketRx : IDisposable
                 _socket.EndSend,
                 null);
             sent = await sentTask.ConfigureAwait(false);
-
             if (sent != bSend2.Length)
             {
                 LogError("Failed to send communication setup request");
                 return false;
             }
 
-            // Step 4: Receive communication setup response
-            receiveTask = Task.Factory.FromAsync(
-                (callback, state) => _socket.BeginReceive(bReceive, 0, 27, SocketFlags.None, callback, state),
-                _socket.EndReceive,
-                null);
-            received = await receiveTask.ConfigureAwait(false);
-
-            if (received != 27)
+            // Step 4: Receive communication setup response (TPKT length based)
+            received = await ReceiveTpktExactNetStandardAsync(bReceive, 27).ConfigureAwait(false);
+            if (received < 7)
             {
-                LogError($"Expected 27 bytes in communication setup response, received {received}");
+                LogError($"Invalid communication setup response length {received}");
                 return false;
             }
 
@@ -825,18 +853,53 @@ internal class S7SocketRx : IDisposable
             return false;
         }
     }
+
+    private async Task<int> ReceiveTpktExactNetStandardAsync(byte[] buffer, int expectedMin)
+    {
+        // Read TPKT header (4 bytes)
+        var read = await Task.Factory.FromAsync(
+            (cb, s) => _socket!.BeginReceive(buffer, 0, 4, SocketFlags.None, cb, s),
+            _socket!.EndReceive,
+            null).ConfigureAwait(false);
+        if (read != 4)
+        {
+            return read;
+        }
+
+        var length = (buffer[2] << 8) | buffer[3];
+        if (length < expectedMin && expectedMin > 0)
+        {
+            // Try to continue anyway, but report
+            LogWarning($"TPKT length {length} smaller than expected {expectedMin}");
+        }
+
+        var remaining = length - 4;
+        var total = 4;
+        while (remaining > 0)
+        {
+            var r = await Task.Factory.FromAsync(
+                (cb, s) => _socket!.BeginReceive(buffer, total, remaining, SocketFlags.None, cb, s),
+                _socket!.EndReceive,
+                null).ConfigureAwait(false);
+
+            if (r <= 0)
+            {
+                break;
+            }
+
+            total += r;
+            remaining -= r;
+        }
+
+        return total;
+    }
 #else
-    /// <summary>
-    /// Enhanced handshake procedure for modern .NET versions (.NET 8+).
-    /// </summary>
-    /// <param name="bReceive">The receive buffer.</param>
-    /// <returns>A task representing the handshake operation.</returns>
-    private async Task<bool> PerformOptimizedHandshakeModernAsync(byte[] bReceive)
+    private async Task<bool> PerformOptimizedHandshakeModernAsync(byte[] bReceive, TsapProfile profile)
     {
         try
         {
             // Step 1: Initial connection request
-            var bSend1 = GetConnectionRequestBytes();
+            var bSend1 = GetConnectionRequestBytes(profile);
             var sent = await _socket!.SendAsync(bSend1, SocketFlags.None).ConfigureAwait(false);
             if (sent != bSend1.Length)
             {
@@ -844,11 +907,11 @@ internal class S7SocketRx : IDisposable
                 return false;
             }
 
-            // Step 2: Receive connection response
-            var received = await _socket.ReceiveAsync(bReceive.AsMemory(0, 22), SocketFlags.None).ConfigureAwait(false);
-            if (received != 22)
+            // Step 2: Receive connection response (TPKT length based)
+            var received = await ReceiveTpktExactModernAsync(bReceive, 22).ConfigureAwait(false);
+            if (received < 7)
             {
-                LogError($"Expected 22 bytes in connection response, received {received}");
+                LogError($"Invalid connection response length {received}");
                 return false;
             }
 
@@ -861,11 +924,11 @@ internal class S7SocketRx : IDisposable
                 return false;
             }
 
-            // Step 4: Receive communication setup response
-            received = await _socket.ReceiveAsync(bReceive.AsMemory(0, 27), SocketFlags.None).ConfigureAwait(false);
-            if (received != 27)
+            // Step 4: Receive communication setup response (TPKT length based)
+            received = await ReceiveTpktExactModernAsync(bReceive, 27).ConfigureAwait(false);
+            if (received < 7)
             {
-                LogError($"Expected 27 bytes in communication setup response, received {received}");
+                LogError($"Invalid communication setup response length {received}");
                 return false;
             }
 
@@ -877,46 +940,56 @@ internal class S7SocketRx : IDisposable
             return false;
         }
     }
+
+    private async Task<int> ReceiveTpktExactModernAsync(byte[] buffer, int expectedMin)
+    {
+        // Read TPKT header (4 bytes)
+        var headerRead = await _socket!.ReceiveAsync(buffer.AsMemory(0, 4), SocketFlags.None).ConfigureAwait(false);
+        if (headerRead != 4)
+        {
+            return headerRead;
+        }
+
+        var length = (buffer[2] << 8) | buffer[3];
+        if (length < expectedMin && expectedMin > 0)
+        {
+            LogWarning($"TPKT length {length} smaller than expected {expectedMin}");
+        }
+
+        var remaining = length - 4;
+        var total = 4;
+        while (remaining > 0)
+        {
+            var r = await _socket.ReceiveAsync(buffer.AsMemory(total, remaining), SocketFlags.None).ConfigureAwait(false);
+            if (r <= 0)
+            {
+                break;
+            }
+
+            total += r;
+            remaining -= r;
+        }
+
+        return total;
+    }
 #endif
 
     /// <summary>
-    /// Gets connection request bytes optimized for specific PLC type.
+    /// Gets connection request bytes for a specific TSAP profile.
     /// </summary>
-    private byte[] GetConnectionRequestBytes()
+    private byte[] GetConnectionRequestBytes(TsapProfile profile)
     {
         byte[] bSend1 = [3, 0, 0, 22, 17, 224, 0, 0, 0, 46, 0, 193, 2, 1, 0, 194, 2, 3, 0, 192, 1, 9];
 
-        switch (PLCType)
-        {
-            case CpuType.Logo0BA8:
-                bSend1[13] = 1;
-                bSend1[14] = 0;
-                bSend1[17] = 1;
-                bSend1[18] = 2;
-                break;
-            case CpuType.S7200:
-                bSend1[13] = 16;
-                bSend1[14] = 0;
-                bSend1[17] = 16;
-                bSend1[18] = 0;
-                break;
-            case CpuType.S71200:
-            case CpuType.S7400:
-            case CpuType.S7300:
-                bSend1[13] = 1;
-                bSend1[14] = 0;
-                bSend1[17] = 3;
-                bSend1[18] = (byte)((Rack * 2 * 16) + Slot);
-                break;
-            case CpuType.S71500:
-                bSend1[13] = 16;
-                bSend1[14] = 2;
-                bSend1[17] = 3;
-                bSend1[18] = (byte)((Rack * 2 * 16) + Slot);
-                break;
-            default:
-                throw new ArgumentException($"Unsupported PLC type: {PLCType}");
-        }
+        // Use TPDU size 512 (0x09) for S7-1200/300/400 compatibility
+
+        // Source TSAP (C1)
+        bSend1[13] = profile.SrcHi;
+        bSend1[14] = profile.SrcLo;
+
+        // Destination TSAP (C2)
+        bSend1[17] = profile.DstHi;
+        bSend1[18] = profile.DstLo(Rack, Slot);
 
         return bSend1;
     }
@@ -980,6 +1053,7 @@ internal class S7SocketRx : IDisposable
             {
                 LogWarning("Restarting connection due to failures");
                 CloseSocketOptimized(_socket);
+                _socket = null;
                 _initComplete = false;
                 _isConnected = false;
 
@@ -1008,5 +1082,15 @@ internal class S7SocketRx : IDisposable
         {
             LogError($"Failed to report metrics: {ex.Message}");
         }
+    }
+
+    // TSAP profile helper
+    private readonly record struct TsapProfile(byte SrcHi, byte SrcLo, byte DstHi, Func<short, short, byte> DstLo, string Name)
+    {
+        public static TsapProfile PG => new(0x01, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "PG");
+
+        public static TsapProfile OP => new(0x02, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "OP");
+
+        public static TsapProfile PGAlt => new(0x10, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "PGAlt");
     }
 }

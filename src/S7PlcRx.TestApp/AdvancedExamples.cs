@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics;
+using System.Reactive.Linq;
 using S7PlcRx.Advanced;
 using S7PlcRx.Core;
 using S7PlcRx.Enterprise;
@@ -28,6 +30,31 @@ public static class AdvancedExamples
     /// </returns>
     public static async Task BasicBatchReadExample(IRxS7 plc)
     {
+        if (plc == null)
+        {
+            throw new ArgumentNullException(nameof(plc), "PLC connection is not initialized");
+        }
+
+        Console.WriteLine("=== BASIC BATCH READ 20 VALUES EXAMPLE ===");
+        Stopwatch stopwatch = new();
+        plc.AddUpdateTagItem<float[]>("R_Values", "DB1.DBD20", 20) // Configure 20 floats from DB1
+            .SetTagPollIng(false); // Disable polling for this tag
+        stopwatch.Restart();
+        var rValues = await plc.Value<float[]>("R_Values"); // Read the array of floats
+        stopwatch.Stop();
+        Console.WriteLine($"Read {rValues?.Length ?? 0} values in {stopwatch.ElapsedMilliseconds} ms");
+        if (rValues?.Length > 0)
+        {
+            for (var i = 0; i < rValues.Length; i++)
+            {
+                Console.WriteLine($"R_Values[{i}]: {rValues[i]:F2}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("No values read from R_Values tag.");
+        }
+
         // Define tag mapping for batch operations
         var tagMapping = new Dictionary<string, string>
         {
@@ -488,22 +515,84 @@ public static class AdvancedExamples
         var cons = EnterpriseExtensions.CreateConnectionPool(connectionConfigs, poolConfig);
         try
         {
-            await BasicBatchReadExample(cons.GetConnection);
-            Console.WriteLine("\n" + new string('─', 50) + "\n");
+            var step = 0;
+            var connection = cons.GetConnection;
+            connection.IsConnected.Where(x => x).Subscribe(async _ =>
+            {
+                await BasicBatchReadExample(connection);
+                Console.WriteLine("\n" + new string('─', 50) + "\n");
+                step++;
+            });
 
-            await AdvancedBatchWriteExample(cons.GetConnection);
-            Console.WriteLine("\n" + new string('─', 50) + "\n");
+            while (step < 1)
+            {
+                await Task.Delay(1000); // Wait for all connections to initialize
+            }
 
-            await HighPerformanceTagGroupExample(cons.GetConnection);
-            Console.WriteLine("\n" + new string('─', 50) + "\n");
+            connection = cons.GetConnection;
+            connection.IsConnected.Where(x => x).Subscribe(async _ =>
+            {
+                await AdvancedBatchWriteExample(connection);
+                Console.WriteLine("\n" + new string('─', 50) + "\n");
+                step++;
+            });
 
-            await IntelligentMonitoringExample(cons.GetConnection);
-            Console.WriteLine("\n" + new string('─', 50) + "\n");
+            while (step < 2)
+            {
+                await Task.Delay(1000); // Wait for all connections to initialize
+            }
 
-            await PerformanceAnalysisExample(cons.GetConnection);
-            Console.WriteLine("\n" + new string('─', 50) + "\n");
+            connection = cons.GetConnection;
+            connection.IsConnected.Where(x => x).Subscribe(async _ =>
+            {
+                await HighPerformanceTagGroupExample(connection);
+                Console.WriteLine("\n" + new string('─', 50) + "\n");
+                step++;
+            });
 
-            await ProductionWorkflowExample(cons.GetConnection);
+            while (step < 3)
+            {
+                await Task.Delay(1000); // Wait for all connections to initialize
+            }
+
+            connection = cons.GetConnection;
+            connection.IsConnected.Where(x => x).Subscribe(async _ =>
+            {
+                await IntelligentMonitoringExample(connection);
+                Console.WriteLine("\n" + new string('─', 50) + "\n");
+                step++;
+            });
+
+            while (step < 4)
+            {
+                await Task.Delay(1000); // Wait for all connections to initialize
+            }
+
+            connection = cons.GetConnection;
+            connection.IsConnected.Where(x => x).Subscribe(async _ =>
+            {
+                await PerformanceAnalysisExample(connection);
+                Console.WriteLine("\n" + new string('─', 50) + "\n");
+                step++;
+            });
+
+            while (step < 5)
+            {
+                await Task.Delay(1000); // Wait for all connections to initialize
+            }
+
+            connection = cons.GetConnection;
+            connection.IsConnected.Where(x => x).Subscribe(async _ =>
+            {
+                await ProductionWorkflowExample(connection);
+                Console.WriteLine("\n" + new string('─', 50) + "\n");
+                step++;
+            });
+
+            while (step < 6)
+            {
+                await Task.Delay(1000); // Wait for all connections to initialize
+            }
         }
         catch (Exception ex)
         {
