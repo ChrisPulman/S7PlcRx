@@ -1,6 +1,7 @@
 // Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx.Enums;
 
@@ -318,7 +319,7 @@ public class S7PlcRxIntegrationTests
 
         var memoryBefore = GC.GetTotalMemory(false);
 
-        // Create and dispose multiple PLCs
+        // Create and dispose of multiple PLCs
         const int plcCount = 10;
         for (var i = 0; i < plcCount; i++)
         {
@@ -418,5 +419,67 @@ public class S7PlcRxIntegrationTests
         // The actual value setting will be attempted when PLC connects
         // For this test, we just verify the API works
         Assert.True(true, "Tag value operations API test completed");
+    }
+
+    /// <summary>
+    /// Test connection reconnection after simulated cable unplug.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ConnectionReconnection_AfterCableUnplug_ShouldReconnect()
+    {
+        // Arrange
+        using var server = new MockServer();
+        server.Start();
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
+
+        // Wait for initial connection
+        await plc.IsConnected.FirstAsync(x => x);
+
+        // Act - Simulate cable unplug by stopping server
+        server.Stop();
+
+        // Wait for disconnection
+        await plc.IsConnected.FirstAsync(x => !x);
+
+        // Restart server to simulate cable plug back
+        server.Start();
+
+        // Wait for reconnection
+        await plc.IsConnected.FirstAsync(x => x);
+
+        // Assert
+        plc.IsConnectedValue.Should().BeTrue("PLC should reconnect after cable is plugged back");
+    }
+
+    /// <summary>
+    /// Test connection reconnection after PLC stop and run.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Fact]
+    public async Task ConnectionReconnection_AfterPLCStopRun_ShouldReconnect()
+    {
+        // Arrange
+        using var server = new MockServer();
+        server.Start();
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
+
+        // Wait for initial connection
+        await plc.IsConnected.FirstAsync(x => x);
+
+        // Act - Simulate PLC stop by stopping server
+        server.Stop();
+
+        // Wait for disconnection
+        await plc.IsConnected.FirstAsync(x => !x);
+
+        // Simulate PLC run by starting server
+        server.Start();
+
+        // Wait for reconnection
+        await plc.IsConnected.FirstAsync(x => x);
+
+        // Assert
+        plc.IsConnectedValue.Should().BeTrue("PLC should reconnect after PLC is run again");
     }
 }

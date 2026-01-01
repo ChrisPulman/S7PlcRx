@@ -297,6 +297,7 @@ internal class S7SocketRx : IDisposable
                 return received;
             }
 
+            RecordError();
             _socketExceptionSubject.OnNext(new S7Exception("Device not connected"));
         }
         catch (Exception ex)
@@ -338,6 +339,7 @@ internal class S7SocketRx : IDisposable
                 return sent;
             }
 
+            RecordError();
             _socketExceptionSubject.OnNext(new S7Exception("Device not connected"));
         }
         catch (Exception ex)
@@ -671,6 +673,11 @@ internal class S7SocketRx : IDisposable
             {
                 // Connection might be stale, perform lightweight check
                 return PerformLightweightConnectionCheck();
+            }
+
+            if (!isConnected && _initComplete)
+            {
+                RestartConnection();
             }
 
             return isConnected;
