@@ -2,18 +2,15 @@
 
   <PropertyGroup>
     <TargetFrameworks>net48;net8.0;net9.0;net10.0</TargetFrameworks>
-    <Platforms>AnyCPU;x86</Platforms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <PlatformTarget>x86</PlatformTarget>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Update="snap7.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <Content Include="runtimes\win-x64\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="runtimes\win-x86\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

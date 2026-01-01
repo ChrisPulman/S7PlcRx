@@ -133,7 +133,7 @@ public class S7PlcRxBasicTests
     {
         // Act & Assert
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, invalidRack, 1));
-        Assert.That(ex.ParamName, Is.EqualTo("rack"));
+        Assert.That(ex?.ParamName, Is.EqualTo("rack"));
     }
 
     /// <summary>
@@ -146,7 +146,7 @@ public class S7PlcRxBasicTests
     {
         // Act & Assert
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 0, invalidSlot));
-        Assert.That(ex.ParamName, Is.EqualTo("slot"));
+        Assert.That(ex?.ParamName, Is.EqualTo("slot"));
     }
 
     /// <summary>
@@ -172,7 +172,7 @@ public class S7PlcRxBasicTests
     {
         // Act & Assert
         var ex = Assert.Throws<ArgumentException>(() => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB0", 100, 5000, 15));
-        Assert.That(ex.Message, Does.Contain("WatchDogAddress must be a DBW address"));
+        Assert.That(ex?.Message, Does.Contain("WatchDogAddress must be a DBW address"));
     }
 
     /// <summary>

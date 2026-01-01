@@ -263,7 +263,7 @@ public class S7PlcRxComprehensiveTests
 
         // Test invalid watchdog address (non-DBW)
         var ex = Assert.Throws<ArgumentException>(() => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB100", 100));
-        Assert.That(ex.Message, Does.Contain("WatchDogAddress must be a DBW address"));
+        Assert.That(ex?.Message, Does.Contain("WatchDogAddress must be a DBW address"));
 
         // Test without watchdog
         using var plc2 = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, 100);
@@ -278,17 +278,17 @@ public class S7PlcRxComprehensiveTests
     {
         // Invalid rack values
         var ex1 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, -1, 1));
-        Assert.That(ex1.ParamName, Is.EqualTo("rack"));
+        Assert.That(ex1?.ParamName, Is.EqualTo("rack"));
 
         var ex2 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 8, 1));
-        Assert.That(ex2.ParamName, Is.EqualTo("rack"));
+        Assert.That(ex2?.ParamName, Is.EqualTo("rack"));
 
         // Invalid slot values
         var ex3 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 0, 0));
-        Assert.That(ex3.ParamName, Is.EqualTo("slot"));
+        Assert.That(ex3?.ParamName, Is.EqualTo("slot"));
 
         var ex4 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 0, 32));
-        Assert.That(ex4.ParamName, Is.EqualTo("slot"));
+        Assert.That(ex4?.ParamName, Is.EqualTo("slot"));
 
         // Invalid tag operations
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);

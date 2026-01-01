@@ -1,20 +1,20 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net48;net8.0;net9.0</TargetFrameworks>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <IsTestProject>true</IsTestProject>
-    <PlatformTarget>x86</PlatformTarget>
+    <OutputType>Exe</OutputType>
+
+    <!-- Benchmarks: keep analyzers off to avoid StyleCop/doc requirements impacting perf harness -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);SA1600;SA1633;CA1001;CA1822;SA1313</NoWarn>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+
+    <!-- Ensure dependencies are present in output folder for in-process execution -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
-    <PackageReference Include="NUnit" Version="4.4.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="6.0.1" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MockS7Plc\MockS7Plc.csproj" />
@@ -26,7 +26,4 @@
     <None Include="..\MockS7Plc\runtimes\win-x86\native\snap7.dll" Link="runtimes\win-x86\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Using Include="NUnit.Framework" />
-  </ItemGroup>
 </Project>
