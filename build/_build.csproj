@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CP.Nuke.BuildTools" Version="1.0.94" />
+    <PackageReference Include="CP.Nuke.BuildTools" Version="2.0.16" />
     <PackageReference Include="Nerdbank.GitVersioning" Version="3.9.50" />
     <PackageReference Include="Nuke.Common" Version="9.0.4" />
   </ItemGroup>
