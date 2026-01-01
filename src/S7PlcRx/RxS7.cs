@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Chris Pulman. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Buffers;
 using System.Collections;
 using System.Data;
 using System.Diagnostics;
@@ -410,6 +411,175 @@ public class RxS7 : IRxS7
         _lockTagList.Release();
     }
 
+    internal Dictionary<string, object?>? ReadMultiVar(IReadOnlyList<Tag> tags)
+    {
+        if (tags == null || tags.Count == 0)
+        {
+            return null;
+        }
+
+        lock (_socketLock)
+        {
+            var pool = ArrayPool<byte>.Shared;
+            var bReceive = pool.Rent(_socketRx.DataReadLength + 256);
+            var parsed = new List<S7MultiVar.ReadResult>();
+            try
+            {
+                var items = new List<S7MultiVar.ReadItem>(tags.Count);
+                var varTypes = new VarType[tags.Count];
+                var arrayLengths = new int[tags.Count];
+
+                for (var i = 0; i < tags.Count; i++)
+                {
+                    var t = tags[i];
+                    if (t == null || string.IsNullOrWhiteSpace(t.Name) || string.IsNullOrWhiteSpace(t.Address) || t.ArrayLength == null)
+                    {
+                        return null;
+                    }
+
+                    if (!TryParseDbAddressForMultiVar(t, out var db, out var startByte, out var varType, out var countBytes))
+                    {
+                        return null;
+                    }
+
+                    varTypes[i] = varType;
+                    arrayLengths[i] = t.ArrayLength.Value;
+                    var elementCount = varType == VarType.Word || varType == VarType.Int || varType == VarType.Timer || varType == VarType.Counter ? (countBytes / 2) :
+                        varType == VarType.DWord || varType == VarType.DInt || varType == VarType.Real ? (countBytes / 4) :
+                        varType == VarType.LReal ? (countBytes / 8) :
+                        countBytes;
+                    items.Add(new S7MultiVar.ReadItem(DataType.DataBlock, db, startByte, elementCount, t.Name!));
+                }
+
+                var request = S7MultiVar.BuildReadVarRequest(items);
+                if (request.Length == 0)
+                {
+                    return null;
+                }
+
+                var sent = _socketRx.Send(tags[0], request, request.Length);
+                if (sent != request.Length)
+                {
+                    return null;
+                }
+
+                Array.Clear(bReceive, 0, bReceive.Length);
+                _ = _socketRx.Receive(tags[0], bReceive, bReceive.Length);
+
+                parsed.AddRange(S7MultiVar.ParseReadVarResponse(bReceive, items, pool));
+                if (parsed.Count == 0)
+                {
+                    return null;
+                }
+
+                var dict = new Dictionary<string, object?>(tags.Count, StringComparer.InvariantCultureIgnoreCase);
+                for (var i = 0; i < tags.Count && i < parsed.Count; i++)
+                {
+                    var res = parsed[i];
+                    if (res.ReturnCode != 0xFF || res.Data.IsEmpty)
+                    {
+                        dict[tags[i].Name!] = default;
+                        continue;
+                    }
+
+                    dict[tags[i].Name!] = ParseBytes(varTypes[i], res.Data.ToArray(), arrayLengths[i]);
+                }
+
+                return dict;
+            }
+            catch (Exception ex)
+            {
+                _lastErrorCode.OnNext(ErrorCode.ReadData);
+                _lastError.OnNext(ex.Message);
+                return null;
+            }
+            finally
+            {
+                foreach (var r in parsed)
+                {
+                    if (r.RentedBuffer != null)
+                    {
+                        pool.Return(r.RentedBuffer);
+                    }
+                }
+
+                pool.Return(bReceive);
+            }
+        }
+    }
+
+    internal bool WriteMultiVar(IReadOnlyList<Tag> tags)
+    {
+        if (tags == null || tags.Count == 0)
+        {
+            return false;
+        }
+
+        lock (_socketLock)
+        {
+            var bReceive = new byte[1024];
+            try
+            {
+                var items = new List<S7MultiVar.WriteItem>(tags.Count);
+
+                for (var i = 0; i < tags.Count; i++)
+                {
+                    var t = tags[i];
+                    if (t == null || string.IsNullOrWhiteSpace(t.Name) || string.IsNullOrWhiteSpace(t.Address) || t.NewValue == null)
+                    {
+                        return false;
+                    }
+
+                    if (!TryParseDbAddressForMultiVar(t, out var db, out var startByte, out var varType, out var countBytes))
+                    {
+                        return false;
+                    }
+
+                    if (!TrySerializeTagNewValue(t, out var transportSize, out var data))
+                    {
+                        return false;
+                    }
+
+                    var elementCount = varType == VarType.Word || varType == VarType.Int || varType == VarType.Timer || varType == VarType.Counter ? (countBytes / 2) :
+                        varType == VarType.DWord || varType == VarType.DInt || varType == VarType.Real ? (countBytes / 4) :
+                        varType == VarType.LReal ? (countBytes / 8) :
+                        countBytes;
+
+                    items.Add(new S7MultiVar.WriteItem(DataType.DataBlock, db, startByte, elementCount, transportSize, data, t.Name!));
+                }
+
+                var request = S7MultiVar.BuildWriteVarRequest(items);
+                if (request.Length == 0)
+                {
+                    return false;
+                }
+
+                var sent = _socketRx.Send(tags[0], request, request.Length);
+                if (sent != request.Length)
+                {
+                    return false;
+                }
+
+                _ = _socketRx.Receive(tags[0], bReceive, bReceive.Length);
+
+                // general status ok
+                if (bReceive[21] != 0xFF)
+                {
+                    return false;
+                }
+
+                var results = S7MultiVar.ParseWriteVarResponse(bReceive, items.Count);
+                return results.Count == items.Count && results.All(r => r.ReturnCode == 0xFF);
+            }
+            catch (Exception ex)
+            {
+                _lastErrorCode.OnNext(ErrorCode.WriteData);
+                _lastError.OnNext(ex.Message);
+                return false;
+            }
+        }
+    }
+
     /// <summary>
     /// Releases unmanaged and - optionally - managed resources.
     /// </summary>
@@ -451,6 +621,134 @@ public class RxS7 : IRxS7
 
             IsDisposed = true;
         }
+    }
+
+    private static bool TrySerializeTagNewValue(Tag tag, out byte transportSize, out byte[] data)
+    {
+        transportSize = 2;
+        data = [];
+
+        if (tag.NewValue == null)
+        {
+            return false;
+        }
+
+        switch (tag.Type.Name)
+        {
+            case "Boolean":
+            case "Byte":
+                data = [(byte)Convert.ChangeType(tag.NewValue, typeof(byte))!];
+                return true;
+
+            case "Int16":
+            case "short":
+                data = Int.ToByteArray((short)tag.NewValue!);
+                return true;
+
+            case "UInt16":
+            case "ushort":
+                data = Word.ToByteArray((ushort)Convert.ChangeType(tag.NewValue, typeof(ushort))!);
+                return true;
+
+            case "Int32":
+            case "int":
+                data = DInt.ToByteArray((int)tag.NewValue!);
+                return true;
+
+            case "UInt32":
+            case "uint":
+                data = DWord.ToByteArray((uint)Convert.ChangeType(tag.NewValue, typeof(uint))!);
+                return true;
+
+            case "Single":
+                data = Real.ToByteArray((float)tag.NewValue!);
+                return true;
+
+            case "Double":
+                data = LReal.ToByteArray((double)tag.NewValue!);
+                return true;
+
+            case "Byte[]":
+                data = (byte[])tag.NewValue;
+                return true;
+
+            case "String":
+                data = PlcTypes.String.ToByteArray(tag.NewValue as string);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryParseDbAddressForMultiVar(Tag tag, out int db, out int startByte, out VarType varType, out int countBytes)
+    {
+        db = 0;
+        startByte = 0;
+        varType = VarType.Byte;
+        countBytes = 0;
+
+        if (string.IsNullOrWhiteSpace(tag.Address) || tag.ArrayLength == null)
+        {
+            return false;
+        }
+
+        var addr = tag.Address!.ToUpperInvariant().Replace(" ", string.Empty);
+        if (!addr.StartsWith("DB", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var parts = addr.Split(['.']);
+        if (parts.Length < 2)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(parts[0].Substring(2), out db))
+        {
+            return false;
+        }
+
+        var dbType = parts[1].Substring(0, 3);
+        if (!int.TryParse(parts[1].Substring(3), out startByte))
+        {
+            return false;
+        }
+
+        switch (dbType)
+        {
+            case "DBB":
+                varType = VarType.Byte;
+                break;
+            case "DBW":
+                varType = tag.Type == typeof(short) || tag.Type == typeof(short[]) ? VarType.Int : VarType.Word;
+                break;
+            case "DBD":
+                if (tag.Type == typeof(double) || tag.Type == typeof(double[]))
+                {
+                    varType = VarType.LReal;
+                }
+                else if (tag.Type == typeof(float) || tag.Type == typeof(float[]))
+                {
+                    varType = VarType.Real;
+                }
+                else if (tag.Type == typeof(int) || tag.Type == typeof(int[]))
+                {
+                    varType = VarType.DInt;
+                }
+                else
+                {
+                    varType = VarType.DWord;
+                }
+
+                break;
+            default:
+                return false;
+        }
+
+        countBytes = VarTypeToByteLength(varType, tag.ArrayLength.Value);
+        return countBytes > 0;
     }
 
     private static bool TagValueIsValid<T>(Tag? tag) => tag != null && (typeof(T) == typeof(object) || (tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
@@ -788,7 +1086,7 @@ public class RxS7 : IRxS7
     {
         if (string.IsNullOrWhiteSpace(tag?.Address))
         {
-            throw new ArgumentNullException(nameof(tag.Address));
+            throw new ArgumentNullException(nameof(tag));
         }
 
         DataType dataType;

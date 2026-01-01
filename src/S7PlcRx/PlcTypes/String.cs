@@ -29,8 +29,12 @@ internal static class String
             return string.Empty;
         }
 
-        // For .NET Standard 2.0 compatibility, convert span to array
+#if NETSTANDARD2_0
+        // Encoding APIs do not accept spans on netstandard2.0.
         return Encoding.ASCII.GetString(bytes.ToArray());
+#else
+        return Encoding.ASCII.GetString(bytes);
+#endif
     }
 
     /// <summary>
@@ -79,7 +83,7 @@ internal static class String
             return 0;
         }
 
-        // For .NET Standard 2.0 compatibility, get bytes first then copy
+#if NETSTANDARD2_0
         var bytes = Encoding.ASCII.GetBytes(value);
         if (bytes.Length > destination.Length)
         {
@@ -88,6 +92,14 @@ internal static class String
 
         bytes.AsSpan().CopyTo(destination);
         return bytes.Length;
+#else
+        if (!Encoding.ASCII.TryGetBytes(value, destination, out var bytesWritten))
+        {
+            throw new ArgumentException("Destination span is too small", nameof(destination));
+        }
+
+        return bytesWritten;
+#endif
     }
 
     /// <summary>
@@ -106,6 +118,7 @@ internal static class String
             return true;
         }
 
+#if NETSTANDARD2_0
         var bytes = Encoding.ASCII.GetBytes(value);
         if (bytes.Length > destination.Length)
         {
@@ -115,5 +128,8 @@ internal static class String
         bytes.AsSpan().CopyTo(destination);
         bytesWritten = bytes.Length;
         return true;
+#else
+        return Encoding.ASCII.TryGetBytes(value, destination, out bytesWritten);
+#endif
     }
 }

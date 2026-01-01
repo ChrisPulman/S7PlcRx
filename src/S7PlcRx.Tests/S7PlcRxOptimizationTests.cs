@@ -597,4 +597,25 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         _plc?.Dispose();
         _server?.Dispose();
     }
+
+    /// <summary>
+    /// Regression coverage for bit masking to ensure write paths avoid floating-point `Math.Pow`.
+    /// </summary>
+    /// <param name="bit">The bit index (0-7).</param>
+    /// <param name="value">Whether the bit should be set.</param>
+    /// <param name="expected">The expected byte value after applying the bit operation.</param>
+    [TestCase(0, true, (byte)0b0000_0001)]
+    [TestCase(0, false, (byte)0b0000_0000)]
+    [TestCase(7, true, (byte)0b1000_0000)]
+    public void BitMasking_ShouldSetAndClearBitsCorrectly(int bit, bool value, byte expected)
+    {
+        // Arrange
+        byte data = 0;
+
+        // Act
+        S7PlcRx.PlcTypes.Conversion.SetBit(ref data, bit, value);
+
+        // Assert
+        Assert.That(data, Is.EqualTo(expected));
+    }
 }
