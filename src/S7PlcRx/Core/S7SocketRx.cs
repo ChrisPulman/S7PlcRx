@@ -29,7 +29,6 @@ internal class S7SocketRx : IDisposable
     private const int PingTimeoutMs = 2000;
 
     // Enhanced observables for better monitoring
-    private readonly Subject<Exception> _socketExceptionSubject = new();
     private readonly Subject<ConnectionMetrics> _metricsSubject = new();
 
     // Optimized connection management
@@ -39,6 +38,8 @@ internal class S7SocketRx : IDisposable
     // Connection monitoring
     private readonly ConnectionMetrics _metrics = new();
     private readonly System.Threading.Timer? _metricsTimer;
+
+    private Subject<Exception> _socketExceptionSubject = new();
 
     // State management
     private IDisposable _disposable;
@@ -82,20 +83,43 @@ internal class S7SocketRx : IDisposable
     public IObservable<bool> Connect =>
         Observable.Create<bool>(obs =>
         {
+            if (_disposedValue)
+            {
+                obs.OnCompleted();
+                return Disposable.Empty;
+            }
+
             var dis = new CompositeDisposable();
             _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             dis.Add(_socket);
             _initComplete = false;
 
-            dis.Add(_socketExceptionSubject.Subscribe(ex =>
+            // Subject may have been disposed during teardown; recreate lazily.
+            try
             {
-                if (ex != null)
+                dis.Add(_socketExceptionSubject.Subscribe(ex =>
                 {
-                    _metrics.RecordError();
-                    LogError($"Socket exception: {ex.Message}");
-                    obs.OnError(ex);
-                }
-            }));
+                    if (ex != null)
+                    {
+                        _metrics.RecordError();
+                        LogError($"Socket exception: {ex.Message}");
+                        obs.OnError(ex);
+                    }
+                }));
+            }
+            catch (ObjectDisposedException)
+            {
+                _socketExceptionSubject = new Subject<Exception>();
+                dis.Add(_socketExceptionSubject.Subscribe(ex =>
+                {
+                    if (ex != null)
+                    {
+                        _metrics.RecordError();
+                        LogError($"Socket exception: {ex.Message}");
+                        obs.OnError(ex);
+                    }
+                }));
+            }
 
             dis.Add(IsConnected.Subscribe(
                 deviceConnected =>
@@ -190,23 +214,31 @@ internal class S7SocketRx : IDisposable
     public IObservable<bool> IsAvailable =>
         Observable.Create<bool>(obs =>
         {
-            IDisposable tim;
             _isAvailable = null;
             var count = 0;
-            tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(10)).Subscribe(async _ =>
+
+            var timer = new SerialDisposable();
+
+            // Fast probe (startup)
+            timer.Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(250)).Subscribe(async _ =>
             {
                 count++;
-                if (_isAvailable == null || !_isAvailable.HasValue ||
-                    (count == 1 && !_isAvailable.Value) ||
-                    (count == 10 && _isAvailable.Value))
+                _isAvailable = await CheckAvailabilityOptimizedAsync();
+                obs.OnNext(_isAvailable == true);
+
+                // After a few quick probes, back off to reduce ping noise.
+                if (count >= 8)
                 {
                     count = 0;
-                    _isAvailable = await CheckAvailabilityOptimizedAsync();
+                    timer.Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(1)).Subscribe(async __ =>
+                    {
+                        _isAvailable = await CheckAvailabilityOptimizedAsync();
+                        obs.OnNext(_isAvailable == true);
+                    });
                 }
-
-                obs.OnNext(_isAvailable == true);
             });
-            return new SingleAssignmentDisposable { Disposable = tim };
+
+            return timer;
         }).Retry().Publish(false).RefCount();
 
     /// <summary>
@@ -216,8 +248,12 @@ internal class S7SocketRx : IDisposable
         Observable.Create<bool>(obs =>
         {
             _isConnected = null;
-            var tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(10)).Subscribe(_ =>
+
+            // Faster startup: check frequently until connected, then slow down.
+            var timer = new SerialDisposable();
+            var fast = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(50)).Subscribe(_ =>
             {
+                var isConnectedNow = false;
                 if (_socket == null)
                 {
                     _isConnected = false;
@@ -226,7 +262,6 @@ internal class S7SocketRx : IDisposable
                 {
                     try
                     {
-                        // Enhanced connection detection with stale connection check
                         _isConnected = CheckConnectionStatusOptimized();
                     }
                     catch (ObjectDisposedException)
@@ -241,10 +276,43 @@ internal class S7SocketRx : IDisposable
                     }
                 }
 
-                obs.OnNext(_isConnected == true);
+                isConnectedNow = _isConnected == true;
+                obs.OnNext(isConnectedNow);
+
+                if (isConnectedNow)
+                {
+                    // Switch to steady-state checks.
+                    timer.Disposable = Observable.Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)).Subscribe(__ =>
+                    {
+                        try
+                        {
+                            if (_socket == null)
+                            {
+                                _isConnected = false;
+                            }
+                            else
+                            {
+                                _isConnected = CheckConnectionStatusOptimized();
+                            }
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            _isConnected = false;
+                            RestartConnection();
+                        }
+                        catch (Exception ex)
+                        {
+                            _isConnected = false;
+                            _socketExceptionSubject.OnNext(new S7Exception("Connection issue", ex));
+                        }
+
+                        obs.OnNext(_isConnected == true);
+                    });
+                }
             });
 
-            return new SingleAssignmentDisposable { Disposable = tim };
+            timer.Disposable = fast;
+            return timer;
         }).Retry().Publish(false).RefCount().DistinctUntilChanged();
 
     /// <summary>
@@ -520,12 +588,27 @@ internal class S7SocketRx : IDisposable
         {
             if (disposing)
             {
+                // Stop connection/retry loops before disposing subjects
+                try
+                {
+                    _disposable?.Dispose();
+                }
+                catch
+                {
+                }
+
                 _metricsTimer?.Dispose();
                 CloseSocketOptimized(_socket);
                 _socket = null;
 
-                _disposable?.Dispose();
-                _socketExceptionSubject?.Dispose();
+                try
+                {
+                    _socketExceptionSubject?.Dispose();
+                }
+                catch
+                {
+                }
+
                 _metricsSubject?.Dispose();
                 _connectionLock?.Dispose();
             }
@@ -1056,6 +1139,11 @@ internal class S7SocketRx : IDisposable
     private void RestartConnection() =>
         Task.Run(async () =>
         {
+            if (_disposedValue)
+            {
+                return;
+            }
+
             try
             {
                 LogWarning("Restarting connection due to failures");
@@ -1064,7 +1152,6 @@ internal class S7SocketRx : IDisposable
                 _initComplete = false;
                 _isConnected = false;
 
-                // Give a brief pause before restart
                 await Task.Delay(1000);
 
                 _disposable?.Dispose();

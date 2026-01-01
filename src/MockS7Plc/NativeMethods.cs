@@ -6,11 +6,43 @@ using System.Text;
 
 namespace MockS7Plc;
 
+#pragma warning disable SA1201 // Elements should appear in the correct order
+#pragma warning disable SA1202 // Elements should be ordered by access
 internal static class NativeMethods
 {
 #pragma warning disable SYSLIB1054 // Use 'LibraryImportAttribute' instead of 'DllImportAttribute' to generate P/Invoke marshalling code at compile time
 
     private const string LibName = "snap7.dll";
+
+    static NativeMethods()
+    {
+#if NET8_0_OR_GREATER
+        NativeLibrary.SetDllImportResolver(typeof(NativeMethods).Assembly, static (libraryName, _, __) =>
+        {
+            if (!string.Equals(libraryName, LibName, StringComparison.OrdinalIgnoreCase))
+            {
+                return nint.Zero;
+            }
+
+            var rid = RuntimeInformation.ProcessArchitecture == Architecture.X86 ? "win-x86" : "win-x64";
+            var candidate = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", LibName);
+            if (File.Exists(candidate) && NativeLibrary.TryLoad(candidate, out var handle))
+            {
+                return handle;
+            }
+
+            return nint.Zero;
+        });
+#elif NET48
+        // .NET Framework does not support NativeLibrary resolver; ensure snap7.dll is loaded from our runtimes folder.
+        var rid = Environment.Is64BitProcess ? "win-x64" : "win-x86";
+        var candidate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", rid, "native", LibName);
+        if (File.Exists(candidate))
+        {
+            _ = LoadLibrary(candidate);
+        }
+#endif
+    }
 
 #pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments
     [DllImport(LibName, CharSet = CharSet.Ansi)]
@@ -81,5 +113,13 @@ internal static class NativeMethods
 
     [DllImport(LibName)]
     internal static extern int Srv_SetReadEventsCallback(nint server, SrvCallback callback, nint usrPtr);
-#pragma warning restore SYSLIB1054 // Use 'LibraryImportAttribute' instead of 'DllImportAttribute' to generate P/Invoke marshalling code at compile time
+
+#if NET48
+    [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern nint LoadLibrary(string lpFileName);
+#endif
+
+#pragma warning restore SYSLIB1054
 }
+#pragma warning restore SA1202
+#pragma warning restore SA1201

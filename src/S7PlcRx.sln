@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.2.32630.192
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11312.151 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ProjectConfig", "ProjectConfig", "{62ECE40E-CA31-4602-8670-35BAF2C83672}"
 	ProjectSection(SolutionItems) = preProject
@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "S7PlcRx.Tests", "S7PlcRx.Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MockS7Plc", "MockS7Plc\MockS7Plc.csproj", "{C0667225-F0B0-422B-9487-1AC9543C0ADC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "S7PlcRx.Benchmarks", "S7PlcRx.Benchmarks\S7PlcRx.Benchmarks.csproj", "{BE00C193-9A6B-E4E0-FCAB-29013F7FC0F3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,6 +53,10 @@ Global
 		{C0667225-F0B0-422B-9487-1AC9543C0ADC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C0667225-F0B0-422B-9487-1AC9543C0ADC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C0667225-F0B0-422B-9487-1AC9543C0ADC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE00C193-9A6B-E4E0-FCAB-29013F7FC0F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE00C193-9A6B-E4E0-FCAB-29013F7FC0F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE00C193-9A6B-E4E0-FCAB-29013F7FC0F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE00C193-9A6B-E4E0-FCAB-29013F7FC0F3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
