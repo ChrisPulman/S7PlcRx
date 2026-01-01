@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reactive.Linq;
 using MockS7Plc;
+using S7PlcRx.Advanced;
 using S7PlcRx.Enums;
 
 namespace S7PlcRx.Benchmarks;
@@ -30,6 +31,13 @@ internal static class PerfHarness
         Console.WriteLine($"Connect time: {connectSw.ElapsedMilliseconds} ms");
 
         const int iterations = 500;
+        const int tagCount = 8;
+        var tagNames = new string[tagCount];
+        for (var i = 0; i < tagCount; i++)
+        {
+            tagNames[i] = $"BenchWord{i}";
+            plc.AddUpdateTagItem<ushort>(tagNames[i], $"DB1.DBW{i}").SetTagPollIng(false);
+        }
 
         // Warm-up
         for (var j = 0; j < 50; j++)
@@ -66,10 +74,46 @@ internal static class PerfHarness
 
         rwSw.Stop();
 
+        // N tags per cycle (single-tag write)
+        var singleWriteSw = Stopwatch.StartNew();
+        for (var j = 0; j < iterations; j++)
+        {
+            for (var i = 0; i < tagCount; i++)
+            {
+                plc.Value(tagNames[i], (ushort)(j + i));
+            }
+
+            for (var i = 0; i < tagCount; i++)
+            {
+                _ = await plc.Value<ushort>(tagNames[i]);
+            }
+        }
+
+        singleWriteSw.Stop();
+
+        // N tags per cycle (batch write)
+        var batchWriteSw = Stopwatch.StartNew();
+        for (var j = 0; j < iterations; j++)
+        {
+            var dict = new Dictionary<string, ushort>(tagCount);
+            for (var i = 0; i < tagCount; i++)
+            {
+                dict[tagNames[i]] = (ushort)(j + i);
+            }
+
+            await plc.ValueBatch(dict);
+        }
+
+        batchWriteSw.Stop();
+
         static double PerOpMs(Stopwatch sw, int iters) => sw.Elapsed.TotalMilliseconds / iters;
         Console.WriteLine($"Read avg:  {PerOpMs(readSw, iterations):F3} ms/op");
         Console.WriteLine($"Write avg: {PerOpMs(writeSw, iterations):F3} ms/op");
         Console.WriteLine($"R+W avg:   {PerOpMs(rwSw, iterations):F3} ms/op");
+        static double PerCycleMs(Stopwatch sw, int iters) => sw.Elapsed.TotalMilliseconds / iters;
+        static double PerTagUs(Stopwatch sw, int iters, int tagCount) => sw.Elapsed.TotalMilliseconds / iters * 1000 / tagCount;
+        Console.WriteLine($"Single-tag write (x{tagCount} per cycle) avg: {PerCycleMs(singleWriteSw, iterations):F3} ms/cycle ({PerTagUs(singleWriteSw, iterations, tagCount):F1} us/tag)");
+        Console.WriteLine($"Batch write ({tagCount} tags per cycle) avg:          {PerCycleMs(batchWriteSw, iterations):F3} ms/cycle ({PerTagUs(batchWriteSw, iterations, tagCount):F1} us/tag)");
 
         return 0;
     }
