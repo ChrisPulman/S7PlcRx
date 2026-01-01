@@ -29,7 +29,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     {
         _server = new MockServer();
         var rc = _server.StartTo(MockServer.Localhost);
-        rc.Should().Be(0);
+        Assert.That(rc, Is.EqualTo(0));
         _plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, 100);
     }
 
@@ -37,7 +37,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     /// Test performance monitoring functionality.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task MonitorPerformance_ShouldProvideMetrics()
     {
         // Arrange
@@ -48,18 +48,18 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var firstMetrics = await metricsObservable.Take(1).FirstAsync();
 
         // Assert
-        firstMetrics.Should().NotBeNull();
-        firstMetrics.PLCIdentifier.Should().Contain(MockServer.Localhost);
-        firstMetrics.PLCIdentifier.Should().Contain("S71500");
-        firstMetrics.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
-        firstMetrics.TagCount.Should().BeGreaterThanOrEqualTo(0);
+        Assert.That(firstMetrics, Is.Not.Null);
+        Assert.That(firstMetrics.PLCIdentifier, Does.Contain(MockServer.Localhost));
+        Assert.That(firstMetrics.PLCIdentifier, Does.Contain("S71500"));
+        Assert.That(firstMetrics.Timestamp, Is.EqualTo(DateTime.UtcNow).Within(TimeSpan.FromSeconds(5)));
+        Assert.That(firstMetrics.TagCount, Is.GreaterThanOrEqualTo(0));
     }
 
     /// <summary>
     /// Test optimized read operations with multiple tags.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task ReadOptimized_WithMultipleTags_ShouldGroupByDataBlock()
     {
         // Arrange
@@ -81,16 +81,16 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var results = await _plc.ReadOptimized<float>(tagNames, config);
 
         // Assert
-        results.Should().NotBeNull();
-        results.Should().HaveCount(3);
-        results.Should().ContainKeys("TestTag1", "TestTag2", "TestTag3");
+        Assert.That(results, Is.Not.Null);
+        Assert.That(results, Has.Count.EqualTo(3));
+        Assert.That(results.Keys, Is.EquivalentTo(new[] { "TestTag1", "TestTag2", "TestTag3" }));
     }
 
     /// <summary>
     /// Test optimized write operations with verification.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task WriteOptimized_WithVerification_ShouldCompleteSuccessfully()
     {
         // Arrange
@@ -114,16 +114,16 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var result = await _plc.WriteOptimized(writeValues, config);
 
         // Assert
-        result.Should().NotBeNull();
-        result.TotalDuration.Should().BeGreaterThan(TimeSpan.Zero);
-        result.SuccessRate.Should().BeGreaterThanOrEqualTo(0.0);
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.TotalDuration, Is.GreaterThan(TimeSpan.Zero));
+        Assert.That(result.SuccessRate, Is.GreaterThanOrEqualTo(0.0));
     }
 
     /// <summary>
     /// Test performance benchmark functionality.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task RunBenchmark_ShouldProvideBenchmarkResults()
     {
         // Arrange
@@ -138,35 +138,35 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var result = await _plc.RunBenchmark(config);
 
         // Assert
-        result.Should().NotBeNull();
-        result.PLCIdentifier.Should().Contain(MockServer.Localhost);
-        result.TotalDuration.Should().BeGreaterThan(TimeSpan.Zero);
-        result.OverallScore.Should().BeInRange(0, 100);
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.PLCIdentifier, Does.Contain(MockServer.Localhost));
+        Assert.That(result.TotalDuration, Is.GreaterThan(TimeSpan.Zero));
+        Assert.That(result.OverallScore, Is.InRange(0, 100));
     }
 
     /// <summary>
     /// Test performance statistics collection.
     /// </summary>
-    [Fact]
+    [Test]
     public void GetPerformanceStatistics_ShouldReturnValidStats()
     {
         // Act
         var stats = _plc.GetPerformanceStatistics();
 
         // Assert
-        stats.Should().NotBeNull();
-        stats.PLCIdentifier.Should().Contain(MockServer.Localhost);
-        stats.TotalOperations.Should().BeGreaterThanOrEqualTo(0);
-        stats.TotalErrors.Should().BeGreaterThanOrEqualTo(0);
-        stats.ErrorRate.Should().BeInRange(0.0, 1.0);
-        stats.LastUpdated.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        Assert.That(stats, Is.Not.Null);
+        Assert.That(stats.PLCIdentifier, Does.Contain(MockServer.Localhost));
+        Assert.That(stats.TotalOperations, Is.GreaterThanOrEqualTo(0));
+        Assert.That(stats.TotalErrors, Is.GreaterThanOrEqualTo(0));
+        Assert.That(stats.ErrorRate, Is.InRange(0.0, 1.0));
+        Assert.That(stats.LastUpdated, Is.EqualTo(DateTime.UtcNow).Within(TimeSpan.FromSeconds(5)));
     }
 
     /// <summary>
     /// Test advanced batch reading with optimization.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task ReadBatchOptimized_ShouldOptimizeDataBlockAccess()
     {
         // Arrange
@@ -188,17 +188,17 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var result = await _plc.ReadBatchOptimized<float>(tagMapping);
 
         // Assert
-        result.Should().NotBeNull();
-        result.Values.Should().HaveCount(4);
-        result.Success.Should().HaveCount(4);
-        result.OverallSuccess.Should().BeTrue();
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Values, Has.Count.EqualTo(4));
+        Assert.That(result.Success, Has.Count.EqualTo(4));
+        Assert.That(result.OverallSuccess, Is.True);
     }
 
     /// <summary>
     /// Test advanced batch writing with verification and rollback.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task WriteBatchOptimized_WithRollback_ShouldHandleErrors()
     {
         // Arrange
@@ -218,16 +218,16 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var result = await _plc.WriteBatchOptimized(writeValues, verifyWrites: false, enableRollback: true);
 
         // Assert
-        result.Should().NotBeNull();
-        result.Success.Should().HaveCount(2);
-        result.OverallSuccess.Should().BeTrue();
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Success, Has.Count.EqualTo(2));
+        Assert.That(result.OverallSuccess, Is.True);
     }
 
     /// <summary>
     /// Test smart tag change monitoring with debouncing.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task MonitorTagSmart_ShouldProvideChangeDetection()
     {
         // Arrange
@@ -239,13 +239,13 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var smartMonitor = _plc.MonitorTagSmart<float>("SmartTag", changeThreshold, debounceMs);
 
         // We can't easily test this without actual data changes, so just verify the observable is created
-        smartMonitor.Should().NotBeNull();
+        Assert.That(smartMonitor, Is.Not.Null);
 
         // Test that we can subscribe without errors
         using var subscription = smartMonitor.Subscribe(change =>
         {
-            change.Should().NotBeNull();
-            change.TagName.Should().Be("SmartTag");
+            Assert.That(change, Is.Not.Null);
+            Assert.That(change.TagName, Is.EqualTo("SmartTag"));
         });
 
         // Give it a moment to ensure no immediate errors
@@ -256,7 +256,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     /// Test cache-enabled value reading.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task ValueCached_ShouldUseIntelligentCaching()
     {
         // Arrange
@@ -269,14 +269,14 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
 
         // Assert
         // Both should complete without error (actual values depend on PLC connectivity)
-        value1.Should().BeOfType(typeof(float));
-        value2.Should().BeOfType(typeof(float));
+        Assert.That(value1, Is.InstanceOf(typeof(float)));
+        Assert.That(value2, Is.InstanceOf(typeof(float)));
     }
 
     /// <summary>
     /// Test cache statistics and management.
     /// </summary>
-    [Fact]
+    [Test]
     public void CacheManagement_ShouldProvideStatistics()
     {
         // Arrange
@@ -288,16 +288,16 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var statsAfter = _plc.GetCacheStatistics();
 
         // Assert
-        statsBefore.Should().NotBeNull();
-        statsAfter.Should().NotBeNull();
-        statsAfter.TotalEntries.Should().BeLessThanOrEqualTo(statsBefore.TotalEntries);
+        Assert.That(statsBefore, Is.Not.Null);
+        Assert.That(statsAfter, Is.Not.Null);
+        Assert.That(statsAfter.TotalEntries, Is.LessThanOrEqualTo(statsBefore.TotalEntries));
     }
 
     /// <summary>
     /// Test production system validation.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task ValidateProductionReadiness_ShouldAssessSystemHealth()
     {
         // Arrange
@@ -313,18 +313,18 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var result = await _plc.ValidateProductionReadiness(config);
 
         // Assert
-        result.Should().NotBeNull();
-        result.PLCIdentifier.Should().Contain(MockServer.Localhost);
-        result.ValidationTests.Should().NotBeEmpty();
-        result.OverallScore.Should().BeInRange(0, 100);
-        result.TotalValidationTime.Should().BeGreaterThan(TimeSpan.Zero);
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.PLCIdentifier, Does.Contain(MockServer.Localhost));
+        Assert.That(result.ValidationTests, Is.Not.Empty);
+        Assert.That(result.OverallScore, Is.InRange(0, 100));
+        Assert.That(result.TotalValidationTime, Is.GreaterThan(TimeSpan.Zero));
     }
 
     /// <summary>
     /// Test production error handling with circuit breaker.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task ExecuteWithErrorHandling_ShouldProvideResilience()
     {
         // Arrange
@@ -347,13 +347,13 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         },
             config);
 
-        result.Should().Be("Success");
+        Assert.That(result, Is.EqualTo("Success"));
     }
 
     /// <summary>
     /// Test high-performance tag group creation and operations.
     /// </summary>
-    [Fact]
+    [Test]
     public void CreateTagGroup_ShouldProvideOptimizedAccess()
     {
         // Arrange
@@ -367,36 +367,36 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var tagGroup = _plc.CreateTagGroup<float>("TestGroup", tagNames);
 
         // Assert
-        tagGroup.Should().NotBeNull();
-        tagGroup.GroupName.Should().Be("TestGroup");
+        Assert.That(tagGroup, Is.Not.Null);
+        Assert.That(tagGroup.GroupName, Is.EqualTo("TestGroup"));
     }
 
     /// <summary>
     /// Test comprehensive diagnostics collection.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task GetDiagnostics_ShouldProvideComprehensiveInfo()
     {
         // Act
         var diagnostics = await _plc.GetDiagnostics();
 
         // Assert
-        diagnostics.Should().NotBeNull();
-        diagnostics.PLCType.Should().Be(CpuType.S71500);
-        diagnostics.IPAddress.Should().Be(MockServer.Localhost);
-        diagnostics.Rack.Should().Be(0);
-        diagnostics.Slot.Should().Be(1);
-        diagnostics.DiagnosticTime.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
-        diagnostics.TagMetrics.Should().NotBeNull();
-        diagnostics.Recommendations.Should().NotBeNull();
+        Assert.That(diagnostics, Is.Not.Null);
+        Assert.That(diagnostics.PLCType, Is.EqualTo(CpuType.S71500));
+        Assert.That(diagnostics.IPAddress, Is.EqualTo(MockServer.Localhost));
+        Assert.That(diagnostics.Rack, Is.EqualTo(0));
+        Assert.That(diagnostics.Slot, Is.EqualTo(1));
+        Assert.That(diagnostics.DiagnosticTime, Is.EqualTo(DateTime.UtcNow).Within(TimeSpan.FromSeconds(5)));
+        Assert.That(diagnostics.TagMetrics, Is.Not.Null);
+        Assert.That(diagnostics.Recommendations, Is.Not.Null);
     }
 
     /// <summary>
     /// Test performance analysis and optimization recommendations.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task AnalyzePerformance_ShouldProvideRecommendations()
     {
         // Arrange
@@ -406,17 +406,17 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var analysis = await _plc.AnalyzePerformance(monitoringDuration);
 
         // Assert
-        analysis.Should().NotBeNull();
-        analysis.StartTime.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
-        analysis.EndTime.Should().BeAfter(analysis.StartTime);
-        analysis.MonitoringDuration.Should().Be(monitoringDuration);
-        analysis.Recommendations.Should().NotBeNull();
+        Assert.That(analysis, Is.Not.Null);
+        Assert.That(analysis.StartTime, Is.EqualTo(DateTime.UtcNow).Within(TimeSpan.FromSeconds(5)));
+        Assert.That(analysis.EndTime, Is.GreaterThan(analysis.StartTime));
+        Assert.That(analysis.MonitoringDuration, Is.EqualTo(monitoringDuration));
+        Assert.That(analysis.Recommendations, Is.Not.Null);
     }
 
     /// <summary>
     /// Test multiple tag observation with batch optimization.
     /// </summary>
-    [Fact]
+    [Test]
     public void ObserveBatch_ShouldProvideEfficientMonitoring()
     {
         // Arrange
@@ -430,13 +430,13 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var batchObservable = _plc.ObserveBatch<float>(tagNames);
 
         // Assert
-        batchObservable.Should().NotBeNull();
+        Assert.That(batchObservable, Is.Not.Null);
 
         // Test subscription works
         using var subscription = batchObservable.Subscribe(values =>
         {
-            values.Should().NotBeNull();
-            values.Should().ContainKeys(tagNames);
+            Assert.That(values, Is.Not.Null);
+            Assert.That(values.Keys, Is.EquivalentTo(tagNames));
         });
     }
 
@@ -444,7 +444,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     /// Test symbol table loading and symbolic addressing.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task LoadSymbolTable_ShouldEnableSymbolicAddressing()
     {
         // Arrange
@@ -456,17 +456,17 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var symbolTable = await _plc.LoadSymbolTable(csvData, SymbolTableFormat.Csv);
 
         // Assert
-        symbolTable.Should().NotBeNull();
-        symbolTable.Symbols.Should().HaveCount(2);
-        symbolTable.Symbols.Should().ContainKey("Temperature1");
-        symbolTable.Symbols.Should().ContainKey("Pressure1");
-        symbolTable.LoadedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        Assert.That(symbolTable, Is.Not.Null);
+        Assert.That(symbolTable.Symbols, Has.Count.EqualTo(2));
+        Assert.That(symbolTable.Symbols, Contains.Key("Temperature1"));
+        Assert.That(symbolTable.Symbols, Contains.Key("Pressure1"));
+        Assert.That(symbolTable.LoadedAt, Is.EqualTo(DateTime.UtcNow).Within(TimeSpan.FromSeconds(5)));
     }
 
     /// <summary>
     /// Test high-availability PLC manager with failover.
     /// </summary>
-    [Fact]
+    [Test]
     public void CreateHighAvailabilityConnection_ShouldProvideFailover()
     {
         // Arrange
@@ -482,9 +482,9 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
             primaryPlc, backupPlcs, TimeSpan.FromSeconds(10));
 
         // Assert
-        haManager.Should().NotBeNull();
-        haManager.ActivePLC.Should().Be(primaryPlc);
-        haManager.FailoverEvents.Should().NotBeNull();
+        Assert.That(haManager, Is.Not.Null);
+        Assert.That(haManager.ActivePLC, Is.EqualTo(primaryPlc));
+        Assert.That(haManager.FailoverEvents, Is.Not.Null);
 
         // Cleanup
         primaryPlc.Dispose();
@@ -498,7 +498,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     /// Test optimization engine batch processing.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task OptimizationEngine_BatchProcessing_ShouldImprovePerformance()
     {
         // Arrange
@@ -514,18 +514,18 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var batchResult = await _plc.ValueBatch<float>(tags.ToArray());
 
         // Assert
-        batchResult.Should().NotBeNull();
-        batchResult.Should().HaveCount(10);
+        Assert.That(batchResult, Is.Not.Null);
+        Assert.That(batchResult, Has.Count.EqualTo(10));
         foreach (var tag in tags)
         {
-            batchResult.Should().ContainKey(tag);
+            Assert.That(batchResult, Contains.Key(tag));
         }
     }
 
     /// <summary>
     /// Test connection pool functionality.
     /// </summary>
-    [Fact]
+    [Test]
     public void ConnectionPool_ShouldManageMultipleConnections()
     {
         // Arrange
@@ -540,16 +540,16 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         using var connectionPool = new ConnectionPool(config);
 
         // Assert
-        connectionPool.Should().NotBeNull();
-        connectionPool.MaxConnections.Should().Be(5);
-        connectionPool.ActiveConnections.Should().Be(0);
+        Assert.That(connectionPool, Is.Not.Null);
+        Assert.That(connectionPool.MaxConnections, Is.EqualTo(5));
+        Assert.That(connectionPool.ActiveConnections, Is.EqualTo(0));
     }
 
     /// <summary>
     /// Test performance analysis with real-time recommendations.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task PerformanceAnalysis_RealTime_ShouldProvideInsights()
     {
         // Arrange
@@ -562,17 +562,17 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         var analysis = await _plc.AnalyzePerformance(monitoringDuration);
 
         // Assert
-        analysis.Should().NotBeNull();
-        analysis.MonitoringDuration.Should().Be(monitoringDuration);
-        analysis.TagChangeFrequencies.Should().NotBeNull();
-        analysis.Recommendations.Should().NotBeNull();
-        analysis.TotalTagChanges.Should().BeGreaterThanOrEqualTo(0);
+        Assert.That(analysis, Is.Not.Null);
+        Assert.That(analysis.MonitoringDuration, Is.EqualTo(monitoringDuration));
+        Assert.That(analysis.TagChangeFrequencies, Is.Not.Null);
+        Assert.That(analysis.Recommendations, Is.Not.Null);
+        Assert.That(analysis.TotalTagChanges, Is.GreaterThanOrEqualTo(0));
     }
 
     /// <summary>
     /// Test security context and encrypted communication.
     /// </summary>
-    [Fact]
+    [Test]
     public void SecurityContext_ShouldProvideEncryptedCommunication()
     {
         // Arrange
@@ -584,9 +584,9 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         };
 
         // Act & Assert
-        securityContext.Should().NotBeNull();
-        securityContext.EnableEncryption.Should().BeTrue();
-        securityContext.CertificatePath.Should().Be("test.pfx");
+        Assert.That(securityContext, Is.Not.Null);
+        Assert.That(securityContext.EnableEncryption, Is.True);
+        Assert.That(securityContext.CertificatePath, Is.EqualTo("test.pfx"));
     }
 
     /// <summary>

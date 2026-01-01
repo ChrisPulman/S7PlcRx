@@ -14,44 +14,43 @@ public class S7PlcRxBasicTests
     /// <summary>
     /// Test that S71500 factory creates correct instance.
     /// </summary>
-    [Fact]
+    [Test]
     public void S71500_Create_ShouldSetCorrectProperties()
     {
         // Arrange & Act
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Assert
-        plc.Should().NotBeNull();
-        plc.IP.Should().Be(MockServer.Localhost);
-        plc.PLCType.Should().Be(CpuType.S71500);
-        plc.Rack.Should().Be(0);
-        plc.Slot.Should().Be(1);
+        Assert.That(plc, Is.Not.Null);
+        Assert.That(plc.IP, Is.EqualTo(MockServer.Localhost));
+        Assert.That(plc.PLCType, Is.EqualTo(CpuType.S71500));
+        Assert.That(plc.Rack, Is.EqualTo(0));
+        Assert.That(plc.Slot, Is.EqualTo(1));
     }
 
     /// <summary>
     /// Test that different PLC types can be created.
     /// </summary>
     /// <param name="cpuType">The CPU type to test.</param>
-    [Theory]
-    [InlineData(CpuType.S71500)]
-    [InlineData(CpuType.S7300)]
-    [InlineData(CpuType.S7400)]
-    [InlineData(CpuType.S71200)]
-    [InlineData(CpuType.S7200)]
+    [TestCase(CpuType.S71500)]
+    [TestCase(CpuType.S7300)]
+    [TestCase(CpuType.S7400)]
+    [TestCase(CpuType.S71200)]
+    [TestCase(CpuType.S7200)]
     public void RxS7_Create_DifferentTypes_ShouldSetCorrectCpuType(CpuType cpuType)
     {
         // Arrange & Act
         using var plc = new RxS7(cpuType, MockServer.Localhost, 0, 1, null, 100);
 
         // Assert
-        plc.Should().NotBeNull();
-        plc.PLCType.Should().Be(cpuType);
+        Assert.That(plc, Is.Not.Null);
+        Assert.That(plc.PLCType, Is.EqualTo(cpuType));
     }
 
     /// <summary>
     /// Test adding tags.
     /// </summary>
-    [Fact]
+    [Test]
     public void AddUpdateTagItem_ShouldAddTagToCollection()
     {
         // Arrange
@@ -61,18 +60,18 @@ public class S7PlcRxBasicTests
         var (tag, _) = plc.AddUpdateTagItem<byte>("TestByte", "DB1.DBB0");
 
         // Assert
-        tag.Should().NotBeNull();
-        tag.Should().BeOfType<Tag>();
+        Assert.That(tag, Is.Not.Null);
+        Assert.That(tag, Is.InstanceOf<Tag>());
         var typedTag = (Tag)tag!;
-        typedTag.Name.Should().Be("TestByte");
-        typedTag.Address.Should().Be("DB1.DBB0");
-        typedTag.Type.Should().Be(typeof(byte));
+        Assert.That(typedTag.Name, Is.EqualTo("TestByte"));
+        Assert.That(typedTag.Address, Is.EqualTo("DB1.DBB0"));
+        Assert.That(typedTag.Type, Is.EqualTo(typeof(byte)));
     }
 
     /// <summary>
     /// Test array tags with specified length.
     /// </summary>
-    [Fact]
+    [Test]
     public void AddUpdateTagItem_ArrayWithLength_ShouldSetCorrectArrayLength()
     {
         // Arrange
@@ -82,17 +81,17 @@ public class S7PlcRxBasicTests
         var (tag, _) = plc.AddUpdateTagItem<byte[]>("TestByteArray", "DB1.DBB0", 64);
 
         // Assert
-        tag.Should().NotBeNull();
+        Assert.That(tag, Is.Not.Null);
         var typedTag = (Tag)tag!;
-        typedTag.Name.Should().Be("TestByteArray");
-        typedTag.Type.Should().Be(typeof(byte[]));
-        typedTag.ArrayLength.Should().Be(64);
+        Assert.That(typedTag.Name, Is.EqualTo("TestByteArray"));
+        Assert.That(typedTag.Type, Is.EqualTo(typeof(byte[])));
+        Assert.That(typedTag.ArrayLength, Is.EqualTo(64));
     }
 
     /// <summary>
     /// Test removing tags.
     /// </summary>
-    [Fact]
+    [Test]
     public void RemoveTagItem_ShouldRemoveTagFromCollection()
     {
         // Arrange
@@ -103,88 +102,83 @@ public class S7PlcRxBasicTests
         plc.RemoveTagItem("TestByte");
 
         // Assert
-        plc.TagList.ContainsKey("TestByte").Should().BeFalse();
+        Assert.That(plc.TagList.ContainsKey("TestByte"), Is.False);
     }
 
     /// <summary>
     /// Test observables are created correctly.
     /// </summary>
-    [Fact]
+    [Test]
     public void Observables_ShouldBeCreated()
     {
         // Arrange & Act
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Assert
-        plc.IsConnected.Should().NotBeNull();
-        plc.LastError.Should().NotBeNull();
-        plc.LastErrorCode.Should().NotBeNull();
-        plc.Status.Should().NotBeNull();
-        plc.ObserveAll.Should().NotBeNull();
-        plc.IsPaused.Should().NotBeNull();
+        Assert.That(plc.IsConnected, Is.Not.Null);
+        Assert.That(plc.LastError, Is.Not.Null);
+        Assert.That(plc.LastErrorCode, Is.Not.Null);
+        Assert.That(plc.Status, Is.Not.Null);
+        Assert.That(plc.ObserveAll, Is.Not.Null);
+        Assert.That(plc.IsPaused, Is.Not.Null);
     }
 
     /// <summary>
     /// Test invalid rack parameter throws exception.
     /// </summary>
     /// <param name="invalidRack">Invalid rack value to test.</param>
-    [Theory]
-    [InlineData(-1)]
-    [InlineData(8)]
+    [TestCase(-1)]
+    [TestCase(8)]
     public void S71500_Create_InvalidRack_ShouldThrowArgumentOutOfRangeException(short invalidRack)
     {
         // Act & Assert
-        var act = () => S71500.Create(MockServer.Localhost, invalidRack, 1);
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("rack");
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, invalidRack, 1));
+        Assert.That(ex.ParamName, Is.EqualTo("rack"));
     }
 
     /// <summary>
     /// Test invalid slot parameter throws exception.
     /// </summary>
     /// <param name="invalidSlot">Invalid slot value to test.</param>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(32)]
+    [TestCase(0)]
+    [TestCase(32)]
     public void S71500_Create_InvalidSlot_ShouldThrowArgumentOutOfRangeException(short invalidSlot)
     {
         // Act & Assert
-        var act = () => S71500.Create(MockServer.Localhost, 0, invalidSlot);
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("slot");
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 0, invalidSlot));
+        Assert.That(ex.ParamName, Is.EqualTo("slot"));
     }
 
     /// <summary>
     /// Test watchdog configuration.
     /// </summary>
-    [Fact]
+    [Test]
     public void RxS7_WithWatchdog_ShouldSetWatchdogProperties()
     {
         // Arrange & Act
         using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBW0", 100, 5000, 15);
 
         // Assert
-        plc.WatchDogAddress.Should().Be("DB10.DBW0");
-        plc.WatchDogValueToWrite.Should().Be(5000);
-        plc.WatchDogWritingTime.Should().Be(15);
+        Assert.That(plc.WatchDogAddress, Is.EqualTo("DB10.DBW0"));
+        Assert.That(plc.WatchDogValueToWrite, Is.EqualTo(5000));
+        Assert.That(plc.WatchDogWritingTime, Is.EqualTo(15));
     }
 
     /// <summary>
     /// Test invalid watchdog address throws exception.
     /// </summary>
-    [Fact]
+    [Test]
     public void RxS7_WithInvalidWatchdogAddress_ShouldThrowArgumentException()
     {
         // Act & Assert
-        var act = () => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB0", 100, 5000, 15);
-        act.Should().Throw<ArgumentException>()
-            .WithMessage("WatchDogAddress must be a DBW address.*");
+        var ex = Assert.Throws<ArgumentException>(() => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB0", 100, 5000, 15));
+        Assert.That(ex.Message, Does.Contain("WatchDogAddress must be a DBW address"));
     }
 
     /// <summary>
     /// Test disposing of resources.
     /// </summary>
-    [Fact]
+    [Test]
     public void Dispose_ShouldCleanupResources()
     {
         // Arrange
@@ -194,6 +188,6 @@ public class S7PlcRxBasicTests
         plc.Dispose();
 
         // Assert
-        plc.IsDisposed.Should().BeTrue();
+        Assert.That(plc.IsDisposed, Is.True);
     }
 }
