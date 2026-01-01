@@ -18,50 +18,49 @@ public class S7PlcRxComprehensiveTests
     /// Test creation of all supported PLC types.
     /// </summary>
     /// <param name="cpuType">Type of the cpu.</param>
-    [Theory]
-    [InlineData(CpuType.S71500)]
-    [InlineData(CpuType.S7400)]
-    [InlineData(CpuType.S7300)]
-    [InlineData(CpuType.S71200)]
-    [InlineData(CpuType.S7200)]
-    [InlineData(CpuType.Logo0BA8)]
+    [TestCase(CpuType.S71500)]
+    [TestCase(CpuType.S7400)]
+    [TestCase(CpuType.S7300)]
+    [TestCase(CpuType.S71200)]
+    [TestCase(CpuType.S7200)]
+    [TestCase(CpuType.Logo0BA8)]
     public void CreatePLC_AllSupportedTypes_ShouldSetCorrectProperties(CpuType cpuType)
     {
         // Arrange & Act
         using var plc = new RxS7(cpuType, MockServer.Localhost, 0, 1, null, 100);
 
         // Assert
-        plc.Should().NotBeNull();
-        plc.PLCType.Should().Be(cpuType);
-        plc.IP.Should().Be(MockServer.Localhost);
-        plc.Rack.Should().Be(0);
-        plc.Slot.Should().Be(1);
-        plc.IsDisposed.Should().BeFalse();
+        Assert.That(plc, Is.Not.Null);
+        Assert.That(plc.PLCType, Is.EqualTo(cpuType));
+        Assert.That(plc.IP, Is.EqualTo(MockServer.Localhost));
+        Assert.That(plc.Rack, Is.EqualTo(0));
+        Assert.That(plc.Slot, Is.EqualTo(1));
+        Assert.That(plc.IsDisposed, Is.False);
     }
 
     /// <summary>
     /// Test S71500 factory method with different configurations.
     /// </summary>
-    [Fact]
+    [Test]
     public void S71500Factory_WithDifferentConfigurations_ShouldCreateCorrectly()
     {
         // Test basic creation
         using var plc1 = S71500.Create(MockServer.Localhost, 0, 1);
-        plc1.PLCType.Should().Be(CpuType.S71500);
+        Assert.That(plc1.PLCType, Is.EqualTo(CpuType.S71500));
 
         // Test with interval
         using var plc2 = S71500.Create(MockServer.Localhost, 0, 1, null, 50);
-        plc2.PLCType.Should().Be(CpuType.S71500);
+        Assert.That(plc2.PLCType, Is.EqualTo(CpuType.S71500));
 
         // Test with watchdog
         using var plc3 = S71500.Create(MockServer.Localhost, 0, 1, "DB1.DBW0", 100);
-        plc3.WatchDogAddress.Should().Be("DB1.DBW0");
+        Assert.That(plc3.WatchDogAddress, Is.EqualTo("DB1.DBW0"));
     }
 
     /// <summary>
     /// Test comprehensive tag creation for all supported data types.
     /// </summary>
-    [Fact]
+    [Test]
     public void TagCreation_AllDataTypes_ShouldWorkCorrectly()
     {
         // Arrange
@@ -103,18 +102,18 @@ public class S7PlcRxComprehensiveTests
         ValidateArrayTag(realArrayTag, "TestRealArray", "DB1.DBD50", typeof(float[]), 8);
 
         // Verify all tags are in TagList
-        plc.TagList.Count.Should().Be(11);
+        Assert.That(plc.TagList.Count, Is.EqualTo(11));
         var tagKeys = new[] { "TestByte", "TestWord", "TestReal", "TestRealArray" };
         foreach (var key in tagKeys)
         {
-            plc.TagList.ContainsKey(key).Should().BeTrue($"TagList should contain key '{key}'");
+            Assert.That(plc.TagList.ContainsKey(key), Is.True, $"TagList should contain key '{key}'");
         }
     }
 
     /// <summary>
     /// Test memory area addressing for all supported types.
     /// </summary>
-    [Fact]
+    [Test]
     public void MemoryAreaAddressing_AllTypes_ShouldBeSupported()
     {
         // Arrange
@@ -132,7 +131,7 @@ public class S7PlcRxComprehensiveTests
 
         foreach (var test in dbTests)
         {
-            test.Should().NotThrow("Data Block addressing should work");
+            Assert.DoesNotThrow(() => test(), "Data Block addressing should work");
         }
 
         // Input addressing
@@ -146,7 +145,7 @@ public class S7PlcRxComprehensiveTests
 
         foreach (var test in inputTests)
         {
-            test.Should().NotThrow("Input addressing should work");
+            Assert.DoesNotThrow(() => test(), "Input addressing should work");
         }
 
         // Output addressing
@@ -160,7 +159,7 @@ public class S7PlcRxComprehensiveTests
 
         foreach (var test in outputTests)
         {
-            test.Should().NotThrow("Output addressing should work");
+            Assert.DoesNotThrow(() => test(), "Output addressing should work");
         }
 
         // Memory addressing
@@ -174,18 +173,18 @@ public class S7PlcRxComprehensiveTests
 
         foreach (var test in memoryTests)
         {
-            test.Should().NotThrow("Memory addressing should work");
+            Assert.DoesNotThrow(() => test(), "Memory addressing should work");
         }
 
         // Timer and Counter
-        plc.AddUpdateTagItem<double>("Timer_Test", "T1").Should().NotBeNull();
-        plc.AddUpdateTagItem<ushort>("Counter_Test", "C1").Should().NotBeNull();
+        Assert.That(plc.AddUpdateTagItem<double>("Timer_Test", "T1"), Is.Not.Null);
+        Assert.That(plc.AddUpdateTagItem<ushort>("Counter_Test", "C1"), Is.Not.Null);
     }
 
     /// <summary>
     /// Test tag management operations.
     /// </summary>
-    [Fact]
+    [Test]
     public void TagManagement_Operations_ShouldWorkCorrectly()
     {
         // Arrange
@@ -196,117 +195,113 @@ public class S7PlcRxComprehensiveTests
         plc.AddUpdateTagItem<ushort>("Tag2", "DB1.DBW2");
         plc.AddUpdateTagItem<float>("Tag3", "DB1.DBD4");
 
-        plc.TagList.Count.Should().Be(3);
+        Assert.That(plc.TagList.Count, Is.EqualTo(3));
 
         // Test tag update (adding existing tag should update it)
         var (updatedTag, _) = plc.AddUpdateTagItem<byte>("Tag1", "DB1.DBB10"); // Different address
-        ((Tag)updatedTag!).Address.Should().Be("DB1.DBB10");
-        plc.TagList.Count.Should().Be(3); // Count should remain the same
+        Assert.That(((Tag)updatedTag!).Address, Is.EqualTo("DB1.DBB10"));
+        Assert.That(plc.TagList.Count, Is.EqualTo(3)); // Count should remain the same
 
         // Test tag removal
         plc.RemoveTagItem("Tag2");
-        plc.TagList.Count.Should().Be(2);
-        plc.TagList.ContainsKey("Tag2").Should().BeFalse();
+        Assert.That(plc.TagList.Count, Is.EqualTo(2));
+        Assert.That(plc.TagList.ContainsKey("Tag2"), Is.False);
 
         // Test removing non-existent tag (should not throw)
-        var removeAction = () => plc.RemoveTagItem("NonExistentTag");
-        removeAction.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.RemoveTagItem("NonExistentTag"));
 
         // Test tag retrieval
         var (retrievedTag, _) = plc.GetTag("Tag1");
-        retrievedTag.Should().NotBeNull();
-        ((Tag)retrievedTag!).Name.Should().Be("Tag1");
+        Assert.That(retrievedTag, Is.Not.Null);
+        Assert.That(((Tag)retrievedTag!).Name, Is.EqualTo("Tag1"));
 
         var (nonExistentTag, _) = plc.GetTag("NonExistentTag");
-        nonExistentTag.Should().BeNull();
+        Assert.That(nonExistentTag, Is.Null);
     }
 
     /// <summary>
     /// Test observable creation and basic functionality.
     /// </summary>
-    [Fact]
+    [Test]
     public void Observables_ShouldBeCreatedAndFunctional()
     {
         // Arrange
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Test core observables exist
-        plc.IsConnected.Should().NotBeNull();
-        plc.LastError.Should().NotBeNull();
-        plc.LastErrorCode.Should().NotBeNull();
-        plc.Status.Should().NotBeNull();
-        plc.ObserveAll.Should().NotBeNull();
-        plc.IsPaused.Should().NotBeNull();
-        plc.ReadTime.Should().NotBeNull();
+        Assert.That(plc.IsConnected, Is.Not.Null);
+        Assert.That(plc.LastError, Is.Not.Null);
+        Assert.That(plc.LastErrorCode, Is.Not.Null);
+        Assert.That(plc.Status, Is.Not.Null);
+        Assert.That(plc.ObserveAll, Is.Not.Null);
+        Assert.That(plc.IsPaused, Is.Not.Null);
+        Assert.That(plc.ReadTime, Is.Not.Null);
 
         // Test tag observables
         plc.AddUpdateTagItem<ushort>("TestTag", "DB1.DBW0");
         var tagObservable = plc.Observe<ushort>("TestTag");
-        tagObservable.Should().NotBeNull();
-        tagObservable.Should().BeAssignableTo<IObservable<ushort>>();
+        Assert.That(tagObservable, Is.Not.Null);
+        Assert.That(tagObservable, Is.AssignableTo<IObservable<ushort>>());
 
         // Test GetCpuInfo observable
         var cpuInfoObservable = plc.GetCpuInfo();
-        cpuInfoObservable.Should().NotBeNull();
-        cpuInfoObservable.Should().BeAssignableTo<IObservable<string[]>>();
+        Assert.That(cpuInfoObservable, Is.Not.Null);
+        Assert.That(cpuInfoObservable, Is.AssignableTo<IObservable<string[]>>());
     }
 
     /// <summary>
     /// Test watchdog configuration and validation.
     /// </summary>
-    [Fact]
+    [Test]
     public void WatchdogConfiguration_ShouldWorkCorrectly()
     {
         // Test valid watchdog configuration
         using var plc1 = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBW100", 100, 4500, 15);
-        plc1.WatchDogAddress.Should().Be("DB10.DBW100");
-        plc1.WatchDogValueToWrite.Should().Be(4500);
-        plc1.WatchDogWritingTime.Should().Be(15);
+        Assert.That(plc1.WatchDogAddress, Is.EqualTo("DB10.DBW100"));
+        Assert.That(plc1.WatchDogValueToWrite, Is.EqualTo(4500));
+        Assert.That(plc1.WatchDogWritingTime, Is.EqualTo(15));
 
         // Test invalid watchdog address (non-DBW)
-        var invalidWatchdogAction = () => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB100", 100);
-        invalidWatchdogAction.Should().Throw<ArgumentException>()
-            .WithMessage("*WatchDogAddress must be a DBW address*");
+        var ex = Assert.Throws<ArgumentException>(() => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB100", 100));
+        Assert.That(ex.Message, Does.Contain("WatchDogAddress must be a DBW address"));
 
         // Test without watchdog
         using var plc2 = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, 100);
-        plc2.WatchDogAddress.Should().BeNull();
+        Assert.That(plc2.WatchDogAddress, Is.Null);
     }
 
     /// <summary>
     /// Test error handling for invalid parameters.
     /// </summary>
-    [Fact]
+    [Test]
     public void ErrorHandling_InvalidParameters_ShouldThrowCorrectExceptions()
     {
         // Invalid rack values
-        var invalidRack1 = () => S71500.Create(MockServer.Localhost, -1, 1);
-        invalidRack1.Should().Throw<ArgumentOutOfRangeException>().And.ParamName.Should().Be("rack");
+        var ex1 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, -1, 1));
+        Assert.That(ex1.ParamName, Is.EqualTo("rack"));
 
-        var invalidRack2 = () => S71500.Create(MockServer.Localhost, 8, 1);
-        invalidRack2.Should().Throw<ArgumentOutOfRangeException>().And.ParamName.Should().Be("rack");
+        var ex2 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 8, 1));
+        Assert.That(ex2.ParamName, Is.EqualTo("rack"));
 
         // Invalid slot values
-        var invalidSlot1 = () => S71500.Create(MockServer.Localhost, 0, 0);
-        invalidSlot1.Should().Throw<ArgumentOutOfRangeException>().And.ParamName.Should().Be("slot");
+        var ex3 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 0, 0));
+        Assert.That(ex3.ParamName, Is.EqualTo("slot"));
 
-        var invalidSlot2 = () => S71500.Create(MockServer.Localhost, 0, 32);
-        invalidSlot2.Should().Throw<ArgumentOutOfRangeException>().And.ParamName.Should().Be("slot");
+        var ex4 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 0, 32));
+        Assert.That(ex4.ParamName, Is.EqualTo("slot"));
 
         // Invalid tag operations
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
-        var nullTagName = () => plc.RemoveTagItem(null!);
-        nullTagName.Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => plc.RemoveTagItem(null!));
 
-        var emptyTagName = () => plc.RemoveTagItem(string.Empty);
-        emptyTagName.Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => plc.RemoveTagItem(string.Empty));
     }
 
     /// <summary>
     /// Test performance characteristics and resource usage.
     /// </summary>
-    [Fact]
+    [Test]
     public void Performance_HighVolumeOperations_ShouldBeEfficient()
     {
         // Test rapid tag creation
@@ -323,9 +318,9 @@ public class S7PlcRxComprehensiveTests
         stopwatch.Stop();
 
         var creationRate = tagCount / stopwatch.Elapsed.TotalSeconds;
-        creationRate.Should().BeGreaterThan(1000, "Tag creation should be very fast");
+        Assert.That(creationRate, Is.GreaterThan(1000), "Tag creation should be very fast");
 
-        plc.TagList.Count.Should().Be(tagCount);
+        Assert.That(plc.TagList.Count, Is.EqualTo(tagCount));
 
         // Test rapid observable creation
         stopwatch.Restart();
@@ -339,7 +334,7 @@ public class S7PlcRxComprehensiveTests
         stopwatch.Stop();
 
         var observableCreationRate = tagCount / stopwatch.Elapsed.TotalSeconds;
-        observableCreationRate.Should().BeGreaterThan(1000, "Observable creation should be very fast");
+        Assert.That(observableCreationRate, Is.GreaterThan(1000), "Observable creation should be very fast");
 
         Console.WriteLine($"Tag creation rate: {creationRate:F0} tags/second");
         Console.WriteLine($"Observable creation rate: {observableCreationRate:F0} observables/second");
@@ -348,7 +343,7 @@ public class S7PlcRxComprehensiveTests
     /// <summary>
     /// Test memory usage patterns.
     /// </summary>
-    [Fact]
+    [Test]
     public void MemoryUsage_MultipleInstances_ShouldBeReasonable()
     {
         // Force garbage collection before measurement
@@ -379,9 +374,7 @@ public class S7PlcRxComprehensiveTests
             var memoryAfterCreation = GC.GetTotalMemory(false);
             var memoryPerInstance = (memoryAfterCreation - memoryBefore) / instanceCount;
 
-            memoryPerInstance.Should().BeLessThan(
-                500_000,
-                $"Memory usage per PLC instance should be reasonable. Actual: {memoryPerInstance} bytes");
+            Assert.That(memoryPerInstance, Is.LessThan(500_000), $"Memory usage per PLC instance should be reasonable. Actual: {memoryPerInstance} bytes");
 
             Console.WriteLine($"Memory usage per PLC instance: {memoryPerInstance:N0} bytes");
         }
@@ -403,32 +396,31 @@ public class S7PlcRxComprehensiveTests
     /// <summary>
     /// Test disposal and resource cleanup.
     /// </summary>
-    [Fact]
+    [Test]
     public void Disposal_ShouldCleanupResourcesProperly()
     {
         // Arrange
         var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
         plc.AddUpdateTagItem<byte>("TestTag", "DB1.DBB0");
 
-        plc.IsDisposed.Should().BeFalse();
+        Assert.That(plc.IsDisposed, Is.False);
 
         // Act
         plc.Dispose();
 
         // Assert
-        plc.IsDisposed.Should().BeTrue();
+        Assert.That(plc.IsDisposed, Is.True);
 
         // Test multiple dispose calls
-        var secondDispose = () => plc.Dispose();
-        secondDispose.Should().NotThrow("Multiple dispose calls should be safe");
+        Assert.DoesNotThrow(() => plc.Dispose(), "Multiple dispose calls should be safe");
 
-        plc.IsDisposed.Should().BeTrue();
+        Assert.That(plc.IsDisposed, Is.True);
     }
 
     /// <summary>
     /// Test tag polling control.
     /// </summary>
-    [Fact]
+    [Test]
     public void TagPolling_Control_ShouldWorkCorrectly()
     {
         // Arrange
@@ -439,21 +431,21 @@ public class S7PlcRxComprehensiveTests
         var tagInstance = (Tag)tag!;
 
         // Default should be to poll
-        tagInstance.DoNotPoll.Should().BeFalse();
+        Assert.That(tagInstance.DoNotPoll, Is.False);
 
         // Test disabling polling
         var (_, _) = plc.GetTag("TestTag").SetTagPollIng(false);
-        tagInstance.DoNotPoll.Should().BeTrue();
+        Assert.That(tagInstance.DoNotPoll, Is.True);
 
         // Test enabling polling
         plc.GetTag("TestTag").SetTagPollIng(true);
-        tagInstance.DoNotPoll.Should().BeFalse();
+        Assert.That(tagInstance.DoNotPoll, Is.False);
     }
 
     /// <summary>
     /// Test value operations (synchronous API).
     /// </summary>
-    [Fact]
+    [Test]
     public void ValueOperations_SynchronousAPI_ShouldWorkCorrectly()
     {
         // Arrange
@@ -462,26 +454,22 @@ public class S7PlcRxComprehensiveTests
         plc.AddUpdateTagItem<float>("TestReal", "DB1.DBD4");
 
         // Test setting values (these will be queued for when connection is available)
-        var setWordAction = () => plc.Value("TestWord", (ushort)12345);
-        setWordAction.Should().NotThrow("Setting Word value should not throw");
+        Assert.DoesNotThrow(() => plc.Value("TestWord", (ushort)12345), "Setting Word value should not throw");
 
-        var setRealAction = () => plc.Value("TestReal", 3.14159f);
-        setRealAction.Should().NotThrow("Setting Real value should not throw");
+        Assert.DoesNotThrow(() => plc.Value("TestReal", 3.14159f), "Setting Real value should not throw");
 
         // Test with different data types
         plc.AddUpdateTagItem<byte>("TestByte", "DB1.DBB8");
-        var setByteAction = () => plc.Value("TestByte", (byte)255);
-        setByteAction.Should().NotThrow("Setting Byte value should not throw");
+        Assert.DoesNotThrow(() => plc.Value("TestByte", (byte)255), "Setting Byte value should not throw");
 
         plc.AddUpdateTagItem<bool>("TestBool", "DB1.DBX10.0");
-        var setBoolAction = () => plc.Value("TestBool", true);
-        setBoolAction.Should().NotThrow("Setting Bool value should not throw");
+        Assert.DoesNotThrow(() => plc.Value("TestBool", true), "Setting Bool value should not throw");
     }
 
     /// <summary>
     /// Test reactive extensions integration.
     /// </summary>
-    [Fact]
+    [Test]
     public void ReactiveExtensions_Integration_ShouldWorkCorrectly()
     {
         // Arrange
@@ -494,19 +482,19 @@ public class S7PlcRxComprehensiveTests
         var observable = plc.Observe<ushort>("Tag1");
         var tagValueObservable = observable.ToTagValue("Tag1");
 
-        tagValueObservable.Should().NotBeNull();
-        tagValueObservable.Should().BeAssignableTo<IObservable<(string Tag, ushort Value)>>();
+        Assert.That(tagValueObservable, Is.Not.Null);
+        Assert.That(tagValueObservable, Is.AssignableTo<IObservable<(string Tag, ushort Value)>>());
 
         // Test ObserveAll to dictionary conversion
         var dictionaryObservable = plc.ObserveAll.TagToDictionary<object>();
-        dictionaryObservable.Should().NotBeNull();
-        dictionaryObservable.Should().BeAssignableTo<IObservable<IDictionary<string, object>>>();
+        Assert.That(dictionaryObservable, Is.Not.Null);
+        Assert.That(dictionaryObservable, Is.AssignableTo<IObservable<IDictionary<string, object>>>());
     }
 
     /// <summary>
     /// Test comprehensive scenario with mixed operations.
     /// </summary>
-    [Fact]
+    [Test]
     public void ComprehensiveScenario_MixedOperations_ShouldWorkTogether()
     {
         // Arrange - Create PLC with watchdog
@@ -532,7 +520,7 @@ public class S7PlcRxComprehensiveTests
         plc.AddUpdateTagItem<ushort>("Counter1", "C1");
 
         // Verify all tags created, including the watchdog
-        plc.TagList.Count.Should().Be(12);
+        Assert.That(plc.TagList.Count, Is.EqualTo(12));
 
         // Test observables for different types
         var byteObs = plc.Observe<byte>("ProcessByte");
@@ -542,11 +530,11 @@ public class S7PlcRxComprehensiveTests
         var arrayObs = plc.Observe<float[]>("ProcessArray");
 
         // All observables should be created
-        byteObs.Should().NotBeNull();
-        wordObs.Should().NotBeNull();
-        realObs.Should().NotBeNull();
-        boolObs.Should().NotBeNull();
-        arrayObs.Should().NotBeNull();
+        Assert.That(byteObs, Is.Not.Null);
+        Assert.That(wordObs, Is.Not.Null);
+        Assert.That(realObs, Is.Not.Null);
+        Assert.That(boolObs, Is.Not.Null);
+        Assert.That(arrayObs, Is.Not.Null);
 
         // Test value setting operations
         var valueOperations = new Action[]
@@ -564,51 +552,51 @@ public class S7PlcRxComprehensiveTests
 
         foreach (var operation in valueOperations)
         {
-            operation.Should().NotThrow("Value setting operations should not throw");
+            Assert.DoesNotThrow(() => operation(), "Value setting operations should not throw");
         }
 
         // Test tag management during runtime
         plc.RemoveTagItem("ProcessBit");
-        plc.TagList.Count.Should().Be(11);
+        Assert.That(plc.TagList.Count, Is.EqualTo(11));
 
         var (newTag, _) = plc.AddUpdateTagItem<int>("ProcessDInt", "DB1.DBD20");
-        newTag.Should().NotBeNull();
-        plc.TagList.Count.Should().Be(12);
+        Assert.That(newTag, Is.Not.Null);
+        Assert.That(plc.TagList.Count, Is.EqualTo(12));
 
         // Verify watchdog configuration
-        plc.WatchDogAddress.Should().Be("DB100.DBW0");
-        plc.WatchDogValueToWrite.Should().Be(4500);
-        plc.WatchDogWritingTime.Should().Be(10);
+        Assert.That(plc.WatchDogAddress, Is.EqualTo("DB100.DBW0"));
+        Assert.That(plc.WatchDogValueToWrite, Is.EqualTo(4500));
+        Assert.That(plc.WatchDogWritingTime, Is.EqualTo(10));
 
         // Test tag polling control
         plc.GetTag("ProcessWord").SetTagPollIng(false);
-        ((Tag)plc.TagList["ProcessWord"]!).DoNotPoll.Should().BeTrue();
+        Assert.That(((Tag)plc.TagList["ProcessWord"]!).DoNotPoll, Is.True);
 
         // Test system observables
         var statusObs = plc.Status;
         var errorObs = plc.LastError;
         var connectedObs = plc.IsConnected;
 
-        statusObs.Should().NotBeNull();
-        errorObs.Should().NotBeNull();
-        connectedObs.Should().NotBeNull();
+        Assert.That(statusObs, Is.Not.Null);
+        Assert.That(errorObs, Is.Not.Null);
+        Assert.That(connectedObs, Is.Not.Null);
 
-        Assert.True(true, "Comprehensive scenario completed successfully");
+        Assert.Pass("Comprehensive scenario completed successfully");
     }
 
     private static void ValidateTag(ITag? tag, string expectedName, string expectedAddress, Type expectedType)
     {
-        tag.Should().NotBeNull();
+        Assert.That(tag, Is.Not.Null);
         var typedTag = (Tag)tag!;
-        typedTag.Name.Should().Be(expectedName);
-        typedTag.Address.Should().Be(expectedAddress);
-        typedTag.Type.Should().Be(expectedType);
+        Assert.That(typedTag.Name, Is.EqualTo(expectedName));
+        Assert.That(typedTag.Address, Is.EqualTo(expectedAddress));
+        Assert.That(typedTag.Type, Is.EqualTo(expectedType));
     }
 
     private static void ValidateArrayTag(ITag? tag, string expectedName, string expectedAddress, Type expectedType, int expectedArrayLength)
     {
         ValidateTag(tag, expectedName, expectedAddress, expectedType);
         var typedTag = (Tag)tag!;
-        typedTag.ArrayLength.Should().Be(expectedArrayLength);
+        Assert.That(typedTag.ArrayLength, Is.EqualTo(expectedArrayLength));
     }
 }

@@ -16,39 +16,39 @@ public class S7PlcRxIntegrationTests
     /// <summary>
     /// Test basic PLC creation and configuration.
     /// </summary>
-    [Fact]
+    [Test]
     public void S7PlcCreation_WithDifferentTypes_ShouldWorkCorrectly()
     {
         // Test S71500 creation
         using var plc1500 = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
-        plc1500.Should().NotBeNull();
-        plc1500.PLCType.Should().Be(CpuType.S71500);
+        Assert.That(plc1500, Is.Not.Null);
+        Assert.That(plc1500.PLCType, Is.EqualTo(CpuType.S71500));
 
         // Test S7400 creation
         using var plc400 = new RxS7(CpuType.S7400, MockServer.Localhost, 0, 1, null, 100);
-        plc400.Should().NotBeNull();
-        plc400.PLCType.Should().Be(CpuType.S7400);
+        Assert.That(plc400, Is.Not.Null);
+        Assert.That(plc400.PLCType, Is.EqualTo(CpuType.S7400));
 
         // Test S7300 creation
         using var plc300 = new RxS7(CpuType.S7300, MockServer.Localhost, 0, 1, null, 100);
-        plc300.Should().NotBeNull();
-        plc300.PLCType.Should().Be(CpuType.S7300);
+        Assert.That(plc300, Is.Not.Null);
+        Assert.That(plc300.PLCType, Is.EqualTo(CpuType.S7300));
 
         // Test S71200 creation
         using var plc1200 = new RxS7(CpuType.S71200, MockServer.Localhost, 0, 1, null, 100);
-        plc1200.Should().NotBeNull();
-        plc1200.PLCType.Should().Be(CpuType.S71200);
+        Assert.That(plc1200, Is.Not.Null);
+        Assert.That(plc1200.PLCType, Is.EqualTo(CpuType.S71200));
 
         // Test S7200 creation
         using var plc200 = new RxS7(CpuType.S7200, MockServer.Localhost, 0, 1, null, 100);
-        plc200.Should().NotBeNull();
-        plc200.PLCType.Should().Be(CpuType.S7200);
+        Assert.That(plc200, Is.Not.Null);
+        Assert.That(plc200.PLCType, Is.EqualTo(CpuType.S7200));
     }
 
     /// <summary>
     /// Test tag creation and management for different data types.
     /// </summary>
-    [Fact]
+    [Test]
     public void TagManagement_WithDifferentDataTypes_ShouldWorkCorrectly()
     {
         // Arrange
@@ -56,55 +56,55 @@ public class S7PlcRxIntegrationTests
 
         // Act & Assert - Test different data types
         var (byteTag, _) = plc.AddUpdateTagItem<byte>("TestByte", "DB1.DBB0");
-        byteTag.Should().NotBeNull();
-        ((Tag)byteTag!).Type.Should().Be<byte>();
+        Assert.That(byteTag, Is.Not.Null);
+        Assert.That(((Tag)byteTag!).Type, Is.EqualTo(typeof(byte)));
 
         var (wordTag, _) = plc.AddUpdateTagItem<ushort>("TestWord", "DB1.DBW2");
-        wordTag.Should().NotBeNull();
-        ((Tag)wordTag!).Type.Should().Be<ushort>();
+        Assert.That(wordTag, Is.Not.Null);
+        Assert.That(((Tag)wordTag!).Type, Is.EqualTo(typeof(ushort)));
 
         var (intTag, _) = plc.AddUpdateTagItem<short>("TestInt", "DB1.DBW4");
-        intTag.Should().NotBeNull();
-        ((Tag)intTag!).Type.Should().Be<short>();
+        Assert.That(intTag, Is.Not.Null);
+        Assert.That(((Tag)intTag!).Type, Is.EqualTo(typeof(short)));
 
         var (dwordTag, _) = plc.AddUpdateTagItem<uint>("TestDWord", "DB1.DBD6");
-        dwordTag.Should().NotBeNull();
-        ((Tag)dwordTag!).Type.Should().Be<uint>();
+        Assert.That(dwordTag, Is.Not.Null);
+        Assert.That(((Tag)dwordTag!).Type, Is.EqualTo(typeof(uint)));
 
         var (dintTag, _) = plc.AddUpdateTagItem<int>("TestDInt", "DB1.DBD10");
-        dintTag.Should().NotBeNull();
-        ((Tag)dintTag!).Type.Should().Be<int>();
+        Assert.That(dintTag, Is.Not.Null);
+        Assert.That(((Tag)dintTag!).Type, Is.EqualTo(typeof(int)));
 
         var (realTag, _) = plc.AddUpdateTagItem<float>("TestReal", "DB1.DBD14");
-        realTag.Should().NotBeNull();
-        ((Tag)realTag!).Type.Should().Be<float>();
+        Assert.That(realTag, Is.Not.Null);
+        Assert.That(((Tag)realTag!).Type, Is.EqualTo(typeof(float)));
 
         var (lrealTag, _) = plc.AddUpdateTagItem<double>("TestLReal", "DB1.DBD18");
-        lrealTag.Should().NotBeNull();
-        ((Tag)lrealTag!).Type.Should().Be<double>();
+        Assert.That(lrealTag, Is.Not.Null);
+        Assert.That(((Tag)lrealTag!).Type, Is.EqualTo(typeof(double)));
 
         // Test arrays
         var (byteArrayTag, _) = plc.AddUpdateTagItem<byte[]>("TestByteArray", "DB1.DBB26", 10);
-        byteArrayTag.Should().NotBeNull();
-        ((Tag)byteArrayTag!).Type.Should().Be<byte[]>();
-        ((Tag)byteArrayTag!).ArrayLength.Should().Be(10);
+        Assert.That(byteArrayTag, Is.Not.Null);
+        Assert.That(((Tag)byteArrayTag!).Type, Is.EqualTo(typeof(byte[])));
+        Assert.That(((Tag)byteArrayTag!).ArrayLength, Is.EqualTo(10));
 
         var (realArrayTag, _) = plc.AddUpdateTagItem<float[]>("TestRealArray", "DB1.DBD36", 5);
-        realArrayTag.Should().NotBeNull();
-        ((Tag)realArrayTag!).Type.Should().Be<float[]>();
-        ((Tag)realArrayTag!).ArrayLength.Should().Be(5);
+        Assert.That(realArrayTag, Is.Not.Null);
+        Assert.That(((Tag)realArrayTag!).Type, Is.EqualTo(typeof(float[])));
+        Assert.That(((Tag)realArrayTag!).ArrayLength, Is.EqualTo(5));
 
         // Verify tags are in TagList
-        plc.TagList.ContainsKey("TestByte").Should().BeTrue();
-        plc.TagList.ContainsKey("TestWord").Should().BeTrue();
-        plc.TagList.ContainsKey("TestReal").Should().BeTrue();
-        plc.TagList.ContainsKey("TestRealArray").Should().BeTrue();
+        Assert.That(plc.TagList.ContainsKey("TestByte"), Is.True);
+        Assert.That(plc.TagList.ContainsKey("TestWord"), Is.True);
+        Assert.That(plc.TagList.ContainsKey("TestReal"), Is.True);
+        Assert.That(plc.TagList.ContainsKey("TestRealArray"), Is.True);
     }
 
     /// <summary>
     /// Test tag removal functionality.
     /// </summary>
-    [Fact]
+    [Test]
     public void TagRemoval_ShouldWorkCorrectly()
     {
         // Arrange
@@ -116,18 +116,18 @@ public class S7PlcRxIntegrationTests
         plc.RemoveTagItem("TestByte");
 
         // Assert
-        plc.TagList.ContainsKey("TestByte").Should().BeFalse();
-        plc.TagList.ContainsKey("TestWord").Should().BeTrue();
+        Assert.That(plc.TagList.ContainsKey("TestByte"), Is.False);
+        Assert.That(plc.TagList.ContainsKey("TestWord"), Is.True);
 
         // Cleanup remaining tag
         plc.RemoveTagItem("TestWord");
-        plc.TagList.ContainsKey("TestWord").Should().BeFalse();
+        Assert.That(plc.TagList.ContainsKey("TestWord"), Is.False);
     }
 
     /// <summary>
     /// Test tag observables creation.
     /// </summary>
-    [Fact]
+    [Test]
     public void TagObservables_ShouldBeCreated()
     {
         // Arrange
@@ -138,132 +138,114 @@ public class S7PlcRxIntegrationTests
         var observable = plc.Observe<ushort>("TestWord");
 
         // Assert
-        observable.Should().NotBeNull();
-        observable.Should().BeAssignableTo<IObservable<ushort>>();
+        Assert.That(observable, Is.Not.Null);
+        Assert.That(observable, Is.AssignableTo<IObservable<ushort>>());
     }
 
     /// <summary>
     /// Test watchdog configuration.
     /// </summary>
-    [Fact]
+    [Test]
     public void WatchdogConfiguration_ShouldWorkCorrectly()
     {
         // Arrange & Act
         using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBW100", 100, 4500, 10);
 
         // Assert
-        plc.WatchDogAddress.Should().Be("DB10.DBW100");
-        plc.WatchDogValueToWrite.Should().Be(4500);
-        plc.WatchDogWritingTime.Should().Be(10);
+        Assert.That(plc.WatchDogAddress, Is.EqualTo("DB10.DBW100"));
+        Assert.That(plc.WatchDogValueToWrite, Is.EqualTo(4500));
+        Assert.That(plc.WatchDogWritingTime, Is.EqualTo(10));
 
         // Test invalid watchdog address
-        var invalidWatchdogAction = () => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB100", 100, 4500, 10);
-        invalidWatchdogAction.Should().Throw<ArgumentException>()
-            .WithMessage("*WatchDogAddress must be a DBW address*");
+        var ex = Assert.Throws<ArgumentException>(() => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB100", 100, 4500, 10));
+        Assert.That(ex.Message, Does.Contain("WatchDogAddress must be a DBW address"));
     }
 
     /// <summary>
     /// Test PLC status observables.
     /// </summary>
-    [Fact]
+    [Test]
     public void PLCStatusObservables_ShouldBeCreated()
     {
         // Arrange
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Act & Assert
-        plc.IsConnected.Should().NotBeNull();
-        plc.LastError.Should().NotBeNull();
-        plc.LastErrorCode.Should().NotBeNull();
-        plc.Status.Should().NotBeNull();
-        plc.ObserveAll.Should().NotBeNull();
-        plc.IsPaused.Should().NotBeNull();
-        plc.ReadTime.Should().NotBeNull();
+        Assert.That(plc.IsConnected, Is.Not.Null);
+        Assert.That(plc.LastError, Is.Not.Null);
+        Assert.That(plc.LastErrorCode, Is.Not.Null);
+        Assert.That(plc.Status, Is.Not.Null);
+        Assert.That(plc.ObserveAll, Is.Not.Null);
+        Assert.That(plc.IsPaused, Is.Not.Null);
+        Assert.That(plc.ReadTime, Is.Not.Null);
     }
 
     /// <summary>
     /// Test error handling with invalid parameters.
     /// </summary>
-    [Fact]
+    [Test]
     public void ErrorHandling_WithInvalidParameters_ShouldThrowCorrectExceptions()
     {
         // Test invalid rack
-        var invalidRackAction = () => S71500.Create(MockServer.Localhost, -1, 1);
-        invalidRackAction.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("rack");
+        var ex1 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, -1, 1));
+        Assert.That(ex1.ParamName, Is.EqualTo("rack"));
 
-        var invalidRackAction2 = () => S71500.Create(MockServer.Localhost, 8, 1);
-        invalidRackAction2.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("rack");
+        var ex2 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 8, 1));
+        Assert.That(ex2.ParamName, Is.EqualTo("rack"));
 
         // Test invalid slot
-        var invalidSlotAction = () => S71500.Create(MockServer.Localhost, 0, 0);
-        invalidSlotAction.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("slot");
+        var ex3 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 0, 0));
+        Assert.That(ex3.ParamName, Is.EqualTo("slot"));
 
-        var invalidSlotAction2 = () => S71500.Create(MockServer.Localhost, 0, 32);
-        invalidSlotAction2.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("slot");
+        var ex4 = Assert.Throws<ArgumentOutOfRangeException>(() => S71500.Create(MockServer.Localhost, 0, 32));
+        Assert.That(ex4.ParamName, Is.EqualTo("slot"));
     }
 
     /// <summary>
     /// Test address parsing for different memory areas.
     /// </summary>
-    [Fact]
+    [Test]
     public void AddressParsing_WithDifferentMemoryAreas_ShouldWorkCorrectly()
     {
         // Arrange
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Act & Assert - Data Block addresses
-        var dbTest = () => plc.AddUpdateTagItem<byte>("DB_Test", "DB1.DBB0");
-        dbTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<byte>("DB_Test", "DB1.DBB0"));
 
-        var dbWordTest = () => plc.AddUpdateTagItem<ushort>("DBW_Test", "DB1.DBW0");
-        dbWordTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<ushort>("DBW_Test", "DB1.DBW0"));
 
-        var dbDWordTest = () => plc.AddUpdateTagItem<uint>("DBD_Test", "DB1.DBD0");
-        dbDWordTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<uint>("DBD_Test", "DB1.DBD0"));
 
-        var dbBitTest = () => plc.AddUpdateTagItem<bool>("DBX_Test", "DB1.DBX0.0");
-        dbBitTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<bool>("DBX_Test", "DB1.DBX0.0"));
 
         // Input addresses
-        var inputByteTest = () => plc.AddUpdateTagItem<byte>("IB_Test", "IB0");
-        inputByteTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<byte>("IB_Test", "IB0"));
 
-        var inputWordTest = () => plc.AddUpdateTagItem<ushort>("IW_Test", "IW0");
-        inputWordTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<ushort>("IW_Test", "IW0"));
 
-        var inputBitTest = () => plc.AddUpdateTagItem<bool>("I_Test", "I0.0");
-        inputBitTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<bool>("I_Test", "I0.0"));
 
         // Output addresses
-        var outputByteTest = () => plc.AddUpdateTagItem<byte>("QB_Test", "QB0");
-        outputByteTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<byte>("QB_Test", "QB0"));
 
-        var outputWordTest = () => plc.AddUpdateTagItem<ushort>("QW_Test", "QW0");
-        outputWordTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<ushort>("QW_Test", "QW0"));
 
         // Memory addresses
-        var memoryByteTest = () => plc.AddUpdateTagItem<byte>("MB_Test", "MB0");
-        memoryByteTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<byte>("MB_Test", "MB0"));
 
-        var memoryWordTest = () => plc.AddUpdateTagItem<ushort>("MW_Test", "MW0");
-        memoryWordTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<ushort>("MW_Test", "MW0"));
 
         // Timer and Counter
-        var timerTest = () => plc.AddUpdateTagItem<double>("T_Test", "T1");
-        timerTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<double>("T_Test", "T1"));
 
-        var counterTest = () => plc.AddUpdateTagItem<ushort>("C_Test", "C1");
-        counterTest.Should().NotThrow();
+        Assert.DoesNotThrow(() => plc.AddUpdateTagItem<ushort>("C_Test", "C1"));
     }
 
     /// <summary>
     /// Test CPU information observable creation.
     /// </summary>
-    [Fact]
+    [Test]
     public void GetCpuInfo_ShouldReturnObservable()
     {
         // Arrange
@@ -273,14 +255,14 @@ public class S7PlcRxIntegrationTests
         var cpuInfoObservable = plc.GetCpuInfo();
 
         // Assert
-        cpuInfoObservable.Should().NotBeNull();
-        cpuInfoObservable.Should().BeAssignableTo<IObservable<string[]>>();
+        Assert.That(cpuInfoObservable, Is.Not.Null);
+        Assert.That(cpuInfoObservable, Is.AssignableTo<IObservable<string[]>>());
     }
 
     /// <summary>
     /// Test high-frequency tag operations simulation.
     /// </summary>
-    [Fact]
+    [Test]
     public void HighFrequencyOperations_Simulation_ShouldBeStable()
     {
         // Arrange
@@ -299,9 +281,9 @@ public class S7PlcRxIntegrationTests
 
         // Assert
         var creationRate = tagCount / stopwatch.Elapsed.TotalSeconds;
-        creationRate.Should().BeGreaterThan(100, "Tag creation should be fast");
+        Assert.That(creationRate, Is.GreaterThan(100), "Tag creation should be fast");
 
-        plc.TagList.Count.Should().Be(tagCount, "All tags should be created");
+        Assert.That(plc.TagList.Count, Is.EqualTo(tagCount), "All tags should be created");
 
         Console.WriteLine($"Tag creation rate: {creationRate:F1} tags/second");
     }
@@ -309,7 +291,7 @@ public class S7PlcRxIntegrationTests
     /// <summary>
     /// Test memory usage patterns.
     /// </summary>
-    [Fact]
+    [Test]
     public void MemoryUsage_WithManyTags_ShouldBeReasonable()
     {
         // Force garbage collection before measurement
@@ -333,7 +315,7 @@ public class S7PlcRxIntegrationTests
 
             // Simulate some operations
             var observable = plc.Observe<ushort>("Tag0");
-            observable.Should().NotBeNull();
+            Assert.That(observable, Is.Not.Null);
         }
 
         // Force garbage collection after operations
@@ -347,9 +329,7 @@ public class S7PlcRxIntegrationTests
         // Assert reasonable memory usage
         var memoryPerPLC = memoryUsed / plcCount;
 
-        memoryPerPLC.Should().BeLessThan(
-            1_000_000,
-            $"Memory usage should be reasonable. Actual: {memoryPerPLC} bytes per PLC");
+        Assert.That(memoryPerPLC, Is.LessThan(1_000_000), $"Memory usage should be reasonable. Actual: {memoryPerPLC} bytes per PLC");
 
         Console.WriteLine($"Memory usage: {memoryPerPLC} bytes per PLC instance");
     }
@@ -357,7 +337,7 @@ public class S7PlcRxIntegrationTests
     /// <summary>
     /// Test resource disposal.
     /// </summary>
-    [Fact]
+    [Test]
     public void ResourceDisposal_ShouldCleanupCorrectly()
     {
         // Arrange
@@ -368,44 +348,42 @@ public class S7PlcRxIntegrationTests
         plc.Dispose();
 
         // Assert
-        plc.IsDisposed.Should().BeTrue("PLC should be marked as disposed");
+        Assert.That(plc.IsDisposed, Is.True, "PLC should be marked as disposed");
 
         // Verify multiple dispose calls don't cause issues
-        var secondDisposeAction = () => plc.Dispose();
-        secondDisposeAction.Should().NotThrow("Multiple dispose calls should be safe");
+        Assert.DoesNotThrow(() => plc.Dispose(), "Multiple dispose calls should be safe");
     }
 
     /// <summary>
     /// Test comprehensive PLC type coverage.
     /// </summary>
     /// <param name="cpuType">Type of the cpu.</param>
-    [Theory]
-    [InlineData(CpuType.S71500)]
-    [InlineData(CpuType.S7400)]
-    [InlineData(CpuType.S7300)]
-    [InlineData(CpuType.S71200)]
-    [InlineData(CpuType.S7200)]
+    [TestCase(CpuType.S71500)]
+    [TestCase(CpuType.S7400)]
+    [TestCase(CpuType.S7300)]
+    [TestCase(CpuType.S71200)]
+    [TestCase(CpuType.S7200)]
     public void PLCTypeSupport_ShouldCoverAllTypes(CpuType cpuType)
     {
         // Arrange & Act
         using var plc = new RxS7(cpuType, MockServer.Localhost, 0, 1, null, 100);
 
         // Assert
-        plc.Should().NotBeNull();
-        plc.PLCType.Should().Be(cpuType);
-        plc.IP.Should().Be(MockServer.Localhost);
-        plc.Rack.Should().Be(0);
-        plc.Slot.Should().Be(1);
+        Assert.That(plc, Is.Not.Null);
+        Assert.That(plc.PLCType, Is.EqualTo(cpuType));
+        Assert.That(plc.IP, Is.EqualTo(MockServer.Localhost));
+        Assert.That(plc.Rack, Is.EqualTo(0));
+        Assert.That(plc.Slot, Is.EqualTo(1));
 
         // Test tag creation works for all PLC types
         var (tag, _) = plc.AddUpdateTagItem<ushort>("TestTag", "DB1.DBW0");
-        tag.Should().NotBeNull();
+        Assert.That(tag, Is.Not.Null);
     }
 
     /// <summary>
     /// Test tag value setting and getting (synchronous).
     /// </summary>
-    [Fact]
+    [Test]
     public void TagValueOperations_Synchronous_ShouldWorkCorrectly()
     {
         // Arrange
@@ -413,19 +391,18 @@ public class S7PlcRxIntegrationTests
         plc.AddUpdateTagItem<ushort>("TestWord", "DB1.DBW0");
 
         // Act - Set value (this will be queued for when connection is available)
-        var setValueAction = () => plc.Value("TestWord", (ushort)1234);
-        setValueAction.Should().NotThrow("Setting value should not throw");
+        Assert.DoesNotThrow(() => plc.Value("TestWord", (ushort)1234), "Setting value should not throw");
 
         // The actual value setting will be attempted when PLC connects
         // For this test, we just verify the API works
-        Assert.True(true, "Tag value operations API test completed");
+        Assert.Pass("Tag value operations API test completed");
     }
 
     /// <summary>
     /// Test connection reconnection after simulated cable unplug.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task ConnectionReconnection_AfterCableUnplug_ShouldReconnect()
     {
         // Arrange
@@ -449,14 +426,14 @@ public class S7PlcRxIntegrationTests
         await plc.IsConnected.FirstAsync(x => x);
 
         // Assert
-        plc.IsConnectedValue.Should().BeTrue("PLC should reconnect after cable is plugged back");
+        Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after cable is plugged back");
     }
 
     /// <summary>
     /// Test connection reconnection after PLC stop and run.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
-    [Fact]
+    [Test]
     public async Task ConnectionReconnection_AfterPLCStopRun_ShouldReconnect()
     {
         // Arrange
@@ -480,6 +457,6 @@ public class S7PlcRxIntegrationTests
         await plc.IsConnected.FirstAsync(x => x);
 
         // Assert
-        plc.IsConnectedValue.Should().BeTrue("PLC should reconnect after PLC is run again");
+        Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after PLC is run again");
     }
 }
