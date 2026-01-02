@@ -23,7 +23,7 @@ jobs:
 
       # -----------------------------
       # Install .NET SDKs (8, 9, 10)
-      # Only 8.0 has a runtime on GitHub runners
+      # NOTE: Coverage execution is net8-only to avoid hostfxr mismatch on runners.
       # -----------------------------
       - name: Setup .NET (With cache)
         uses: actions/setup-dotnet@v5.0.1
@@ -53,38 +53,27 @@ jobs:
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
 
       # -----------------------------
-      # NUKE Build
+      # NUKE Build and produce Coverage (net8 only)
       # -----------------------------
-      - name: Run NUKE Compile
-        run: ./build.cmd Compile
-
-      # -----------------------------
-      # Test + Coverage (net8 only)
-      # -----------------------------
-      # - name: Test with Microsoft Code Coverage (net8 only)
-      #   run: |
-      #     dotnet tool install --global dotnet-coverage
-      #     dotnet-coverage collect `
-      #       "dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj -f net8.0 --no-build --configuration Release" `
-      #       -f cobertura `
-      #       -o coverage.cobertura.xml
+      - name: Run NUKE Compile and Coverage
+        run: ./build.cmd Coverage
 
       # -----------------------------
       # Upload coverage artifact
       # -----------------------------
-      # - name: Upload coverage artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: coverage-report
-      #     path: coverage.cobertura.xml
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.cobertura.xml
 
       # -----------------------------
       # Publish coverage summary
-      # # -----------------------------
-      # - name: Publish coverage summary
-      #   uses: irongut/CodeCoverageSummary@v1.3.0
-      #   with:
-      #     filename: coverage.cobertura.xml
-      #     badge: true
-      #     format: markdown
-      #     output: both
+      # -----------------------------
+      - name: Publish coverage summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.cobertura.xml
+          badge: true
+          format: markdown
+          output: both

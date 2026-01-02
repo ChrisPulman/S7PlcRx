@@ -9,7 +9,9 @@ using Serilog;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 using Nuke.Common.Tools.PowerShell;
 using CP.BuildTools;
+using System;
 using System.Linq;
+using System.Diagnostics;
 
 ////[GitHubActions(
 ////    "BuildOnly",
@@ -43,6 +45,9 @@ partial class Build : NukeBuild
 
     AbsolutePath PackagesDirectory => RootDirectory / "output";
 
+    AbsolutePath TestResultsDirectory => RootDirectory / "src" / "TestResults";
+    AbsolutePath CoverageReportFile => RootDirectory / "coverage.cobertura.xml";
+
     Target Print => _ => _
         .Executes(() => Log.Information("NerdbankVersioning = {Value}", NerdbankVersioning.NuGetPackageVersion));
 
@@ -70,26 +75,75 @@ partial class Build : NukeBuild
                 .SetConfiguration(Configuration)
                 .EnableNoRestore()));
 
-    ////Target Test => _ => _
-    ////.DependsOn(Compile)
-    ////.Executes(() =>
-    ////{
-    ////    var testProjects = Solution.AllProjects.Where(x => x.Name.Contains("Tests")).ToList();
-    ////    if (testProjects is null || testProjects.Count == 0)
-    ////    {
-    ////        Log.Warning("No test projects found.");
-    ////        return;
-    ////    }
-    ////    foreach (var project in testProjects)
-    ////    {
-    ////        Log.Information("Running tests for {Project}", project.Name);
-    ////    }
-    ////    DotNetTest(settings => settings
-    ////            .SetConfiguration(Configuration)
-    ////            .SetNoBuild(true)
-    ////            .CombineWith(testProjects, (testSettings, project) =>
-    ////                testSettings.SetProjectFile(project)));
-    ////});
+    Target Coverage => _ => _
+        .DependsOn(Compile)
+        .Executes(() =>
+        {
+            var testProject = Solution.GetProject("S7PlcRx.Tests") ?? throw new Exception("Test project 'S7PlcRx.Tests' not found in solution.");
+            TestResultsDirectory.CreateOrCleanDirectory();
+            CoverageReportFile.DeleteFile();
+
+            var projectPath = (string)testProject.Path;
+            var resultsDir = (string)TestResultsDirectory;
+
+            Log.Information("Running net8.0 tests with XPlat Code Coverage (cobertura)...");
+
+            var dotnetExe = Environment.GetEnvironmentVariable("DOTNET_EXE");
+            if (string.IsNullOrWhiteSpace(dotnetExe))
+            {
+                dotnetExe = "dotnet";
+            }
+
+            // Use external process so we can pass `--collect`, which isn't modeled in this NUKE version.
+            var args =
+                "test \"" + projectPath + "\"" +
+                " -c \"" + Configuration + "\"" +
+                " -f net8.0" +
+                " --no-build" +
+                " --results-directory \"" + resultsDir + "\"" +
+                " --collect \"XPlat Code Coverage\"";
+
+            Log.Information("{DotNet} {Args}", dotnetExe, args);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = dotnetExe,
+                Arguments = args,
+                WorkingDirectory = (string)RootDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+
+            using (var p = Process.Start(psi)!)
+            {
+                var stdout = p.StandardOutput.ReadToEnd();
+                var stderr = p.StandardError.ReadToEnd();
+                p.WaitForExit();
+
+                if (!string.IsNullOrWhiteSpace(stdout))
+                {
+                    Log.Information(stdout);
+                }
+
+                if (!string.IsNullOrWhiteSpace(stderr))
+                {
+                    Log.Warning(stderr);
+                }
+
+                if (p.ExitCode != 0)
+                {
+                    throw new Exception($"dotnet test failed with exit code {p.ExitCode}");
+                }
+            }
+
+            var cobertura = TestResultsDirectory.GlobFiles("**/coverage.cobertura.xml")
+                .OrderByDescending(x => x.GetLastWriteTimeUtc())
+                .FirstOrDefault() ?? throw new Exception("Cobertura report was not produced. Ensure coverlet.collector is referenced.");
+            CoverageReportFile.DeleteFile();
+            cobertura.Copy(CoverageReportFile);
+            Log.Information("Coverage report written to {File}", CoverageReportFile);
+        });
 
     Target Pack => _ => _
     .After(Compile)
