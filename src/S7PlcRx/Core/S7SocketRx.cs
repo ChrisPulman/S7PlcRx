@@ -618,180 +618,6 @@ internal class S7SocketRx : IDisposable
     }
 
     /// <summary>
-    /// Gets optimal data read length based on PLC type for maximum performance.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ushort GetOptimalDataReadLength(CpuType plcType) => plcType switch
-    {
-        CpuType.Logo0BA8 => 240,
-        CpuType.S7200 => 480,
-        CpuType.S7300 => 480,
-        CpuType.S7400 => 960,   // High-end PLCs
-        CpuType.S71200 => 960,  // Enhanced for newer PLCs
-        CpuType.S71500 => 1440, // Maximum for S7-1500
-        _ => 480
-    };
-
-    /// <summary>
-    /// Optimized socket closure with proper cleanup.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void CloseSocketOptimized(Socket? socket)
-    {
-        if (socket == null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (socket.Connected)
-            {
-                try
-                {
-                    socket.Shutdown(SocketShutdown.Both);
-                }
-                catch
-                {
-                    // Ignore shutdown errors
-                }
-            }
-        }
-        catch
-        {
-            // Ignore state inspection errors
-        }
-        finally
-        {
-            try
-            {
-                socket.Close();
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                socket.Dispose();
-            }
-            catch
-            {
-            }
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void LogError(string message)
-    {
-        if (Debugger.IsAttached)
-        {
-            Debug.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void LogInfo(string message)
-    {
-        if (Debugger.IsAttached)
-        {
-            Debug.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void LogWarning(string message)
-    {
-        if (Debugger.IsAttached)
-        {
-            Debug.WriteLine($"[WARN] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
-        }
-    }
-
-    /// <summary>
-    /// Optimized availability check using efficient async ping.
-    /// </summary>
-    private async Task<bool> CheckAvailabilityOptimizedAsync()
-    {
-        if (string.IsNullOrWhiteSpace(IP))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var ping = new Ping();
-            var result = await ping.SendPingAsync(IP, PingTimeoutMs);
-            return result.Status == IPStatus.Success;
-        }
-        catch (PingException)
-        {
-            return false;
-        }
-        catch (Exception ex)
-        {
-            LogError($"Ping failed: {ex.Message}");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Enhanced connection status check with stale connection detection.
-    /// </summary>
-    private bool CheckConnectionStatusOptimized()
-    {
-        if (_socket == null)
-        {
-            return false;
-        }
-
-        try
-        {
-            // Use more efficient connection detection
-            var isConnected = _socket.Connected &&
-                            !(_socket.Poll(1000, SelectMode.SelectRead) && _socket.Available == 0);
-
-            // Check for stale connections (no activity for 2 minutes)
-            if (isConnected && DateTime.UtcNow - _lastSuccessfulOperation > TimeSpan.FromMinutes(2))
-            {
-                // Connection might be stale, perform lightweight check
-                return PerformLightweightConnectionCheck();
-            }
-
-            if (!isConnected && _initComplete)
-            {
-                RestartConnection();
-            }
-
-            return isConnected;
-        }
-        catch (ObjectDisposedException)
-        {
-            return false;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Performs lightweight connection check.
-    /// </summary>
-    private bool PerformLightweightConnectionCheck()
-    {
-        try
-        {
-            _socket?.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
     /// Enhanced Siemens connection initialization with async operations.
     /// </summary>
     private async Task<bool> InitializeSiemensConnectionOptimizedAsync()
@@ -862,7 +688,17 @@ internal class S7SocketRx : IDisposable
         }
         finally
         {
-            _connectionLock.Release();
+            try
+            {
+                if (!_disposedValue)
+                {
+                    _connectionLock.Release();
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // Teardown race: dispose may win while an async connect is completing.
+            }
         }
     }
 
@@ -1175,6 +1011,174 @@ internal class S7SocketRx : IDisposable
         catch (Exception ex)
         {
             LogError($"Failed to report metrics: {ex.Message}");
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ushort GetOptimalDataReadLength(CpuType plcType) => plcType switch
+    {
+        CpuType.Logo0BA8 => 240,
+        CpuType.S7200 => 480,
+        CpuType.S7300 => 480,
+        CpuType.S7400 => 960,
+        CpuType.S71200 => 960,
+        CpuType.S71500 => 1440,
+        _ => 480
+    };
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CloseSocketOptimized(Socket? socket)
+    {
+        if (socket == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (socket.Connected)
+            {
+                try
+                {
+                    socket.Shutdown(SocketShutdown.Both);
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch
+        {
+        }
+        finally
+        {
+            try
+            {
+                socket.Close();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                socket.Dispose();
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void LogError(string message)
+    {
+        if (Debugger.IsAttached)
+        {
+            Debug.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void LogInfo(string message)
+    {
+        if (Debugger.IsAttached)
+        {
+            Debug.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void LogWarning(string message)
+    {
+        if (Debugger.IsAttached)
+        {
+            Debug.WriteLine($"[WARN] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+        }
+    }
+
+    /// <summary>
+    /// Optimized availability check using efficient async ping.
+    /// </summary>
+    private async Task<bool> CheckAvailabilityOptimizedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(IP))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var ping = new Ping();
+            var result = await ping.SendPingAsync(IP, PingTimeoutMs).ConfigureAwait(false);
+            return result.Status == IPStatus.Success;
+        }
+        catch (PingException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            LogError($"Ping failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Enhanced connection status check with stale connection detection.
+    /// </summary>
+    private bool CheckConnectionStatusOptimized()
+    {
+        if (_socket == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var isConnected = _socket.Connected &&
+                            !(_socket.Poll(1000, SelectMode.SelectRead) && _socket.Available == 0);
+
+            if (isConnected && DateTime.UtcNow - _lastSuccessfulOperation > TimeSpan.FromMinutes(2))
+            {
+                return PerformLightweightConnectionCheck();
+            }
+
+            if (!isConnected && _initComplete)
+            {
+                RestartConnection();
+            }
+
+            return isConnected;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Performs lightweight connection check.
+    /// </summary>
+    private bool PerformLightweightConnectionCheck()
+    {
+        try
+        {
+            _socket?.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
