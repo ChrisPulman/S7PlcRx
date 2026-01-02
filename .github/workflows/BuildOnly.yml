@@ -20,7 +20,7 @@ on:
   push:
     branches-ignore:
       - main
-- 
+
 env:
   CI: true
 
