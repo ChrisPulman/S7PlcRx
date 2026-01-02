@@ -74,7 +74,7 @@ internal static class S7MultiVar
 
         if (items.Count == 0 || response.Length < 17)
         {
-            return Array.Empty<ReadResult>();
+            return [];
         }
 
         // Parameter length is a big-endian ushort at offset 13/14 in the full frame.
@@ -203,14 +203,14 @@ internal static class S7MultiVar
     {
         if (expectedItemCount <= 0 || response.Length < 17)
         {
-            return Array.Empty<WriteResult>();
+            return [];
         }
 
         var paramLength = (ushort)((response[13] << 8) | response[14]);
         var dataStart = 17 + paramLength;
         if ((uint)dataStart >= (uint)response.Length)
         {
-            return Array.Empty<WriteResult>();
+            return [];
         }
 
         var results = new List<WriteResult>(expectedItemCount);
@@ -269,90 +269,55 @@ internal static class S7MultiVar
         return package.Array;
     }
 
-    internal readonly struct ReadItem
+    internal readonly struct ReadItem(DataType dataType, int db, int startByteAdr, int count, string tagName)
     {
-        public ReadItem(DataType dataType, int db, int startByteAdr, int count, string tagName)
-        {
-            DataType = dataType;
-            Db = db;
-            StartByteAdr = startByteAdr;
-            Count = count;
-            TagName = tagName;
-        }
+        public DataType DataType { get; } = dataType;
 
-        public DataType DataType { get; }
+        public int Db { get; } = db;
 
-        public int Db { get; }
+        public int StartByteAdr { get; } = startByteAdr;
 
-        public int StartByteAdr { get; }
+        public int Count { get; } = count;
 
-        public int Count { get; }
-
-        public string TagName { get; }
+        public string TagName { get; } = tagName;
     }
 
-    internal readonly struct ReadResult
+    internal readonly struct ReadResult(string tagName, byte returnCode, byte transportSize, byte[]? rentedBuffer, int length)
     {
-        public ReadResult(string tagName, byte returnCode, byte transportSize, byte[]? rentedBuffer, int length)
-        {
-            TagName = tagName;
-            ReturnCode = returnCode;
-            TransportSize = transportSize;
-            RentedBuffer = rentedBuffer;
-            Length = length;
-        }
+        public string TagName { get; } = tagName;
 
-        public string TagName { get; }
+        public byte ReturnCode { get; } = returnCode;
 
-        public byte ReturnCode { get; }
+        public byte TransportSize { get; } = transportSize;
 
-        public byte TransportSize { get; }
+        public byte[]? RentedBuffer { get; } = rentedBuffer;
 
-        public byte[]? RentedBuffer { get; }
-
-        public int Length { get; }
+        public int Length { get; } = length;
 
         public ReadOnlyMemory<byte> Data => RentedBuffer == null || Length <= 0 ? ReadOnlyMemory<byte>.Empty : RentedBuffer.AsMemory(0, Length);
     }
 
-    internal readonly struct WriteItem
+    internal readonly struct WriteItem(DataType dataType, int db, int startByteAdr, int count, byte transportSize, byte[] data, string tagName)
     {
-        public WriteItem(DataType dataType, int db, int startByteAdr, int count, byte transportSize, byte[] data, string tagName)
-        {
-            DataType = dataType;
-            Db = db;
-            StartByteAdr = startByteAdr;
-            Count = count;
-            TransportSize = transportSize;
-            Data = data;
-            TagName = tagName;
-        }
+        public DataType DataType { get; } = dataType;
 
-        public DataType DataType { get; }
+        public int Db { get; } = db;
 
-        public int Db { get; }
+        public int StartByteAdr { get; } = startByteAdr;
 
-        public int StartByteAdr { get; }
+        public int Count { get; } = count;
 
-        public int Count { get; }
+        public byte TransportSize { get; } = transportSize;
 
-        public byte TransportSize { get; }
+        public byte[] Data { get; } = data;
 
-        public byte[] Data { get; }
-
-        public string TagName { get; }
+        public string TagName { get; } = tagName;
     }
 
-    internal readonly struct WriteResult
+    internal readonly struct WriteResult(int index, byte returnCode)
     {
-        public WriteResult(int index, byte returnCode)
-        {
-            Index = index;
-            ReturnCode = returnCode;
-        }
+        public int Index { get; } = index;
 
-        public int Index { get; }
-
-        public byte ReturnCode { get; }
+        public byte ReturnCode { get; } = returnCode;
     }
 }
