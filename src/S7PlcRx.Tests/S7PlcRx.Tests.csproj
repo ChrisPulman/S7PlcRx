@@ -11,6 +11,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(CI)' == 'true'">
     <TargetFrameworks>net8.0</TargetFrameworks>
+    <UseAppHost>false</UseAppHost>
+    <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
   </PropertyGroup>
 
   <ItemGroup>
