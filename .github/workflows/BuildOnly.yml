@@ -55,3 +55,26 @@ jobs:
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
       - name: 'Run: Compile'
         run: ./build.cmd Compile
+
+      - name: Test with Microsoft Code Coverage
+        run: |
+            dotnet tool install --global dotnet-coverage
+            dotnet-coverage collect \
+              'dotnet test --no-build --configuration Release' \
+              -f cobertura \
+              -o coverage.cobertura.xml
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.cobertura.xml
+
+      - name: Publish coverage summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.cobertura.xml
+          badge: true
+          format: markdown
+          output: both
+
