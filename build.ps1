@@ -33,8 +33,12 @@ function ExecSafe([scriptblock] $cmd) {
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 }
 
+# If dotnet CLI is pre-pinned (e.g., CI sets DOTNET_EXE), keep it
+if (Test-Path env:DOTNET_EXE -and (Test-Path $env:DOTNET_EXE)) {
+    # no-op
+}
 # If dotnet CLI is installed globally and it matches requested version, use for execution
-if ($null -ne (Get-Command "dotnet" -ErrorAction SilentlyContinue) -and `
+elseif ($null -ne (Get-Command "dotnet" -ErrorAction SilentlyContinue) -and `
      $(dotnet --version) -and $LASTEXITCODE -eq 0) {
     $env:DOTNET_EXE = (Get-Command "dotnet").Path
 }
