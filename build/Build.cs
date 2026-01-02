@@ -91,6 +91,15 @@ partial class Build : NukeBuild
             var dotnetExe = Environment.GetEnvironmentVariable("DOTNET_EXE");
             if (string.IsNullOrWhiteSpace(dotnetExe))
             {
+                var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+                if (!string.IsNullOrWhiteSpace(dotnetRoot))
+                {
+                    dotnetExe = System.IO.Path.Combine(dotnetRoot, "dotnet.exe");
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(dotnetExe))
+            {
                 dotnetExe = "dotnet";
             }
 

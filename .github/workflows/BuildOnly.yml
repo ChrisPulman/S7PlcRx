@@ -6,25 +6,18 @@ on:
       - main
 
 jobs:
-  windows-latest:
-    name: windows-latest
+  build:
+    name: build
     runs-on: windows-latest
 
     env:
-      CI: true   # Enables conditional TFMs in test projects if you choose to use them
+      CI: true
 
     steps:
-      # -----------------------------
-      # Checkout
-      # -----------------------------
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      # -----------------------------
-      # Install .NET SDKs (8, 9, 10)
-      # NOTE: Coverage execution is net8-only to avoid hostfxr mismatch on runners.
-      # -----------------------------
       - name: Setup .NET (With cache)
         uses: actions/setup-dotnet@v5.0.1
         with:
@@ -41,9 +34,6 @@ jobs:
             **/global.json
             **/nuget.config
 
-      # -----------------------------
-      # Cache NUKE temp + NuGet
-      # -----------------------------
       - name: Cache NUKE + NuGet
         uses: actions/cache@v5
         with:
@@ -52,24 +42,49 @@ jobs:
             ~/.nuget/packages
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
 
-      # -----------------------------
-      # NUKE Build and produce Coverage (net8 only)
-      # -----------------------------
-      - name: Run NUKE Compile and Coverage
-        run: ./build.cmd Coverage
+      - name: Run NUKE Compile
+        run: ./build.cmd Compile
 
-      # -----------------------------
-      # Upload coverage artifact
-      # -----------------------------
+  coverage:
+    name: coverage
+    runs-on: windows-latest
+    needs: build
+
+    env:
+      CI: true
+      DOTNET_MULTILEVEL_LOOKUP: 0
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # Install ONLY .NET 8 for coverage to avoid hostfxr 10 preview being selected.
+      - name: Setup .NET 8 (With cache)
+        uses: actions/setup-dotnet@v5.0.1
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: |
+            **/Directory.Packages.props
+            **/*.sln
+            **/*.csproj
+            **/global.json
+            **/nuget.config
+
+      - name: Run NUKE Coverage
+        shell: pwsh
+        run: |
+          Write-Host "DOTNET_ROOT=$env:DOTNET_ROOT"
+          dotnet --info
+          ./build.cmd Coverage
+
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.cobertura.xml
 
-      # -----------------------------
-      # Publish coverage summary
-      # -----------------------------
       - name: Publish coverage summary
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
