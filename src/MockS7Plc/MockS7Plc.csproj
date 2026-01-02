@@ -8,6 +8,10 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <TargetFrameworks>net8.0</TargetFrameworks>
+  </PropertyGroup>
+  
   <ItemGroup>
     <Content Include="runtimes\win-x64\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="runtimes\win-x86\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />

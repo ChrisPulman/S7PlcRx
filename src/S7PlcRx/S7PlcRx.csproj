@@ -6,6 +6,10 @@
     <NoWarn>$(NoWarn);IDE0042</NoWarn>
   </PropertyGroup>
   
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <TargetFrameworks>net8.0</TargetFrameworks>
+  </PropertyGroup>
+  
   <ItemGroup>
     <PackageReference Include="Polyfill" Version="9.5.0">
       <PrivateAssets>all</PrivateAssets>

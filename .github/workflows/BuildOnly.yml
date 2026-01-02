@@ -10,9 +10,6 @@ jobs:
     name: build
     runs-on: windows-latest
 
-    env:
-      CI: true
-
     steps:
       - uses: actions/checkout@v6
         with:
