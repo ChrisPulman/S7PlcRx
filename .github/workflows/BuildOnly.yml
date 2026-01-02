@@ -76,7 +76,9 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "DOTNET_ROOT=$env:DOTNET_ROOT"
-          dotnet --info
+          $env:DOTNET_EXE = Join-Path $env:DOTNET_ROOT 'dotnet.exe'
+          Write-Host "DOTNET_EXE=$env:DOTNET_EXE"
+          & $env:DOTNET_EXE --info
           ./build.cmd Coverage
 
       - name: Upload coverage artifact
