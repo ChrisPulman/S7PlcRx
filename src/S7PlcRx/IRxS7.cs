@@ -156,6 +156,15 @@ public interface IRxS7 : ICancelable
     Task<T?> Value<T>(string? variable);
 
     /// <summary>
+    /// Reads the specified variable with cancellation support.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="variable">The variable.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A value of T.</returns>
+    Task<T?> ValueAsync<T>(string? variable, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Writes the specified variable.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>

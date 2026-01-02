@@ -91,6 +91,11 @@ public class MockServer : IDisposable
 
     private readonly Dictionary<int, GCHandle> _hArea;
     private byte[]? _defaultDb1;
+    private byte[]? _defaultPe;
+    private byte[]? _defaultPa;
+    private byte[]? _defaultMk;
+    private byte[]? _defaultCt;
+    private byte[]? _defaultTm;
     private nint _server;
     private bool _disposedValue;
 
@@ -163,6 +168,31 @@ public class MockServer : IDisposable
     /// Gets or sets the size (in bytes) of the default DB1 area registered on start.
     /// </summary>
     public int DefaultDb1Size { get; set; } = 4096;
+
+    /// <summary>
+    /// Gets or sets the size (in bytes) of the default PE (Inputs) area registered on start.
+    /// </summary>
+    public int DefaultPeSize { get; set; } = 4096;
+
+    /// <summary>
+    /// Gets or sets the size (in bytes) of the default PA (Outputs) area registered on start.
+    /// </summary>
+    public int DefaultPaSize { get; set; } = 4096;
+
+    /// <summary>
+    /// Gets or sets the size (in bytes) of the default MK (Memory) area registered on start.
+    /// </summary>
+    public int DefaultMkSize { get; set; } = 4096;
+
+    /// <summary>
+    /// Gets or sets the size (in bytes) of the default CT (Counters) area registered on start.
+    /// </summary>
+    public int DefaultCtSize { get; set; } = 512;
+
+    /// <summary>
+    /// Gets or sets the size (in bytes) of the default TM (Timers) area registered on start.
+    /// </summary>
+    public int DefaultTmSize { get; set; } = 512;
 
     /// <summary>
     /// Gets or sets the cpu status.
@@ -460,14 +490,30 @@ public class MockServer : IDisposable
             return;
         }
 
-        if (DefaultDb1Size < 1)
-        {
-            DefaultDb1Size = 1;
-        }
+        static int NormalizeSize(int size) => size < 1 ? 1 : size;
+
+        DefaultDb1Size = NormalizeSize(DefaultDb1Size);
+        DefaultPeSize = NormalizeSize(DefaultPeSize);
+        DefaultPaSize = NormalizeSize(DefaultPaSize);
+        DefaultMkSize = NormalizeSize(DefaultMkSize);
+        DefaultCtSize = NormalizeSize(DefaultCtSize);
+        DefaultTmSize = NormalizeSize(DefaultTmSize);
 
         _defaultDb1 = new byte[DefaultDb1Size];
+        _defaultPe = new byte[DefaultPeSize];
+        _defaultPa = new byte[DefaultPaSize];
+        _defaultMk = new byte[DefaultMkSize];
+        _defaultCt = new byte[DefaultCtSize];
+        _defaultTm = new byte[DefaultTmSize];
 
         // Register DB1 so Snap7 can service ReadVar/WriteVar (including multi-item) against a real backing store.
         _ = RegisterArea(SrvAreaDB, 1, ref _defaultDb1[0], _defaultDb1.Length);
+
+        // Register the standard non-DB areas so IB/QB/MB and bit addressing can be used in tests.
+        _ = RegisterArea(SrvAreaPe, 0, ref _defaultPe[0], _defaultPe.Length);
+        _ = RegisterArea(SrvAreaPa, 0, ref _defaultPa[0], _defaultPa.Length);
+        _ = RegisterArea(SrvAreaMk, 0, ref _defaultMk[0], _defaultMk.Length);
+        _ = RegisterArea(SrvAreaCt, 0, ref _defaultCt[0], _defaultCt.Length);
+        _ = RegisterArea(SrvAreaTm, 0, ref _defaultTm[0], _defaultTm.Length);
     }
 }

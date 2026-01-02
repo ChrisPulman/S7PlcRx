@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Collections;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
@@ -12,6 +13,7 @@ using System.Reactive.Subjects;
 using S7PlcRx.Core;
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
+
 using DateTime = System.DateTime;
 using TimeSpan = System.TimeSpan;
 
@@ -261,6 +263,64 @@ public class RxS7 : IRxS7
     }
 
     /// <summary>
+    /// Reads the specified variable with cancellation support.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="variable">The variable.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A value of T.</returns>
+    public async Task<T?> ValueAsync<T>(string? variable, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(variable))
+        {
+            throw new ArgumentNullException(nameof(variable));
+        }
+
+        _pause = true;
+        try
+        {
+            // Wait until the poll loop observes the paused state.
+            // If nothing is polling, the observable might never emit; in that case, proceed after a short delay.
+            // This keeps behavior compatible while still being cancellation-friendly.
+            try
+            {
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                using var reg = cancellationToken.Register(() => tcs.TrySetCanceled());
+                using var sub = _paused.Where(x => x).Take(1).Subscribe(_ => tcs.TrySetResult(true), ex => tcs.TrySetException(ex));
+                await tcs.Task.ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            catch (TaskCanceledException)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // ignore: allow direct read fallback
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var tag = TagList[variable!];
+            if (tag?.Type == typeof(object))
+            {
+                tag.Type = typeof(T);
+            }
+
+            GetTagValue(tag);
+            return TagValueIsValid<T>(tag) ? (T?)tag?.Value : default;
+        }
+        finally
+        {
+            _pause = false;
+        }
+    }
+
+    /// <summary>
     /// Writes the specified value to the PLC Tag.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>
@@ -281,7 +341,7 @@ public class RxS7 : IRxS7
     /// </summary>
     public void Dispose()
     {
-        Dispose(disposing: true);
+        Dispose(true);
         GC.SuppressFinalize(this);
     }
 
@@ -681,6 +741,16 @@ public class RxS7 : IRxS7
         }
     }
 
+    private static bool TryParseInt(ReadOnlySpan<char> s, out int value)
+    {
+#if NETSTANDARD2_0
+        value = 0;
+        return int.TryParse(s.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+#else
+        return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+#endif
+    }
+
     private static bool TryParseDbAddressForMultiVar(Tag tag, out int db, out int startByte, out VarType varType, out int countBytes)
     {
         db = 0;
@@ -694,7 +764,7 @@ public class RxS7 : IRxS7
         }
 
         var addr = tag.Address!.ToUpperInvariant().Replace(" ", string.Empty);
-        if (!addr.StartsWith("DB", StringComparison.Ordinal))
+        if (!addr.AsSpan().StartsWith("DB".AsSpan(), StringComparison.Ordinal))
         {
             return false;
         }
@@ -705,13 +775,20 @@ public class RxS7 : IRxS7
             return false;
         }
 
-        if (!int.TryParse(parts[0].Substring(2), out db))
+        if (!TryParseInt(parts[0].AsSpan(2), out db))
         {
             return false;
         }
 
-        var dbType = parts[1].Substring(0, 3);
-        if (!int.TryParse(parts[1].Substring(3), out startByte))
+        // keep dbType extraction as string (switch below)
+        var part1 = parts[1];
+        if (part1.Length < 3)
+        {
+            return false;
+        }
+
+        var dbType = part1.Substring(0, 3);
+        if (!TryParseInt(part1.AsSpan(3), out startByte))
         {
             return false;
         }
@@ -1022,9 +1099,7 @@ public class RxS7 : IRxS7
                     return Counter.ToArray(bytes);
 
                 case VarType.Bit:
-
-                    // TODO: fix Bit
-                    return default;
+                    return (bytes[0] & 0x01) == 0x01;
 
                 default:
                     return default;
@@ -1410,7 +1485,7 @@ public class RxS7 : IRxS7
                     mBit = int.Parse(txt2.Substring(txt2.IndexOf('.') + 1));
                     if (mBit > 7)
                     {
-                        throw new Exception();
+                        throw new Exception(string.Format("Addressing Error: You can only reference bitwise locations 0-7. Address {0} is invalid", mBit));
                     }
 
                     var obj3 = Read<byte>(tag, dataType, 0, mByte, VarType.Byte);
