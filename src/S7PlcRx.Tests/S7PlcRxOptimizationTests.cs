@@ -17,6 +17,7 @@ namespace S7PlcRx.Tests;
 /// Comprehensive optimization tests for S7PlcRx covering performance, caching, batching, and production features.
 /// These tests validate the optimized library functionality without requiring physical PLCs.
 /// </summary>
+[NonParallelizable]
 public sealed class S7PlcRxOptimizationTests : IDisposable
 {
     private readonly RxS7 _plc;
@@ -83,7 +84,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         // Assert
         Assert.That(results, Is.Not.Null);
         Assert.That(results, Has.Count.EqualTo(3));
-        Assert.That(results.Keys, Is.EquivalentTo(new[] { "TestTag1", "TestTag2", "TestTag3" }));
+        Assert.That(results.Keys, Is.EquivalentTo(["TestTag1", "TestTag2", "TestTag3"]));
     }
 
     /// <summary>
@@ -269,8 +270,8 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
 
         // Assert
         // Both should complete without error (actual values depend on PLC connectivity)
-        Assert.That(value1, Is.InstanceOf(typeof(float)));
-        Assert.That(value2, Is.InstanceOf(typeof(float)));
+        Assert.That(value1, Is.InstanceOf<float>());
+        Assert.That(value2, Is.InstanceOf<float>());
     }
 
     /// <summary>

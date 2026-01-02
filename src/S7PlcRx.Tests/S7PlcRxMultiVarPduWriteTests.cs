@@ -18,7 +18,7 @@ public class S7PlcRxMultiVarPduWriteTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    [Ignore("MockS7Plc does not currently emulate S7 WriteVar multi-item PDUs reliably; enable for manual PLC verification.")]
+    [NonParallelizable]
     public async Task ValueBatch_ShouldWriteMultipleTagsInOneCall()
     {
         using var server = new MockServer();

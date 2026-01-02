@@ -90,6 +90,7 @@ public class MockServer : IDisposable
     private const int MkLog = 1;
 
     private readonly Dictionary<int, GCHandle> _hArea;
+    private byte[]? _defaultDb1;
     private nint _server;
     private bool _disposedValue;
 
@@ -152,6 +153,16 @@ public class MockServer : IDisposable
         }
         set => _ = NativeMethods.Srv_SetMask(_server, MkEvent, value);
     }
+
+    /// <summary>
+    /// Gets the default Data Block 1 backing store (byte-addressable).
+    /// </summary>
+    public byte[]? DefaultDb1 => _defaultDb1;
+
+    /// <summary>
+    /// Gets or sets the size (in bytes) of the default DB1 area registered on start.
+    /// </summary>
+    public int DefaultDb1Size { get; set; } = 4096;
 
     /// <summary>
     /// Gets or sets the cpu status.
@@ -264,13 +275,21 @@ public class MockServer : IDisposable
     /// </summary>
     /// <param name="address">The address.</param>
     /// <returns>Result.</returns>
-    public int StartTo(string address) => NativeMethods.Srv_StartTo(_server, address);
+    public int StartTo(string address)
+    {
+        EnsureDefaultAreasRegistered();
+        return NativeMethods.Srv_StartTo(_server, address);
+    }
 
     /// <summary>
     /// Starts this instance.
     /// </summary>
     /// <returns>Result.</returns>
-    public int Start() => NativeMethods.Srv_Start(_server);
+    public int Start()
+    {
+        EnsureDefaultAreasRegistered();
+        return NativeMethods.Srv_Start(_server);
+    }
 
     /// <summary>
     /// Stops this instance.
@@ -432,5 +451,23 @@ public class MockServer : IDisposable
 
             _disposedValue = true;
         }
+    }
+
+    private void EnsureDefaultAreasRegistered()
+    {
+        if (_defaultDb1 != null)
+        {
+            return;
+        }
+
+        if (DefaultDb1Size < 1)
+        {
+            DefaultDb1Size = 1;
+        }
+
+        _defaultDb1 = new byte[DefaultDb1Size];
+
+        // Register DB1 so Snap7 can service ReadVar/WriteVar (including multi-item) against a real backing store.
+        _ = RegisterArea(SrvAreaDB, 1, ref _defaultDb1[0], _defaultDb1.Length);
     }
 }

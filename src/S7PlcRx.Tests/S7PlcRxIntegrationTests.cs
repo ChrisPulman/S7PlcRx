@@ -11,6 +11,7 @@ namespace S7PlcRx.Tests;
 /// Integration tests for S7PlcRx functionality.
 /// These tests validate core S7PlcRx features with controlled scenarios.
 /// </summary>
+[NonParallelizable]
 public class S7PlcRxIntegrationTests
 {
     /// <summary>
