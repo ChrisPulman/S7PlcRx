@@ -1,4 +1,4 @@
-name: BuildOnly
+﻿name: BuildOnly
 
 on:
   push:
@@ -57,26 +57,30 @@ jobs:
       # -----------------------------
       - name: Run NUKE Compile
         run: ./build.cmd Compile
+      
+      - name: Tests + Coverage (MTP)
+        shell: bash
+        working-directory: ${{ inputs.srcFolder }}
+        run: |
+          dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj \
+            --no-build \
+            --configuration ${{ inputs.configuration }} \
+            --verbosity detailed \
+            --output Detailed \
+            --coverage \
+            --coverage-output-format cobertura \
+            --results-directory ./TestResults
 
-      # -----------------------------
-      # Test + Coverage (net8 only)
-      # -----------------------------
-      # - name: Test with Microsoft Code Coverage (net8 only)
-      #   run: |
-      #     dotnet tool install --global dotnet-coverage
-      #     dotnet-coverage collect `
-      #       "dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj -f net8.0 --no-build --configuration Release" `
-      #       -f cobertura `
-      #       -o coverage.cobertura.xml
-
-      # -----------------------------
-      # Upload coverage artifact
-      # -----------------------------
-      # - name: Upload coverage artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: coverage-report
-      #     path: coverage.cobertura.xml
+      - name: Upload per-OS coverage (Windows → temp)
+        uses: actions/upload-artifact@v6
+        with:
+          name: tmp-coverage-${{ runner.os }}
+          path: |
+            src/**/coverage.cobertura.xml
+            src/**/coverage*.cobertura.xml
+            src/**/TestResults/**/*.cobertura.xml
+          if-no-files-found: warn
+          retention-days: 3
 
       # -----------------------------
       # Publish coverage summary
