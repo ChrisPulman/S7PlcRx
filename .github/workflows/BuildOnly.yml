@@ -60,21 +60,20 @@ jobs:
       
       - name: Tests + Coverage (MTP)
         shell: bash
-        working-directory: ${{ inputs.srcFolder }}
         run: |
           dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj \
             --no-build \
-            --configuration ${{ inputs.configuration }} \
+            --configuration Release \
             --verbosity detailed \
             --output Detailed \
             --coverage \
             --coverage-output-format cobertura \
             --results-directory ./TestResults
 
-      - name: Upload per-OS coverage (Windows → temp)
+      - name: Upload per-OS coverage
         uses: actions/upload-artifact@v6
         with:
-          name: tmp-coverage-${{ runner.os }}
+          name: tmp-coverage
           path: |
             src/**/coverage.cobertura.xml
             src/**/coverage*.cobertura.xml
