@@ -26,6 +26,7 @@ internal class S7SocketRx : IDisposable
     private const string Success = nameof(Success);
     private const int DefaultTimeout = 10000;
     private const int MaxRetryAttempts = 3;
+    private const int MaxRetryDelaySeconds = 30;
     private const int PingTimeoutMs = 2000;
 
     // Enhanced observables for better monitoring
@@ -192,9 +193,13 @@ internal class S7SocketRx : IDisposable
         })
         .RetryWhen(errors => errors
             .Select((ex, index) => new { ex, index })
-            .SelectMany(x => x.index < MaxRetryAttempts
-                ? Observable.Timer(TimeSpan.FromSeconds(Math.Pow(2, x.index))) // Exponential backoff
-                : Observable.Throw<long>(x.ex)))
+            .SelectMany(x =>
+            {
+                // Exponential backoff with cap: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
+                var delaySeconds = Math.Min(Math.Pow(2, x.index), MaxRetryDelaySeconds);
+                LogWarning($"Connection attempt {x.index + 1} failed: {x.ex.Message}. Retrying in {delaySeconds}s...");
+                return Observable.Timer(TimeSpan.FromSeconds(delaySeconds));
+            }))
         .Publish(false)
         .RefCount();
 
