@@ -4,7 +4,7 @@
 namespace S7PlcRx.Enums;
 
 /// <summary>
-/// PLC Request Type.
+/// Specifies the type of request to perform on a programmable logic controller (PLC), such as reading or writing data.
 /// </summary>
 internal enum PLCRequestType
 {

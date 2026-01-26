@@ -4,8 +4,11 @@
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Configuration for performance benchmarks.
+/// Represents the configuration settings for benchmark tests, including parameters for latency, throughput, and
+/// reliability measurements.
 /// </summary>
+/// <remarks>Use this class to specify the number and duration of various benchmark tests when running performance
+/// evaluations. All properties are configurable to tailor the benchmarking process to specific requirements.</remarks>
 public sealed class BenchmarkConfig
 {
     /// <summary>Gets or sets the number of latency tests to perform.</summary>

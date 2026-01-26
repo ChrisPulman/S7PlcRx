@@ -4,8 +4,12 @@
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// System validation result for production readiness testing.
+/// Represents the result of a system validation process, including timing, test results, and production readiness
+/// status.
 /// </summary>
+/// <remarks>Use this class to capture and inspect the outcome of a system validation run, such as for a PLC or
+/// similar automated system. It provides details about the validation period, individual test results, critical errors,
+/// and an overall score indicating system readiness for production.</remarks>
 public sealed class SystemValidationResult
 {
     /// <summary>Gets or sets the validation start time.</summary>

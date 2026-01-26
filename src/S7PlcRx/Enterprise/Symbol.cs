@@ -4,8 +4,12 @@
 namespace S7PlcRx.Enterprise;
 
 /// <summary>
-/// Represents a PLC symbol with metadata.
+/// Represents a programmable logic controller (PLC) symbol, including its name, address, data type, length, and
+/// description.
 /// </summary>
+/// <remarks>Use the Symbol class to define and manage metadata for PLC variables, such as their symbolic name,
+/// address, and data type. This class is typically used in applications that interact with PLCs for automation or
+/// monitoring purposes.</remarks>
 public sealed class Symbol
 {
     /// <summary>Gets or sets the symbol name.</summary>

@@ -6,24 +6,19 @@ using S7PlcRx.Enums;
 namespace S7PlcRx.Core;
 
 /// <summary>
-/// PLC Request.
+/// Represents a request to a programmable logic controller (PLC), including the request type and an optional tag.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="PLCRequest"/> class.
-/// </remarks>
-/// <param name="request">The request.</param>
-/// <param name="tag">The tag.</param>
+/// <param name="request">The type of PLC request to perform.</param>
+/// <param name="tag">The tag associated with the request, or null if the request does not require a tag.</param>
 internal class PLCRequest(PLCRequestType request, Tag? tag)
 {
     /// <summary>
-    /// Gets the request.
+    /// Gets the PLC request associated with this instance.
     /// </summary>
-    /// <value>The request.</value>
     public PLCRequestType Request { get; } = request;
 
     /// <summary>
-    /// Gets the tag.
+    /// Gets the tag associated with this instance, if any.
     /// </summary>
-    /// <value>The tag.</value>
     public Tag? Tag { get; } = tag;
 }

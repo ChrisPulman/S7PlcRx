@@ -6,8 +6,11 @@ using S7PlcRx.Enums;
 namespace S7PlcRx.Enterprise;
 
 /// <summary>
-/// PLC connection configuration.
+/// Represents the configuration settings required to establish a connection to a programmable logic controller (PLC).
 /// </summary>
+/// <remarks>Use this class to specify connection parameters such as PLC type, network address, rack, slot, and an
+/// optional connection name when initializing or managing PLC connections. This configuration is typically used by PLC
+/// communication libraries to open and maintain a session with the target device.</remarks>
 public sealed class PlcConnectionConfig
 {
     /// <summary>Gets or sets the PLC type.</summary>

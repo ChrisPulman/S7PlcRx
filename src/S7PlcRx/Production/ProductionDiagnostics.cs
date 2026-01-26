@@ -6,8 +6,13 @@ using S7PlcRx.Enums;
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// Production diagnostics with comprehensive system information.
+/// Represents diagnostic information collected from a production programmable logic controller (PLC) connection,
+/// including connection details, performance metrics, and recommendations.
 /// </summary>
+/// <remarks>This class is typically used to capture and analyze the state of a PLC connection and its associated
+/// metrics at a specific point in time. It aggregates connection parameters, diagnostic results, and any errors or
+/// optimization suggestions identified during the diagnostic process. All properties are intended to be set and read by
+/// consumers managing or monitoring PLC diagnostics.</remarks>
 public class ProductionDiagnostics
 {
     /// <summary>Gets or sets the PLC type.</summary>

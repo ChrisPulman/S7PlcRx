@@ -4,22 +4,27 @@
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// Contains the methods to convert from bytes to byte arrays.
+/// Provides utility methods for converting and manipulating byte values and byte arrays.
 /// </summary>
+/// <remarks>This static class includes methods for converting between single byte values and arrays or spans, as
+/// well as writing byte data to spans. All members are static and designed for efficient, low-level byte operations.
+/// Methods in this class do not perform validation beyond basic length checks and do not handle multi-byte conversions
+/// or encoding.</remarks>
 public static class Byte
 {
     /// <summary>
-    /// Converts a byte to byte array.
+    /// Converts the specified byte value to a single-element byte array.
     /// </summary>
-    /// <param name="value">The value.</param>
-    /// <returns>A byte array.</returns>
+    /// <param name="value">The byte value to include in the returned array.</param>
+    /// <returns>A byte array containing the specified value as its only element.</returns>
     public static byte[] ToByteArray(byte value) => [value];
 
     /// <summary>
-    /// Writes a byte value to the specified span.
+    /// Writes the specified byte value into the first position of the provided destination span.
     /// </summary>
-    /// <param name="value">The byte value.</param>
-    /// <param name="destination">The destination span.</param>
+    /// <param name="value">The byte value to write to the destination span.</param>
+    /// <param name="destination">The span of bytes that will receive the value. Must have a length of at least 1.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="destination"/> has a length less than 1.</exception>
     public static void ToSpan(byte value, Span<byte> destination)
     {
         if (destination.Length < 1)
@@ -31,17 +36,20 @@ public static class Byte
     }
 
     /// <summary>
-    /// Converts a byte array to byte.
+    /// Creates a byte value from the specified byte array.
     /// </summary>
-    /// <param name="bytes">The bytes.</param>
-    /// <returns>A byte.</returns>
+    /// <remarks>If the array contains more than one element, only the first element is used. If the array is
+    /// empty, an exception may be thrown.</remarks>
+    /// <param name="bytes">The array of bytes to convert. Must contain at least one element.</param>
+    /// <returns>A byte value created from the first element of the specified array.</returns>
     public static byte FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
     /// <summary>
-    /// Converts a span to byte.
+    /// Returns the first byte from the specified read-only span.
     /// </summary>
-    /// <param name="bytes">The bytes span.</param>
-    /// <returns>A byte.</returns>
+    /// <param name="bytes">A read-only span of bytes from which to retrieve the first byte. Must contain at least one byte.</param>
+    /// <returns>The first byte in the <paramref name="bytes"/> span.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="bytes"/> does not contain at least one byte.</exception>
     public static byte FromSpan(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length < 1)
@@ -53,10 +61,11 @@ public static class Byte
     }
 
     /// <summary>
-    /// Converts multiple byte values to the specified span.
+    /// Copies the contents of the specified read-only byte span to the destination span.
     /// </summary>
-    /// <param name="values">The byte values.</param>
-    /// <param name="destination">The destination span.</param>
+    /// <param name="values">The read-only span containing the bytes to copy.</param>
+    /// <param name="destination">The span that receives the copied bytes. Must be at least as large as <paramref name="values"/>.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is smaller than <paramref name="values"/>.</exception>
     public static void ToSpan(ReadOnlySpan<byte> values, Span<byte> destination)
     {
         if (destination.Length < values.Length)

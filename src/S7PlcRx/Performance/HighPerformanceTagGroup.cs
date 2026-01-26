@@ -8,10 +8,13 @@ using S7PlcRx.Advanced;
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// High-performance tag group for optimized batch operations.
+/// Provides high-performance batch operations for reading, writing, and observing a group of PLC tags as a single unit.
 /// </summary>
-/// <typeparam name="T">The Type.</typeparam>
-/// <seealso cref="System.IDisposable" />
+/// <remarks>This class is designed to optimize communication with a PLC by grouping related tags and minimizing
+/// individual polling. It supports efficient batch reads and writes, and exposes an observable stream for monitoring
+/// group state changes. Instances of this class are not thread-safe; external synchronization may be required if
+/// accessed concurrently.</remarks>
+/// <typeparam name="T">The type of value associated with each PLC tag in the group.</typeparam>
 public class HighPerformanceTagGroup<T> : IDisposable
 {
     private readonly IRxS7 _plc;
@@ -21,17 +24,16 @@ public class HighPerformanceTagGroup<T> : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="HighPerformanceTagGroup{T}"/> class.
+    /// Initializes a new instance of the <see cref="HighPerformanceTagGroup{T}"/> class, associating a set of tag names with a specified.
+    /// PLC for optimized group operations.
     /// </summary>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="groupName">The group name.</param>
-    /// <param name="tagNames">The tag names in the group.</param>
-    /// <exception cref="System.ArgumentNullException">plc.</exception>
-    /// <exception cref="System.ArgumentException">
-    /// Group name cannot be null or whitespace. - groupName
-    /// or
-    /// Tag names cannot be null or empty. - tagNames.
-    /// </exception>
+    /// <remarks>Tag names starting with "DB" that are not already present in the PLC's tag list will be added
+    /// with individual polling disabled to improve performance when accessing the group.</remarks>
+    /// <param name="plc">The PLC connection used to manage and access the specified tags.</param>
+    /// <param name="groupName">The name assigned to this tag group. Cannot be null or whitespace.</param>
+    /// <param name="tagNames">An array of tag names to include in the group. Cannot be null or empty.</param>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="groupName"/> is null, whitespace, or if <paramref name="tagNames"/> is null or empty.</exception>
     public HighPerformanceTagGroup(IRxS7 plc, string groupName, string[] tagNames)
     {
         if (plc == null)
@@ -64,19 +66,25 @@ public class HighPerformanceTagGroup<T> : IDisposable
     }
 
     /// <summary>
-    /// Gets the group name.
+    /// Gets the name of the group associated with this instance.
     /// </summary>
     public string GroupName { get; }
 
     /// <summary>
-    /// Gets the current values for all tags in the group.
+    /// Gets a read-only dictionary containing the current values associated with each key.
     /// </summary>
     public IReadOnlyDictionary<string, T?> CurrentValues => _currentValues;
 
     /// <summary>
-    /// Observes all values in the group as a combined stream.
+    /// Observes changes to the group of tags and provides a stream of their current values.
     /// </summary>
-    /// <returns>An observable of the complete group state.</returns>
+    /// <remarks>Individual polling is enabled for each tag in the group to ensure timely updates. The
+    /// returned observable emits only when the values of the tags change, and subscribers receive the most recent state
+    /// of all tags in the group. The sequence is shared among all subscribers and remains active as long as there is at
+    /// least one subscription.</remarks>
+    /// <returns>An observable sequence that emits a dictionary containing the latest values for each tag in the group. Each
+    /// dictionary maps tag names to their corresponding values of type T. The sequence emits a new dictionary whenever
+    /// any tag value changes.</returns>
     public IObservable<Dictionary<string, T?>> ObserveGroup()
     {
         foreach (var tagName in _tagNames)
@@ -104,16 +112,24 @@ public class HighPerformanceTagGroup<T> : IDisposable
     }
 
     /// <summary>
-    /// Reads all values in the group efficiently.
+    /// Asynchronously reads the values of all configured PLC tags and returns a dictionary mapping tag names to their
+    /// corresponding values.
     /// </summary>
-    /// <returns>A dictionary of tag names and values.</returns>
+    /// <remarks>The returned dictionary includes an entry for each tag in the configured set, regardless of
+    /// whether the value was successfully read. This method is thread-safe and can be awaited. The order of entries in
+    /// the dictionary is not guaranteed.</remarks>
+    /// <returns>A dictionary containing the tag names as keys and their associated values of type <typeparamref name="T"/> as
+    /// values. If a tag value cannot be read, its value will be <see langword="null"/>.</returns>
     public async Task<Dictionary<string, T?>> ReadAll() => await _plc.ValueBatch<T>(_tagNames);
 
     /// <summary>
-    /// Writes multiple values to the group.
+    /// Writes all specified values to the PLC in a single batch operation.
     /// </summary>
-    /// <param name="values">The values to write.</param>
-    /// <returns>A task representing the write operation.</returns>
+    /// <remarks>Entries in the dictionary with tag names not recognized by the PLC are ignored. This method
+    /// performs the write operation asynchronously and does not block the calling thread.</remarks>
+    /// <param name="values">A dictionary containing tag names as keys and their corresponding values to be written. Only entries with tag
+    /// names recognized by the PLC will be processed.</param>
+    /// <returns>A task that represents the asynchronous write operation.</returns>
     public async Task WriteAll(Dictionary<string, T> values)
     {
         var filteredValues = values.Where(kvp => _tagNames.Contains(kvp.Key)).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);

@@ -4,16 +4,20 @@
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// Contains the methods to read, set and reset bits inside bytes.
+/// Provides static methods for manipulating individual bits within a byte value.
 /// </summary>
+/// <remarks>This class includes utility methods for reading, setting, and clearing specific bits in a byte. All
+/// bit indices are zero-based, ranging from 0 (least significant bit) to 7 (most significant bit). These methods are
+/// useful for low-level operations such as flag management, bitmasking, or protocol handling where direct bit
+/// manipulation is required.</remarks>
 public static class Boolean
 {
     /// <summary>
-    /// Returns the value of a bit in a bit, given the address of the bit.
+    /// Determines whether the specified bit is set in the given byte value.
     /// </summary>
-    /// <param name="value">The value.</param>
-    /// <param name="bit">The bit.</param>
-    /// <returns>A bool.</returns>
+    /// <param name="value">The byte value to examine for the specified bit.</param>
+    /// <param name="bit">The zero-based position of the bit to check. Must be in the range 0 to 7.</param>
+    /// <returns>true if the bit at the specified position is set; otherwise, false.</returns>
     public static bool GetValue(byte value, int bit) => (value & (1 << bit)) != 0;
 
     /// <summary>

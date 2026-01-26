@@ -4,7 +4,7 @@
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// Individual validation test result.
+/// Represents the result and metadata of a validation test, including timing, outcome, and related details.
 /// </summary>
 public sealed class ValidationTest
 {

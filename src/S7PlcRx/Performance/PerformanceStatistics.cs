@@ -4,8 +4,13 @@
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Detailed performance statistics.
+/// Represents a set of performance statistics for a programmable logic controller (PLC) connection, including operation
+/// counts, error metrics, response times, and connection status information.
 /// </summary>
+/// <remarks>Use this class to track and analyze the operational performance and reliability of a PLC connection
+/// over time. The statistics provided can assist in monitoring system health, diagnosing issues, and optimizing
+/// performance. All properties are read-write, allowing for aggregation and updating of statistics as needed. This
+/// class is not thread-safe; synchronize access if used concurrently.</remarks>
 public sealed class PerformanceStatistics
 {
     /// <summary>Gets or sets the PLC identifier.</summary>

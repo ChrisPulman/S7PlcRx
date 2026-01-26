@@ -4,13 +4,13 @@
 namespace S7PlcRx;
 
 /// <summary>
-/// ITag.
+/// Represents a tag that can be configured to control polling behavior.
 /// </summary>
 public interface ITag
 {
     /// <summary>
-    /// Sets the do not poll.
+    /// Sets whether the object should be excluded from polling operations.
     /// </summary>
-    /// <param name="value">if set to <c>true</c> [value].</param>
+    /// <param name="value">true to prevent the object from being polled; otherwise, false.</param>
     void SetDoNotPoll(bool value);
 }

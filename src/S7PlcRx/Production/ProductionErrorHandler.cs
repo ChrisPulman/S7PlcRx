@@ -4,12 +4,15 @@
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// Production error handler with enterprise-grade reliability features.
+/// Provides error handling for production environments by executing operations with circuit breaker protection and
+/// configurable error handling policies.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="ProductionErrorHandler"/> class.
-/// </remarks>
-/// <param name="config">The error handling configuration.</param>
+/// <remarks>This class is intended for use in production scenarios where robust error handling and resilience are
+/// required. It wraps operations in a circuit breaker to prevent repeated failures and applies the error handling
+/// strategies specified in the provided configuration. Instances of this class are thread-safe and can be reused across
+/// multiple operations.</remarks>
+/// <param name="config">The configuration settings that define error handling behavior, including circuit breaker thresholds and retry
+/// policies. Cannot be null.</param>
 public sealed class ProductionErrorHandler(ProductionErrorConfig config)
 {
     private readonly CircuitBreaker _circuitBreaker = new(config);

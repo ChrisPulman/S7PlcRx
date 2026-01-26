@@ -4,8 +4,14 @@
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Result of performance benchmark.
+/// Represents the results of a performance benchmark, including timing, latency, throughput, reliability, and any
+/// errors encountered during execution.
 /// </summary>
+/// <remarks>Use this class to access detailed metrics and diagnostic information from a completed benchmark run.
+/// The properties provide summary statistics such as average, minimum, and maximum latency, as well as overall
+/// reliability and score. Errors encountered during benchmarking are available in the <see cref="Errors"/> collection
+/// for troubleshooting. This type is immutable except for its settable properties; thread safety is not guaranteed if
+/// modified concurrently.</remarks>
 public sealed class BenchmarkResult
 {
     /// <summary>Gets or sets the benchmark start time.</summary>

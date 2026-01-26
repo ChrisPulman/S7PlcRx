@@ -6,9 +6,11 @@ using System.Buffers;
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// Initializes a new instance of the <see cref="ByteArray"/> class.
+/// Provides a dynamically sized buffer for accumulating bytes, with efficient memory management using array pooling.
 /// </summary>
-/// <param name="size">The initial capacity.</param>
+/// <remarks>The buffer automatically grows as data is added. The internal array is rented from the shared array
+/// pool and returned when disposed. This class is not thread-safe.</remarks>
+/// <param name="size">The initial capacity of the internal buffer, in bytes. Must be greater than zero.</param>
 internal class ByteArray(int size) : IDisposable
 {
     private byte[] _buffer = ArrayPool<byte>.Shared.Rent(size);
@@ -16,8 +18,10 @@ internal class ByteArray(int size) : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ByteArray"/> class.
+    /// Initializes a new instance of the <see cref="ByteArray"/> class with a default capacity of 32 bytes.
     /// </summary>
+    /// <remarks>This constructor is useful when the required initial capacity is not known in advance. The
+    /// internal buffer will automatically expand as needed when additional bytes are added.</remarks>
     public ByteArray()
         : this(32)
     {
@@ -47,9 +51,9 @@ internal class ByteArray(int size) : IDisposable
     public int Length => _position;
 
     /// <summary>
-    /// Adds the specified item.
+    /// Adds a byte value to the end of the buffer.
     /// </summary>
-    /// <param name="item">The item.</param>
+    /// <param name="item">The byte value to add to the buffer.</param>
     public void Add(byte item)
     {
         EnsureCapacity(_position + 1);
@@ -57,9 +61,11 @@ internal class ByteArray(int size) : IDisposable
     }
 
     /// <summary>
-    /// Adds the specified items.
+    /// Adds the specified sequence of bytes to the buffer.
     /// </summary>
-    /// <param name="items">The items.</param>
+    /// <remarks>The buffer is automatically resized if necessary to accommodate the new items. The method
+    /// does not throw an exception if the span is empty; in that case, the buffer remains unchanged.</remarks>
+    /// <param name="items">A read-only span containing the bytes to add. If empty, no action is taken.</param>
     public void Add(ReadOnlySpan<byte> items)
     {
         if (items.IsEmpty)
@@ -73,27 +79,31 @@ internal class ByteArray(int size) : IDisposable
     }
 
     /// <summary>
-    /// Adds the specified items.
+    /// Adds the specified array of bytes to the collection.
     /// </summary>
-    /// <param name="items">The items.</param>
+    /// <param name="items">An array of bytes to add. Cannot be null.</param>
     public void Add(byte[] items) => Add(items.AsSpan());
 
     /// <summary>
-    /// Adds the specified byte array.
+    /// Adds the contents of the specified <see cref="ByteArray"/> to the collection.
     /// </summary>
-    /// <param name="byteArray">The byte array.</param>
+    /// <param name="byteArray">The <see cref="ByteArray"/> instance whose contents will be added. Cannot be null.</param>
     public void Add(ByteArray byteArray) => Add(byteArray.Span);
 
     /// <summary>
-    /// Clears this instance.
+    /// Resets the current position to the beginning, effectively clearing any progress or state tracked by the
+    /// instance.
     /// </summary>
     public void Clear() => _position = 0;
 
     /// <summary>
-    /// Copies data to the specified destination span.
+    /// Attempts to copy the written bytes to the specified destination buffer.
     /// </summary>
-    /// <param name="destination">The destination span.</param>
-    /// <returns>True if the copy was successful, false if the destination is too small.</returns>
+    /// <remarks>No data is copied if the destination buffer is too small. The method does not modify the
+    /// destination buffer if it returns false.</remarks>
+    /// <param name="destination">The buffer to which the written bytes will be copied. Must have a length greater than or equal to the number of
+    /// bytes written.</param>
+    /// <returns>true if the copy operation succeeds; otherwise, false.</returns>
     public bool TryCopyTo(Span<byte> destination)
     {
         if (destination.Length < _position)
@@ -136,6 +146,13 @@ internal class ByteArray(int size) : IDisposable
         }
     }
 
+    /// <summary>
+    /// Ensures that the internal buffer has at least the specified capacity, expanding it if necessary.
+    /// </summary>
+    /// <remarks>If the current buffer is smaller than the required capacity, a larger buffer is allocated and
+    /// existing data is copied to it. The previous buffer is returned to the shared array pool. This method is intended
+    /// for internal use to optimize buffer management and reduce allocations.</remarks>
+    /// <param name="required">The minimum required capacity of the internal buffer. Must be greater than zero.</param>
     private void EnsureCapacity(int required)
     {
         if (required <= _buffer.Length)

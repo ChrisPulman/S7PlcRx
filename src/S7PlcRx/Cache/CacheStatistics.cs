@@ -4,8 +4,12 @@
 namespace S7PlcRx.Cache;
 
 /// <summary>
-/// Cache performance statistics.
+/// Provides statistical information about the state and performance of a cache, including entry counts, hit rates, and
+/// entry timestamps.
 /// </summary>
+/// <remarks>Use this class to monitor cache usage patterns and effectiveness. The statistics can help identify
+/// cache performance issues or guide tuning decisions. All values represent a snapshot at the time the object is
+/// created or updated; they do not update automatically.</remarks>
 public sealed class CacheStatistics
 {
     /// <summary>Gets or sets the total number of cached entries.</summary>

@@ -4,8 +4,13 @@
 namespace S7PlcRx.Enterprise;
 
 /// <summary>
-/// Security context for encrypted communication.
+/// Represents the security context for a session, including encryption settings, session timing, and certificate
+/// information.
 /// </summary>
+/// <remarks>The SecurityContext class encapsulates all security-related parameters required to manage and
+/// validate a secure session. It provides properties for encryption keys, session validity, and certificate details,
+/// allowing consumers to configure and query the security state of a session. This class is sealed and cannot be
+/// inherited.</remarks>
 public sealed class SecurityContext
 {
     /// <summary>Gets or sets the PLC key identifier.</summary>

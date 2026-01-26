@@ -4,8 +4,10 @@
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Simple connection metrics tracker for performance extensions.
+/// Provides metrics related to a connection, including reconnection count and uptime.
 /// </summary>
+/// <remarks>This class is intended for internal use to track basic connection statistics. It is not
+/// thread-safe.</remarks>
 internal sealed class SimpleConnectionMetrics
 {
     private readonly DateTime _startTime = DateTime.UtcNow;

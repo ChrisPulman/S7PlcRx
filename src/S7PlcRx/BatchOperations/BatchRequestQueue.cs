@@ -6,12 +6,18 @@ using System.Collections.Concurrent;
 namespace S7PlcRx.BatchOperations;
 
 /// <summary>
-/// Batch request queue for optimizing multiple PLC operations.
+/// Represents a thread-safe queue for managing batch requests.
 /// </summary>
+/// <remarks>This class provides methods to enqueue batch requests and retrieve all pending requests in a
+/// thread-safe manner. It is intended for internal use where batching of requests is required.</remarks>
 internal class BatchRequestQueue
 {
     private readonly ConcurrentQueue<BatchRequest> _requests = new();
+#if NET9_0_OR_GREATER
+    private readonly Lock _lockObject = new();
+#else
     private readonly object _lockObject = new();
+#endif
 
     /// <summary>
     /// Gets the count of pending requests.

@@ -4,8 +4,12 @@
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Performance metrics for PLC operations.
+/// Represents a set of performance metrics for a programmable logic controller (PLC) at a specific point in time.
 /// </summary>
+/// <remarks>This class provides properties for tracking key operational statistics of a PLC, including connection
+/// status, tag activity, performance rates, and error metrics. It is typically used to monitor and analyze PLC
+/// performance in industrial automation scenarios. All properties are read-write, allowing metrics to be set or updated
+/// as needed.</remarks>
 public sealed class PerformanceMetrics
 {
     /// <summary>Gets or sets the PLC identifier.</summary>

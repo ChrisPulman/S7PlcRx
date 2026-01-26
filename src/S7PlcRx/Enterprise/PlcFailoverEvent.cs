@@ -4,8 +4,11 @@
 namespace S7PlcRx.Enterprise;
 
 /// <summary>
-/// PLC failover event information.
+/// Represents an event that occurs when a failover between programmable logic controllers (PLCs) takes place.
 /// </summary>
+/// <remarks>This class encapsulates information about a PLC failover event, including the time of occurrence, the
+/// reason for the failover, and the identifiers of the PLCs involved. Instances of this class are typically used for
+/// logging, monitoring, or auditing failover activities within PLC-based systems.</remarks>
 public sealed class PlcFailoverEvent
 {
     /// <summary>Gets or sets the timestamp of the failover.</summary>

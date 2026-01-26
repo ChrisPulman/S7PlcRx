@@ -7,8 +7,13 @@ using System.Reactive.Subjects;
 namespace S7PlcRx.Enterprise;
 
 /// <summary>
-/// High-availability PLC manager with automatic failover.
+/// Provides high-availability management for a set of PLC (Programmable Logic Controller) connections, automatically
+/// handling failover to backup PLCs in case of connection loss.
 /// </summary>
+/// <remarks>The HighAvailabilityPlcManager monitors the health of the primary PLC and automatically switches to a
+/// backup PLC if the primary becomes unavailable. It exposes an observable stream of failover events for monitoring and
+/// allows manual triggering of failover. This class is thread-safe for typical usage scenarios. Dispose the manager
+/// when it is no longer needed to release resources.</remarks>
 public class HighAvailabilityPlcManager : IDisposable
 {
     private readonly IList<IRxS7> _backupPlcs;
@@ -17,11 +22,17 @@ public class HighAvailabilityPlcManager : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="HighAvailabilityPlcManager"/> class.
+    /// Initializes a new instance of the HighAvailabilityPlcManager class with a primary PLC, a list of backup PLCs,
+    /// and an optional health check interval.
     /// </summary>
-    /// <param name="primaryPlc">The primary PLC.</param>
-    /// <param name="backupPlcs">The backup PLCs.</param>
-    /// <param name="healthCheckInterval">The health check interval.</param>
+    /// <remarks>The primary PLC is always treated as the first PLC in the managed list, regardless of its
+    /// position in the provided backupPlcs collection. Health checks are performed at the specified interval to monitor
+    /// PLC availability and facilitate failover if necessary.</remarks>
+    /// <param name="primaryPlc">The primary PLC to be managed. Cannot be null.</param>
+    /// <param name="backupPlcs">A list of backup PLCs to use for failover. The primary PLC will be inserted as the first element in this list.</param>
+    /// <param name="healthCheckInterval">The interval at which health checks are performed on the PLCs. If null, a default interval of 30 seconds is
+    /// used.</param>
+    /// <exception cref="ArgumentNullException">Thrown if primaryPlc is null.</exception>
     public HighAvailabilityPlcManager(
         IRxS7 primaryPlc,
         IList<IRxS7> backupPlcs,
@@ -79,6 +90,14 @@ public class HighAvailabilityPlcManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Performs a health check on the active PLC connection and initiates failover if the connection is lost or a
+    /// health check error occurs.
+    /// </summary>
+    /// <remarks>This method is intended to be used as a callback for timer-based health monitoring. If the
+    /// object has been disposed, the method returns immediately without performing any checks.</remarks>
+    /// <param name="state">An optional state object containing information to be used by the health check operation. This parameter is not
+    /// used.</param>
     private async void PerformHealthCheck(object? state)
     {
         if (_disposed)
@@ -99,6 +118,16 @@ public class HighAvailabilityPlcManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Attempts to switch the active PLC connection to a backup PLC in response to a failure condition.
+    /// </summary>
+    /// <remarks>If a backup PLC is available and connected, this method updates the active PLC and notifies
+    /// subscribers of the failover event. If no backup PLC is connected, the active PLC remains unchanged and no event
+    /// is raised.</remarks>
+    /// <param name="reason">A string describing the reason for initiating the failover. This information is included in the failover event
+    /// notification.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if failover to a
+    /// backup PLC was successful; otherwise, <see langword="false"/>.</returns>
     private async Task<bool> PerformFailover(string reason)
     {
         foreach (var backupPlc in _backupPlcs)

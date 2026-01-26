@@ -4,7 +4,7 @@
 namespace S7PlcRx.BatchOperations;
 
 /// <summary>
-/// Batch request types for PLC operations.
+/// Specifies the type of operation to perform in a batch request.
 /// </summary>
 internal enum BatchRequestType
 {

@@ -8,20 +8,32 @@ using System.Reactive.Linq;
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Performance optimization extensions for S7 PLC communications providing
-/// advanced metrics, connection pooling, and throughput optimization.
+/// Provides extension methods for IRxS7 PLC instances to enable advanced performance monitoring, optimized read and
+/// write operations, and benchmarking capabilities.
 /// </summary>
+/// <remarks>The methods in this class facilitate efficient interaction with PLCs by offering features such as
+/// real-time performance metrics, automatic grouping and batching of read/write operations, and comprehensive
+/// benchmarking. These extensions are designed to improve throughput, reliability, and observability when working with
+/// industrial automation systems. All methods require a valid IRxS7 instance and may throw exceptions if invalid
+/// arguments are supplied. Thread safety is ensured for performance data collection and metrics aggregation.</remarks>
 public static class PerformanceExtensions
 {
     private static readonly ConcurrentDictionary<string, PerformanceCounter> _performanceCounters = new();
     private static readonly ConcurrentDictionary<string, SimpleConnectionMetrics> _connectionMetrics = new();
 
     /// <summary>
-    /// Enables comprehensive performance monitoring for PLC operations.
+    /// Monitors the performance of the specified PLC and provides periodic updates as an observable sequence of
+    /// performance metrics.
     /// </summary>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="monitoringInterval">Performance monitoring interval.</param>
-    /// <returns>Observable stream of performance metrics.</returns>
+    /// <remarks>The returned observable begins emitting metrics immediately and continues at the specified
+    /// interval. Metrics include connection status, tag counts, operation rates, and error rates. The observable is hot
+    /// and shared among subscribers; unsubscribing from all observers will stop monitoring until a new subscription is
+    /// made.</remarks>
+    /// <param name="plc">The PLC instance to monitor. Cannot be null.</param>
+    /// <param name="monitoringInterval">The interval at which performance metrics are sampled. If null, defaults to 30 seconds.</param>
+    /// <returns>An observable sequence of <see cref="PerformanceMetrics"/> objects containing performance data for the PLC,
+    /// emitted at each monitoring interval.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception>
     public static IObservable<PerformanceMetrics> MonitorPerformance(
         this IRxS7 plc,
         TimeSpan? monitoringInterval = null)
@@ -64,13 +76,22 @@ public static class PerformanceExtensions
     }
 
     /// <summary>
-    /// Optimizes read operations by automatically grouping sequential reads.
+    /// Reads the specified tags from the PLC using optimized grouping and optional parallelization, returning a
+    /// dictionary of tag names and their corresponding values.
     /// </summary>
-    /// <typeparam name="T">The type of values to read.</typeparam>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="tagNames">The tag names to read.</param>
-    /// <param name="optimizationConfig">Optimization configuration.</param>
-    /// <returns>Dictionary of tag names and their optimized read results.</returns>
+    /// <remarks>Tags are grouped by data block for efficient reading. When parallel reads are enabled in the
+    /// optimization configuration, tag groups are read concurrently to improve performance. The method records
+    /// performance metrics and errors for diagnostic purposes. If an error occurs while reading a tag, the operation is
+    /// aborted and an exception is thrown.</remarks>
+    /// <typeparam name="T">The type of the value to read for each tag.</typeparam>
+    /// <param name="plc">The PLC instance from which to read tag values. Cannot be null.</param>
+    /// <param name="tagNames">A collection of tag names to read from the PLC. Cannot be null. If empty, an empty dictionary is returned.</param>
+    /// <param name="optimizationConfig">An optional configuration that controls read optimization behavior, such as enabling parallel reads and setting
+    /// inter-group delays. If null, default optimization settings are used.</param>
+    /// <returns>A dictionary mapping each requested tag name to its read value. If a tag cannot be read, an exception is thrown
+    /// and the dictionary may be incomplete.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="tagNames"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if reading a tag fails due to a PLC communication error or invalid tag name.</exception>
     public static async Task<Dictionary<string, T?>> ReadOptimized<T>(
         this IRxS7 plc,
         IEnumerable<string> tagNames,
@@ -154,13 +175,23 @@ public static class PerformanceExtensions
     }
 
     /// <summary>
-    /// Optimizes write operations by automatically batching writes.
+    /// Writes multiple values to the PLC in an optimized manner, grouping operations and optionally verifying writes
+    /// for accuracy.
     /// </summary>
-    /// <typeparam name="T">The type of values to write.</typeparam>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="values">Dictionary of tag names and values to write.</param>
-    /// <param name="optimizationConfig">Optimization configuration.</param>
-    /// <returns>Write operation results.</returns>
+    /// <remarks>Writes are grouped by data block for performance optimization. If parallel writes are enabled
+    /// in the configuration, write operations within each group are performed concurrently. When write verification is
+    /// enabled, each value is read back after writing to ensure accuracy. Delays between groups can be configured to
+    /// control write pacing. The method is thread-safe and intended for batch write scenarios to improve throughput and
+    /// reliability.</remarks>
+    /// <typeparam name="T">The type of the values to be written to the PLC.</typeparam>
+    /// <param name="plc">The PLC interface to which the values will be written. Cannot be null.</param>
+    /// <param name="values">A dictionary containing tag names and their corresponding values to write. Cannot be null.</param>
+    /// <param name="optimizationConfig">An optional configuration object that controls optimization behavior, such as enabling parallel writes, write
+    /// verification, and inter-group delays. If null, default optimization settings are used.</param>
+    /// <returns>A task that represents the asynchronous operation. The result contains details about successful and failed
+    /// writes, timing information, and any overall errors encountered during the operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="values"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if write verification is enabled and a written value does not match the value read back from the PLC.</exception>
     public static async Task<Optimization.WriteOptimizationResult> WriteOptimized<T>(
         this IRxS7 plc,
         Dictionary<string, T> values,
@@ -243,11 +274,16 @@ public static class PerformanceExtensions
     }
 
     /// <summary>
-    /// Performs a comprehensive performance benchmark of the PLC connection.
+    /// Runs a set of benchmark tests on the specified PLC, measuring latency, throughput, and reliability.
     /// </summary>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="benchmarkConfig">Benchmark configuration.</param>
-    /// <returns>Comprehensive benchmark results.</returns>
+    /// <remarks>The returned <see cref="BenchmarkResult"/> includes timing information, test scores, and any
+    /// errors encountered during benchmarking. The method performs multiple tests and aggregates results to provide an
+    /// overall score. This method does not throw on benchmark failures; errors are recorded in the result.</remarks>
+    /// <param name="plc">The PLC instance to benchmark. Cannot be null.</param>
+    /// <param name="benchmarkConfig">An optional configuration object specifying benchmark parameters. If null, default settings are used.</param>
+    /// <returns>A task that represents the asynchronous operation. The result contains detailed benchmark metrics and scores for
+    /// the PLC.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception>
     public static async Task<BenchmarkResult> RunBenchmark(
         this IRxS7 plc,
         BenchmarkConfig? benchmarkConfig = null)
@@ -287,10 +323,16 @@ public static class PerformanceExtensions
     }
 
     /// <summary>
-    /// Gets detailed performance statistics for the PLC connection.
+    /// Retrieves aggregated performance statistics for the specified PLC connection, including operation counts, error
+    /// rates, response times, and connection metrics.
     /// </summary>
-    /// <param name="plc">The PLC instance.</param>
-    /// <returns>Detailed performance statistics.</returns>
+    /// <remarks>The returned statistics reflect metrics collected since the application started or since the
+    /// PLC connection was first established. This method is thread-safe and can be called concurrently from multiple
+    /// threads.</remarks>
+    /// <param name="plc">The PLC connection for which to obtain performance statistics. Cannot be null.</param>
+    /// <returns>A PerformanceStatistics object containing metrics such as total operations, error rate, average response time,
+    /// connection uptime, and reconnection count for the specified PLC.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception>
     public static PerformanceStatistics GetPerformanceStatistics(this IRxS7 plc)
     {
         if (plc == null)
@@ -316,12 +358,28 @@ public static class PerformanceExtensions
         };
     }
 
+    /// <summary>
+    /// Retrieves the performance counter associated with the specified PLC instance, creating a new counter if one does
+    /// not already exist.
+    /// </summary>
+    /// <remarks>This method ensures that each PLC instance is associated with a unique performance counter.
+    /// If a counter does not exist for the given PLC, a new one is created and stored for future retrieval.</remarks>
+    /// <param name="plc">The PLC instance for which to obtain the performance counter. Must not be null.</param>
+    /// <returns>The performance counter corresponding to the specified PLC instance.</returns>
     private static PerformanceCounter GetPerformanceCounter(IRxS7 plc)
     {
         var metricsKey = $"{plc.IP}_{plc.PLCType}";
         return _performanceCounters.GetOrAdd(metricsKey, _ => new PerformanceCounter());
     }
 
+    /// <summary>
+    /// Groups tag names by their associated data block identifier as determined from each tag and the specified PLC
+    /// instance.
+    /// </summary>
+    /// <param name="tagNames">An enumerable collection of tag names to be grouped by data block.</param>
+    /// <param name="plc">An instance of the PLC interface used to extract data block information from each tag name.</param>
+    /// <returns>A dictionary where each key is a data block identifier and the corresponding value is a list of tag names
+    /// belonging to that data block.</returns>
     private static Dictionary<string, List<string>> GroupTagsByDataBlock(IEnumerable<string> tagNames, IRxS7 plc)
     {
         var grouped = new Dictionary<string, List<string>>();
@@ -341,6 +399,16 @@ public static class PerformanceExtensions
         return grouped;
     }
 
+    /// <summary>
+    /// Groups the specified tag-value pairs by their associated data block, as determined by the provided PLC instance.
+    /// </summary>
+    /// <remarks>The grouping is based on the data block extracted from each tag using the provided PLC
+    /// instance. Tags that resolve to the same data block are grouped together in the result.</remarks>
+    /// <typeparam name="T">The type of the values to be grouped by data block.</typeparam>
+    /// <param name="values">A dictionary containing tag names as keys and their corresponding values to be grouped.</param>
+    /// <param name="plc">An instance of the PLC interface used to extract data block information from each tag.</param>
+    /// <returns>A dictionary where each key is a data block name and the value is a dictionary of tag-value pairs belonging to
+    /// that data block.</returns>
     private static Dictionary<string, Dictionary<string, T>> GroupWritesByDataBlock<T>(
         Dictionary<string, T> values, IRxS7 plc)
     {
@@ -361,6 +429,14 @@ public static class PerformanceExtensions
         return grouped;
     }
 
+    /// <summary>
+    /// Extracts the data block address associated with the specified tag from the PLC instance.
+    /// </summary>
+    /// <param name="tagName">The name of the tag for which to retrieve the data block address. If the tag is not found, the tag name is used
+    /// as the address.</param>
+    /// <param name="plc">An instance of the PLC interface used to access tag information.</param>
+    /// <returns>A string containing the data block address corresponding to the specified tag. If the tag is not found, returns
+    /// the result of extracting the address from the tag name.</returns>
     private static string ExtractDataBlockFromTag(string tagName, IRxS7 plc)
     {
         var res = plc.GetTag(tagName);
@@ -375,6 +451,14 @@ public static class PerformanceExtensions
         return ExtractDataBlockFromAddress(tagName);
     }
 
+    /// <summary>
+    /// Extracts the data block identifier from a given address string, if present.
+    /// </summary>
+    /// <remarks>If the address does not start with "DB" (case-insensitive), is null or empty, or does not
+    /// contain a valid data block segment, the method returns "SYSTEM".</remarks>
+    /// <param name="address">The address string to parse for a data block identifier. Can be null or empty.</param>
+    /// <returns>A string containing the extracted data block identifier if the address is valid and formatted correctly;
+    /// otherwise, "SYSTEM".</returns>
     private static string ExtractDataBlockFromAddress(string? address)
     {
         if (string.IsNullOrEmpty(address) || !address!.StartsWith("DB", StringComparison.OrdinalIgnoreCase))
@@ -386,6 +470,20 @@ public static class PerformanceExtensions
         return dotIndex <= 2 ? "SYSTEM" : address.Substring(0, dotIndex);
     }
 
+    /// <summary>
+    /// Measures the latency of CPU information retrieval operations on the specified PLC and records the results in the
+    /// provided benchmark result object.
+    /// </summary>
+    /// <remarks>This method performs multiple latency tests by repeatedly invoking CPU information retrieval
+    /// on the PLC. The results include average, minimum, and maximum latency values in milliseconds, as well as any
+    /// errors encountered during individual test iterations. The method does not throw exceptions for individual test
+    /// failures; instead, errors are recorded in the result object.</remarks>
+    /// <param name="plc">The PLC instance to test for latency by performing CPU information retrieval operations.</param>
+    /// <param name="result">The object in which the measured latency statistics and any errors encountered during the benchmark are
+    /// recorded.</param>
+    /// <param name="config">The configuration settings that specify how the latency benchmark is performed, including the number of test
+    /// iterations.</param>
+    /// <returns>A task that represents the asynchronous latency benchmarking operation.</returns>
     private static async Task BenchmarkLatency(IRxS7 plc, BenchmarkResult result, BenchmarkConfig config)
     {
         var latencies = new List<double>();
@@ -418,6 +516,19 @@ public static class PerformanceExtensions
         }
     }
 
+    /// <summary>
+    /// Performs a throughput benchmark by repeatedly retrieving CPU information from the specified PLC and records the
+    /// number of operations completed per second.
+    /// </summary>
+    /// <remarks>This method measures the maximum number of CPU information retrieval operations that can be
+    /// performed on the PLC within the configured test duration. Any exceptions encountered during the benchmark are
+    /// recorded in the result object. The method does not throw exceptions to the caller.</remarks>
+    /// <param name="plc">The PLC instance to benchmark. Must implement <see cref="IRxS7"/> and support asynchronous CPU information
+    /// retrieval.</param>
+    /// <param name="result">The object that receives the benchmark results, including operations per second and any errors encountered
+    /// during the test.</param>
+    /// <param name="config">The configuration settings for the benchmark, including the duration of the throughput test.</param>
+    /// <returns>A task that represents the asynchronous benchmark operation.</returns>
     private static async Task BenchmarkThroughput(IRxS7 plc, BenchmarkResult result, BenchmarkConfig config)
     {
         var operations = 0;
@@ -439,6 +550,18 @@ public static class PerformanceExtensions
         }
     }
 
+    /// <summary>
+    /// Performs a reliability benchmark by repeatedly querying CPU information from the specified PLC and records the
+    /// success rate in the provided result object.
+    /// </summary>
+    /// <remarks>This method executes multiple read operations against the PLC to assess communication
+    /// reliability. Errors encountered during individual operations are logged in the result object. The reliability
+    /// rate is calculated as the ratio of successful operations to the total number of attempts.</remarks>
+    /// <param name="plc">The PLC instance to be tested for reliability. Must implement the IRxS7 interface.</param>
+    /// <param name="result">The result object that will be updated with reliability statistics and any errors encountered during the
+    /// benchmark.</param>
+    /// <param name="config">The configuration settings for the benchmark, including the number of reliability test iterations to perform.</param>
+    /// <returns>A task that represents the asynchronous operation of the reliability benchmark.</returns>
     private static async Task BenchmarkReliability(IRxS7 plc, BenchmarkResult result, BenchmarkConfig config)
     {
         var successCount = 0;
@@ -465,6 +588,15 @@ public static class PerformanceExtensions
         result.ReliabilityRate = (double)successCount / totalOperations;
     }
 
+    /// <summary>
+    /// Calculates a composite benchmark score based on latency, throughput, and reliability metrics.
+    /// </summary>
+    /// <remarks>The score is determined by combining weighted contributions from latency, throughput, and
+    /// reliability. Lower latency and higher throughput and reliability yield higher scores. The final score is capped
+    /// at 100.</remarks>
+    /// <param name="result">The benchmark result containing average latency in milliseconds, operations per second, and reliability rate to
+    /// be evaluated.</param>
+    /// <returns>A double value representing the overall benchmark score, ranging from 0 to 100.</returns>
     private static double CalculateBenchmarkScore(BenchmarkResult result)
     {
         var score = 0.0;

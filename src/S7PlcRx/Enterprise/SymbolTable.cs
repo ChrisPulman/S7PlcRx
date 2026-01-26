@@ -4,7 +4,7 @@
 namespace S7PlcRx.Enterprise;
 
 /// <summary>
-/// Symbol table for symbolic addressing support.
+/// Represents a read-only table of named symbols and the time at which it was loaded.
 /// </summary>
 public sealed class SymbolTable
 {

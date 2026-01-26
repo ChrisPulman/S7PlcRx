@@ -4,8 +4,11 @@
 namespace S7PlcRx.Enums;
 
 /// <summary>
-/// Data Type.
+/// Specifies the type of data used in operations such as counters, timers, inputs, outputs, memory, or data blocks.
 /// </summary>
+/// <remarks>This enumeration is typically used to identify or select a specific data type when interacting with
+/// systems that distinguish between these categories, such as programmable logic controllers (PLCs) or industrial
+/// automation software. The values correspond to standard codes for each data type.</remarks>
 internal enum DataType
 {
     /// <summary>

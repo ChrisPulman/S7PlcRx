@@ -4,8 +4,11 @@
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// Production validation configuration.
+/// Represents configuration settings for validating production system performance and reliability.
 /// </summary>
+/// <remarks>Use this class to specify thresholds and criteria for production validation checks, such as
+/// acceptable response times, reliability rates, and minimum production scores. These settings can be adjusted to match
+/// the requirements of different production environments.</remarks>
 public sealed class ProductionValidationConfig
 {
     /// <summary>Gets or sets the maximum acceptable response time.</summary>

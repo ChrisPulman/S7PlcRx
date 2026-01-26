@@ -4,8 +4,11 @@
 namespace S7PlcRx.Enums;
 
 /// <summary>
-/// Error Codes.
+/// Specifies error codes that indicate the result of an operation or the type of error encountered.
 /// </summary>
+/// <remarks>Use this enumeration to identify specific error conditions when handling operation results. The
+/// values represent distinct error types, such as connection failures, invalid data formats, or communication issues.
+/// The meaning of each code is defined by the context in which it is used.</remarks>
 public enum ErrorCode
 {
     /// <summary>

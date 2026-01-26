@@ -6,9 +6,11 @@ using S7PlcRx.Enums;
 namespace S7PlcRx;
 
 /// <summary>
-/// PlcException.
+/// Represents errors that occur during communication with a programmable logic controller (PLC).
 /// </summary>
-/// <seealso cref="System.Exception" />
+/// <remarks>Use this exception to capture and handle PLC-specific error conditions, including error codes that
+/// provide additional context about the failure. The associated <see cref="ErrorCode"/> property indicates the specific
+/// error encountered during PLC operations.</remarks>
 [Serializable]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1194:Implement exception constructors", Justification = "Not desired in this instance.")]
 public class PlcException : Exception

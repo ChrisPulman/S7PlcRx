@@ -4,8 +4,13 @@
 namespace S7PlcRx.Core;
 
 /// <summary>
-/// Data block optimization information.
+/// Represents metadata and configuration information for a data block, including its identifier, size, tag details,
+/// access frequency, and optimization settings.
 /// </summary>
+/// <remarks>Use this class to describe the characteristics of a data block, such as its block number, size in
+/// bytes, and associated tag names. The properties provide information useful for managing, analyzing, or optimizing
+/// data storage and access patterns. Instances of this class are typically used in scenarios where data blocks are
+/// processed, monitored, or configured for batch operations.</remarks>
 public class DataBlockInfo
 {
     /// <summary>Gets or sets the data block number.</summary>

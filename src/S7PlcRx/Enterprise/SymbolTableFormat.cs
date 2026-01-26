@@ -4,7 +4,7 @@
 namespace S7PlcRx.Enterprise;
 
 /// <summary>
-/// Symbol table format enumeration.
+/// Specifies the supported formats for serializing or deserializing a symbol table.
 /// </summary>
 public enum SymbolTableFormat
 {

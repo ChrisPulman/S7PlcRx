@@ -4,8 +4,10 @@
 namespace S7PlcRx.Optimization;
 
 /// <summary>
-/// Request priority levels for optimization engine.
+/// Specifies the priority level for an optimization request.
 /// </summary>
+/// <remarks>Use this enumeration to indicate the relative importance of an optimization request. Higher priority
+/// values may be processed before lower ones, depending on the scheduling or queuing logic of the system.</remarks>
 public enum OptimizationRequestPriority
 {
     /// <summary>

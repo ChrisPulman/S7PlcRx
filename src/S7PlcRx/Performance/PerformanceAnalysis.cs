@@ -4,8 +4,12 @@
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Performance analysis results and optimization recommendations.
+/// Represents the results and metrics of a performance analysis, including time intervals, tag change statistics, and
+/// optimization recommendations.
 /// </summary>
+/// <remarks>Use this class to encapsulate data collected during a performance monitoring session, such as the
+/// frequency of tag changes and suggested improvements. The properties provide access to both raw metrics and
+/// calculated values, enabling further reporting or decision-making based on the analysis.</remarks>
 public class PerformanceAnalysis
 {
     /// <summary>

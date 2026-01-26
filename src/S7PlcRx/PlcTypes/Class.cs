@@ -7,17 +7,34 @@ using S7PlcRx.Enums;
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// Contains the methods to convert a C# class to S7 data types.
+/// Provides static methods for serializing and deserializing class and struct instances to and from byte arrays, as
+/// well as calculating the size of a class in bytes for serialization purposes.
 /// </summary>
+/// <remarks>This class is intended for scenarios where objects need to be converted to a byte representation,
+/// such as communication with PLCs or other systems requiring structured binary formats. All methods operate statically
+/// and require the caller to supply instances and byte arrays as needed. Properties within serialized classes must be
+/// accessible and, for string fields, decorated with the appropriate S7StringAttribute. Methods may throw exceptions if
+/// required attributes are missing or if input values are invalid. Thread safety is not guaranteed; callers should
+/// ensure appropriate synchronization if accessing shared objects.</remarks>
 public static class Class
 {
     /// <summary>
-    /// Gets the size of the class in bytes.
+    /// Calculates the total size, in bytes, of the specified object's accessible properties, including arrays and
+    /// nested properties as applicable.
     /// </summary>
-    /// <param name="instance">An instance of the class.</param>
-    /// <param name="numBytes">The offset of the current field.</param>
-    /// <param name="isInnerProperty"><see langword="true" /> if this property belongs to a class being serialized as member of the class requested for serialization; otherwise, <see langword="false" />.</param>
-    /// <returns>the number of bytes.</returns>
+    /// <remarks>This method inspects the public properties of the object's type to determine the total size.
+    /// Array properties must have a non-null value and a length greater than zero. The calculation accounts for
+    /// S7-Struct alignment by rounding up to the next even byte count unless calculating for an inner
+    /// property.</remarks>
+    /// <param name="instance">The object instance whose class size is to be calculated. Cannot be null.</param>
+    /// <param name="numBytes">The initial byte count to start the calculation from. Typically set to 0.0 for a new calculation.</param>
+    /// <param name="isInnerProperty">Indicates whether the calculation is for an inner property. If <see langword="false"/>, the result is rounded up
+    /// to the next even byte count to match S7-Struct alignment requirements.</param>
+    /// <returns>The total size, in bytes, of the object's accessible properties. The value is rounded up to the next even number
+    /// if <paramref name="isInnerProperty"/> is <see langword="false"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="instance"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if an array property on <paramref name="instance"/> has a null value.</exception>
+    /// <exception cref="Exception">Thrown if an array property on <paramref name="instance"/> has a length less than or equal to zero.</exception>
     public static double GetClassSize(object instance, double numBytes = 0.0, bool isInnerProperty = false)
     {
         if (instance == null)
@@ -65,13 +82,22 @@ public static class Class
     }
 
     /// <summary>
-    /// Sets the object's values with the given array of bytes.
+    /// Populates the properties of the specified object instance from the provided byte array, deserializing each
+    /// property value according to its type.
     /// </summary>
-    /// <param name="sourceClass">The object to fill in the given array of bytes.</param>
-    /// <param name="bytes">The array of bytes.</param>
-    /// <param name="numBytes">The offset for the current field.</param>
-    /// <param name="isInnerClass"><see langword="true" /> if this class is the type of a member of the class to be serialized; otherwise, <see langword="false" />.</param>
-    /// <returns>A double.</returns>
+    /// <remarks>Properties that are arrays are deserialized element by element. The method updates numBytes
+    /// to reflect the number of bytes read. If bytes is shorter than required for all properties, only the available
+    /// bytes are used.</remarks>
+    /// <param name="sourceClass">The object instance whose properties will be set from the byte array. Must not be null.</param>
+    /// <param name="bytes">The byte array containing serialized property values to be assigned to the object. If null, no properties are
+    /// set and the method returns the value of numBytes.</param>
+    /// <param name="numBytes">The starting offset, in bytes, within the byte array from which to begin deserialization. This value is
+    /// incremented as properties are read.</param>
+    /// <param name="isInnerClass">Indicates whether the object instance represents an inner class. This may affect how properties are
+    /// deserialized.</param>
+    /// <returns>The total number of bytes consumed from the byte array during deserialization.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if sourceClass is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if a property on sourceClass that is expected to be an array is not initialized.</exception>
     public static double FromBytes(object sourceClass, byte[] bytes, double numBytes = 0, bool isInnerClass = false)
     {
         if (bytes == null)
@@ -114,12 +140,20 @@ public static class Class
     }
 
     /// <summary>
-    /// Creates a byte array depending on the struct type.
+    /// Serializes the accessible properties of the specified source object into the provided byte array, starting at
+    /// the given offset.
     /// </summary>
-    /// <param name="sourceClass">The struct object.</param>
-    /// <param name="bytes">The target byte array.</param>
-    /// <param name="numBytes">The offset for the current field.</param>
-    /// <returns>A byte array or null if fails.</returns>
+    /// <remarks>If a property of the source object is an array, its elements are serialized sequentially into
+    /// the byte array. Serialization stops if the end of the byte array is reached before all properties are
+    /// written.</remarks>
+    /// <param name="sourceClass">The object whose properties will be serialized into the byte array. Cannot be null. All accessible properties
+    /// must have non-null values.</param>
+    /// <param name="bytes">The byte array that receives the serialized property values. Cannot be null.</param>
+    /// <param name="numBytes">The starting offset, in bytes, within the array at which serialization begins. If not specified, serialization
+    /// starts at the beginning of the array.</param>
+    /// <returns>The total number of bytes written to the array after serialization is complete.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="sourceClass"/> or <paramref name="bytes"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if any accessible property of <paramref name="sourceClass"/> is null.</exception>
     public static double ToBytes(object sourceClass, byte[] bytes, double numBytes = 0.0)
     {
         if (sourceClass == null)
@@ -156,6 +190,14 @@ public static class Class
         return numBytes;
     }
 
+    /// <summary>
+    /// Retrieves the public instance properties of the specified type that have accessible set methods.
+    /// </summary>
+    /// <remarks>Only properties with public set methods are included. Properties with non-public or
+    /// inaccessible setters are excluded.</remarks>
+    /// <param name="classType">The type to inspect for public instance properties with accessible setters. Cannot be null.</param>
+    /// <returns>An enumerable collection of PropertyInfo objects representing the public instance properties of the specified
+    /// type that can be set. The collection will be empty if no such properties exist.</returns>
     private static IEnumerable<PropertyInfo> GetAccessableProperties(Type classType) => classType
             .GetProperties(
                 BindingFlags.SetProperty |
@@ -163,6 +205,22 @@ public static class Class
                 BindingFlags.Instance)
             .Where(p => p.GetSetMethod() != null);
 
+    /// <summary>
+    /// Calculates the increased number of bytes required to represent a value of the specified type, optionally
+    /// considering custom property attributes.
+    /// </summary>
+    /// <remarks>This method supports primitive types, strings with S7StringAttribute, and complex types by
+    /// recursively calculating their size. The calculation may align sizes to even byte boundaries for certain
+    /// types.</remarks>
+    /// <param name="numBytes">The initial number of bytes to be increased based on the type and property information.</param>
+    /// <param name="type">The type of the value for which the byte size is being calculated. Determines how the number of bytes is
+    /// adjusted.</param>
+    /// <param name="propertyInfo">Optional property metadata used to retrieve custom attributes, such as S7StringAttribute, which may affect the
+    /// byte calculation for certain types.</param>
+    /// <returns>The total number of bytes required to represent the value, adjusted according to the type and any relevant
+    /// property attributes.</returns>
+    /// <exception cref="ArgumentException">Thrown if the type is 'String' and the property does not have an S7StringAttribute, or if an instance of the
+    /// specified type cannot be created.</exception>
     private static double GetIncreasedNumberOfBytes(double numBytes, Type type, PropertyInfo? propertyInfo)
     {
         switch (type.Name)
@@ -212,6 +270,25 @@ public static class Class
         return numBytes;
     }
 
+    /// <summary>
+    /// Retrieves the value of a property from a byte array, interpreting the bytes according to the specified property
+    /// type.
+    /// </summary>
+    /// <remarks>This method supports several primitive types, including Boolean, Byte, Int16, UInt16, Int32,
+    /// UInt32, Single, Double, and String, as well as custom types. For string properties, an S7StringAttribute must be
+    /// present to specify the string format and length. The method advances the numBytes reference to track the
+    /// position in the byte array after reading each value.</remarks>
+    /// <param name="propertyType">The type of the property to extract. Determines how the bytes are interpreted and what value is returned.</param>
+    /// <param name="propertyInfo">Metadata about the property, used for extracting additional information such as custom attributes. Can be null
+    /// if not required for the property type.</param>
+    /// <param name="bytes">The byte array containing the raw data from which the property value is extracted.</param>
+    /// <param name="numBytes">A reference to the current position within the byte array. Updated to reflect the number of bytes consumed
+    /// during extraction.</param>
+    /// <returns>An object representing the extracted property value, typed according to the specified property type. Returns
+    /// null if the value cannot be determined.</returns>
+    /// <exception cref="ArgumentException">Thrown if the property type is string and the property does not have a required S7StringAttribute, or if an
+    /// invalid string type is specified for the S7StringAttribute. Also thrown if an instance of the specified property
+    /// type cannot be created.</exception>
     private static object? GetPropertyValue(Type propertyType, PropertyInfo? propertyInfo, byte[] bytes, ref double numBytes)
     {
         object? value = null;
@@ -313,6 +390,26 @@ public static class Class
         return value;
     }
 
+    /// <summary>
+    /// Serializes the specified property value into the provided byte array, starting at the given offset, and returns
+    /// the updated offset after writing the value.
+    /// </summary>
+    /// <remarks>For string properties, the method relies on the S7StringAttribute to determine the
+    /// serialization format and reserved length. The method supports multiple primitive types and will use
+    /// type-specific serialization logic. If the property type is not explicitly handled, a generic serialization
+    /// method is invoked. The caller is responsible for ensuring that the byte array has sufficient capacity for the
+    /// serialized data.</remarks>
+    /// <param name="propertyValue">The value of the property to serialize. Supported types include Boolean, Byte, Int16, UInt16, Int32, UInt32,
+    /// Single, Double, and String.</param>
+    /// <param name="propertyInfo">Metadata about the property being serialized. Required for string properties to retrieve custom serialization
+    /// attributes; can be null for other types.</param>
+    /// <param name="bytes">The byte array into which the property value will be written. The array must be large enough to accommodate the
+    /// serialized data at the specified offset.</param>
+    /// <param name="numBytes">The starting offset, in bytes, within the array where the property value will be written. The method returns the
+    /// offset after writing.</param>
+    /// <returns>The offset, in bytes, immediately following the serialized property value in the array.</returns>
+    /// <exception cref="ArgumentException">Thrown if the property value is a string and the corresponding property does not have a valid S7StringAttribute,
+    /// or if the attribute specifies an unsupported string type.</exception>
     private static double SetBytesFromProperty(object propertyValue, PropertyInfo? propertyInfo, byte[] bytes, double numBytes)
     {
         byte[]? bytes2 = null;
@@ -394,6 +491,13 @@ public static class Class
         return numBytes;
     }
 
+    /// <summary>
+    /// Rounds the specified value up to the nearest even integer.
+    /// </summary>
+    /// <remarks>This method first rounds the value up to the nearest integer, then increments it if the
+    /// result is odd to ensure it is even. The input value is modified in place.</remarks>
+    /// <param name="numBytes">A reference to the value to be rounded. The value will be updated to the next even integer greater than or equal
+    /// to its original value.</param>
     private static void IncrementToEven(ref double numBytes)
     {
         numBytes = Math.Ceiling(numBytes);
