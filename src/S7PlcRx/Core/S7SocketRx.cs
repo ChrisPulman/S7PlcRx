@@ -196,8 +196,15 @@ internal class S7SocketRx : IDisposable
             .SelectMany(x =>
             {
                 // Exponential backoff with cap: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
-                var delaySeconds = Math.Min(Math.Pow(2, x.index), MaxRetryDelaySeconds);
-                LogWarning($"Connection attempt {x.index + 1} failed: {x.ex.Message}. Retrying in {delaySeconds}s...");
+                // Use bit shifting for better performance and prevent overflow
+                var delaySeconds = Math.Min(Math.Min(1 << x.index, MaxRetryDelaySeconds), MaxRetryDelaySeconds);
+
+                // Log only first 5 attempts and then every 10th attempt to prevent log flooding
+                if (x.index < 5 || x.index % 10 == 0)
+                {
+                    LogWarning($"Connection attempt {x.index + 1} failed: {x.ex.Message}. Retrying in {delaySeconds}s...");
+                }
+
                 return Observable.Timer(TimeSpan.FromSeconds(delaySeconds));
             }))
         .Publish(false)
