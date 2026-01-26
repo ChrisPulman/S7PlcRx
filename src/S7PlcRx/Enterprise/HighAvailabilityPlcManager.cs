@@ -22,7 +22,7 @@ public class HighAvailabilityPlcManager : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of the HighAvailabilityPlcManager class with a primary PLC, a list of backup PLCs,
+    /// Initializes a new instance of the <see cref="HighAvailabilityPlcManager"/> class with a primary PLC, a list of backup PLCs,.
     /// and an optional health check interval.
     /// </summary>
     /// <remarks>The primary PLC is always treated as the first PLC in the managed list, regardless of its

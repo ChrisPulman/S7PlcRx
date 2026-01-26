@@ -1165,7 +1165,7 @@ public class RxS7 : IRxS7
     /// <remarks>The returned object type depends on the specified <paramref name="varType"/> and <paramref
     /// name="varCount"/>. For example, if <paramref name="varType"/> is <c>Word</c> and <paramref name="varCount"/> is
     /// 1, a single <c>Word</c> object is returned; if <paramref name="varCount"/> is greater than 1, an array of
-    /// <c>Word</c> objects is returned. For <c>Bit</c> type, a <see cref="System.Boolean"/> is returned. If an error
+    /// <c>Word</c> objects is returned. For <c>Bit</c> type, a <see cref="bool"/> is returned. If an error
     /// occurs during parsing, the method returns <see langword="null"/>.</remarks>
     /// <param name="varType">The type of variable to parse the byte array as. Determines the interpretation of the data in <paramref
     /// name="bytes"/>.</param>
