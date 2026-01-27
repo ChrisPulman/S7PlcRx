@@ -4,8 +4,12 @@
 namespace S7PlcRx.Enums;
 
 /// <summary>
-/// CPU Type.
+/// Specifies the supported CPU types for Siemens programmable logic controllers (PLCs).
 /// </summary>
+/// <remarks>Use this enumeration to indicate the model of CPU when configuring or communicating with Siemens PLC
+/// devices. The available values correspond to common Siemens PLC families, such as LOGO!, S7-200, S7-300, S7-400,
+/// S7-1200, and S7-1500. Selecting the correct CPU type ensures compatibility with device-specific protocols and
+/// features.</remarks>
 public enum CpuType
 {
     /// <summary>

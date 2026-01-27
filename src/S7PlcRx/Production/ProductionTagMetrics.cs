@@ -4,8 +4,11 @@
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// Production tag metrics for system analysis.
+/// Represents aggregated metrics related to production tags, including counts and distribution information.
 /// </summary>
+/// <remarks>Use this class to track and analyze the status and distribution of tags within a production
+/// environment. The metrics provided can assist in monitoring tag activity and identifying trends or anomalies in tag
+/// usage.</remarks>
 public class ProductionTagMetrics
 {
     /// <summary>Gets or sets the total number of tags.</summary>

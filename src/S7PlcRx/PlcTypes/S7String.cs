@@ -7,9 +7,11 @@ using S7PlcRx.Enums;
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// Contains the methods to convert from S7 strings to C# strings
-/// An S7 String has a preceeding 2 byte header containing its capacity and length.
+/// Provides methods for encoding and decoding S7 string values to and from byte arrays using the S7 protocol format.
 /// </summary>
+/// <remarks>This static class supports conversion between .NET strings and the S7 string format used in Siemens
+/// PLCs, which includes a 2-byte header indicating the reserved and actual string lengths. The encoding used for string
+/// conversion can be configured via the StringEncoding property. All methods are thread-safe.</remarks>
 public static class S7String
 {
     private static Encoding stringEncoding = Encoding.ASCII;

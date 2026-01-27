@@ -6,8 +6,11 @@ using S7PlcRx.Core;
 namespace S7PlcRx.BatchOperations;
 
 /// <summary>
-/// Batch operation result with detailed metrics.
+/// Represents the result of executing a batch operation, including summary statistics and details for each operation.
 /// </summary>
+/// <remarks>Use this class to access aggregate information such as the number of successful and failed
+/// operations, processing times, and detailed results for each operation in the batch. The class provides both summary
+/// properties and collections for per-operation and error details.</remarks>
 public class BatchOperationResult
 {
     /// <summary>Gets or sets the operation start time.</summary>

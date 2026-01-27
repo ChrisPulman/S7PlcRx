@@ -7,15 +7,26 @@ using S7PlcRx.Enums;
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// Contains the method to convert a C# struct to S7 data types.
+/// Provides utility methods for working with struct types, including calculating their size in bytes and converting
+/// between structs and byte arrays.
 /// </summary>
+/// <remarks>The methods in this class are primarily intended for scenarios where struct data needs to be
+/// serialized to or deserialized from byte arrays, such as communication with PLCs or binary protocols. The struct
+/// types used with these methods should have public fields and, for string fields, must be decorated with the
+/// S7StringAttribute to specify their encoding and length. All methods are static and thread-safe.</remarks>
 public static class Struct
 {
     /// <summary>
-    /// Gets the size of the struct in bytes.
+    /// Calculates the total size, in bytes, required to store an instance of the specified struct type, based on its
+    /// fields and their types.
     /// </summary>
-    /// <param name="structType">the type of the struct.</param>
-    /// <returns>the number of bytes.</returns>
+    /// <remarks>This method inspects the public fields of the provided struct type and calculates the size
+    /// according to the field types, including handling of custom attributes such as S7StringAttribute for string
+    /// fields. The calculation may not account for all platform-specific alignment or padding rules.</remarks>
+    /// <param name="structType">The type of the struct for which to calculate the size. Must not be null.</param>
+    /// <returns>The total size, in bytes, needed to represent an instance of the specified struct type.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if structType is null.</exception>
+    /// <exception cref="ArgumentException">Thrown if a string field in the struct does not have the required S7StringAttribute.</exception>
     public static int GetStructSize(Type structType)
     {
         if (structType == null)
@@ -100,11 +111,19 @@ public static class Struct
     }
 
     /// <summary>
-    /// Creates a struct of a specified type by an array of bytes.
+    /// Deserializes a byte array into an instance of the specified structure type.
     /// </summary>
-    /// <param name="structType">The struct type.</param>
-    /// <param name="bytes">The array of bytes.</param>
-    /// <returns>The object depending on the struct type or null if fails(array-length != struct-length.</returns>
+    /// <remarks>The method supports deserialization of structures containing fields of supported primitive
+    /// types, strings with S7StringAttribute, and nested structures. All fields must be public. The structure's layout
+    /// and field order must match the serialized byte format.</remarks>
+    /// <param name="structType">The type of the structure to deserialize the byte array into. Must be a type with a parameterless constructor
+    /// and supported field types.</param>
+    /// <param name="bytes">The byte array containing the serialized data for the structure. The length must match the expected size of the
+    /// structure.</param>
+    /// <returns>An object representing the deserialized structure, or null if the byte array is null or does not match the
+    /// expected size.</returns>
+    /// <exception cref="ArgumentException">Thrown if an instance of the specified type cannot be created, or if a string field is missing the required
+    /// S7StringAttribute, or if an invalid string type is specified for the S7StringAttribute.</exception>
     public static object? FromBytes(Type structType, byte[] bytes)
     {
         if (bytes == null)
@@ -302,10 +321,17 @@ public static class Struct
     }
 
     /// <summary>
-    /// Creates a byte array depending on the struct type.
+    /// Converts the specified structure object to its byte array representation.
     /// </summary>
-    /// <param name="structValue">The struct object.</param>
-    /// <returns>A byte array or null if fails.</returns>
+    /// <remarks>Supported field types include Boolean, Byte, Int16, UInt16, Int32, UInt32, Single, Double,
+    /// String (with S7StringAttribute), and TimeSpan. All fields of the structure must be of these types for successful
+    /// conversion.</remarks>
+    /// <param name="structValue">The structure object to convert to a byte array. Must not be null. The object's fields must be of supported
+    /// types.</param>
+    /// <returns>A byte array containing the serialized representation of the structure. Returns an empty array if <paramref
+    /// name="structValue"/> is null.</returns>
+    /// <exception cref="ArgumentException">Thrown if a field value cannot be converted to its corresponding type, or if a string field is missing the
+    /// required S7StringAttribute, or if an invalid string type is specified in the S7StringAttribute.</exception>
     public static byte[] ToBytes(object structValue)
     {
         if (structValue == null)

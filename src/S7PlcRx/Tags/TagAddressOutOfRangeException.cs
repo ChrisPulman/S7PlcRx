@@ -4,9 +4,12 @@
 namespace S7PlcRx;
 
 /// <summary>
-/// Tag Address Out Of Range Exception.
+/// The exception that is thrown when a tag's address is outside the valid range for the operation or context.
 /// </summary>
-/// <seealso cref="System.ArgumentOutOfRangeException" />
+/// <remarks>This exception indicates that an operation attempted to access or use a tag with an address that is
+/// not supported or is out of bounds. It is typically thrown by APIs that validate tag addresses before performing read
+/// or write operations. Catch this exception to handle cases where tag addressing errors may occur, such as user input
+/// or dynamic tag selection.</remarks>
 [Serializable]
 #pragma warning disable RCS1194 // Implement exception constructors.
 public class TagAddressOutOfRangeException : ArgumentOutOfRangeException

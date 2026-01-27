@@ -4,8 +4,11 @@
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// Production error handling configuration.
+/// Represents the configuration settings for error handling and retry logic in a production environment.
 /// </summary>
+/// <remarks>This class provides options to control retry attempts, delay strategies, and circuit breaker behavior
+/// for handling transient errors. It is typically used to configure error resilience policies in applications that
+/// interact with external systems or services.</remarks>
 public sealed class ProductionErrorConfig
 {
     /// <summary>Gets or sets the maximum retry attempts.</summary>

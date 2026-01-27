@@ -4,8 +4,13 @@
 namespace S7PlcRx.Optimization;
 
 /// <summary>
-/// Result of write optimization operations.
+/// Represents the result of a write optimization operation, including timing information, per-write outcomes, and
+/// overall error details.
 /// </summary>
+/// <remarks>Use this class to access detailed results of a write optimization process, such as the start and end
+/// times, lists of successful and failed writes, and aggregate metrics like total duration and success rate. The
+/// dictionaries provide per-write information, with keys typically representing write identifiers. This type is
+/// immutable except for properties explicitly marked as settable.</remarks>
 public sealed class WriteOptimizationResult
 {
     /// <summary>Gets or sets the operation start time.</summary>

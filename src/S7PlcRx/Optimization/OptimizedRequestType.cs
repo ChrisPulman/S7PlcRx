@@ -4,8 +4,10 @@
 namespace S7PlcRx.Optimization;
 
 /// <summary>
-/// Types of optimized requests.
+/// Specifies the type of operation to be performed in an optimized request.
 /// </summary>
+/// <remarks>Use this enumeration to indicate whether a request is intended for reading, writing, or performing
+/// diagnostic actions. The value selected may affect how the system processes or prioritizes the request.</remarks>
 internal enum OptimizedRequestType
 {
     /// <summary>

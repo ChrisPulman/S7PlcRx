@@ -4,8 +4,11 @@
 namespace S7PlcRx.Enums;
 
 /// <summary>
-/// String type.
+/// Specifies the string encoding type used for S7 PLC string variables.
 /// </summary>
+/// <remarks>Use this enumeration to indicate whether a string variable should be interpreted as an ASCII
+/// (S7String) or Unicode (S7WString) string when communicating with Siemens S7 PLCs. The encoding type determines how
+/// string data is read from or written to the PLC.</remarks>
 public enum S7StringType
 {
     /// <summary>

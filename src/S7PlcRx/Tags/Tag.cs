@@ -4,8 +4,13 @@
 namespace S7PlcRx;
 
 /// <summary>
-/// Tag for PLC.
+/// Represents a data tag with a name, address, value, type, and optional array length, typically used for storing or
+/// transferring typed values identified by address or name.
 /// </summary>
+/// <remarks>The Tag class is commonly used to encapsulate a value along with its metadata, such as its address,
+/// name, and type information. It supports both scalar and array values, as indicated by the ArrayLength property. The
+/// DoNotPoll property can be used to control whether the tag should be excluded from polling operations in scenarios
+/// such as industrial automation or data acquisition systems.</remarks>
 [Serializable]
 public class Tag : ITag
 {
@@ -97,58 +102,43 @@ public class Tag : ITag
     }
 
     /// <summary>
-    /// Gets or sets the address.
+    /// Gets or sets the address associated with the entity.
     /// </summary>
-    /// <value>The address.</value>
     public string? Address { get; set; }
 
     /// <summary>
-    /// Gets or sets the name.
+    /// Gets or sets the name associated with the object.
     /// </summary>
-    /// <value>The name.</value>
     public string? Name { get; set; }
 
     /// <summary>
-    /// Gets or sets the current value.
+    /// Gets or sets the value associated with this instance.
     /// </summary>
-    /// <value>The value.</value>
     public object? Value { get; set; }
 
     /// <summary>
-    /// Gets the value.
+    /// Gets the new value associated with the change event.
     /// </summary>
-    /// <value>
-    /// The new value.
-    /// </value>
     public object? NewValue { get; internal set; }
 
     /// <summary>
-    /// Gets the type.
+    /// Gets the runtime type information associated with the current instance.
     /// </summary>
-    /// <value>
-    /// The type.
-    /// </value>
     public Type Type { get; internal set; }
 
     /// <summary>
-    /// Gets the length of the array.
+    /// Gets the length of the array, if known.
     /// </summary>
-    /// <value>
-    /// The length of the array.
-    /// </value>
     public int? ArrayLength { get; internal set; }
 
     /// <summary>
-    /// Gets a value indicating whether [do not poll].
+    /// Gets a value indicating whether polling operations should be suppressed for this instance.
     /// </summary>
-    /// <value>
-    ///   <c>true</c> if [do not poll]; otherwise, <c>false</c>.
-    /// </value>
     public bool DoNotPoll { get; internal set; }
 
     /// <summary>
-    /// Sets the do not poll.
+    /// Sets a value indicating whether polling operations should be disabled.
     /// </summary>
-    /// <param name="value">if set to <c>true</c> [value].</param>
+    /// <param name="value">true to disable polling; otherwise, false.</param>
     public void SetDoNotPoll(bool value) => DoNotPoll = value;
 }

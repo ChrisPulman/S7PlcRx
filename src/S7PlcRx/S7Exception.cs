@@ -4,9 +4,11 @@
 namespace S7PlcRx;
 
 /// <summary>
-/// S7 Exception.
+/// Represents errors that occur during S7 protocol operations.
 /// </summary>
-/// <seealso cref="System.Exception" />
+/// <remarks>Use this exception to handle errors specific to S7 communication scenarios. This exception is
+/// typically thrown when an S7 operation fails due to protocol errors, invalid responses, or communication
+/// issues.</remarks>
 [Serializable]
 public class S7Exception : Exception
 {

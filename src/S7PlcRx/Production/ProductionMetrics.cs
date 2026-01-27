@@ -4,8 +4,12 @@
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// Production metrics for monitoring system health and performance.
+/// Represents a set of metrics related to the monitoring and connectivity status of a PLC (Programmable Logic
+/// Controller) over a specified period.
 /// </summary>
+/// <remarks>This class is typically used to capture and report operational statistics for a PLC, such as
+/// connection times, uptime percentage, and tag counts. All properties are mutable, allowing for incremental updates as
+/// new data is collected.</remarks>
 public sealed class ProductionMetrics
 {
     /// <summary>Gets or sets the PLC identifier.</summary>

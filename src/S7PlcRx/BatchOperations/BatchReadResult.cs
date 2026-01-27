@@ -6,9 +6,14 @@ using System.Reactive.Linq;
 namespace S7PlcRx.BatchOperations;
 
 /// <summary>
-/// Result of a batch read operation.
+/// Represents the result of a batch read operation, including the values read, per-tag success status, error messages,
+/// and overall success information.
 /// </summary>
-/// <typeparam name="T">The type of values read.</typeparam>
+/// <remarks>Use this class to access the outcome of a batch read, including which tags succeeded, which failed,
+/// and any associated error messages. The dictionaries provide per-tag details, while the overall success and count
+/// properties offer summary information. This class is typically used in scenarios where multiple items are read in a
+/// single operation and individual results must be tracked.</remarks>
+/// <typeparam name="T">The type of the values returned for each tag in the batch read operation.</typeparam>
 public class BatchReadResult<T>
 {
     /// <summary>Gets the successfully read values.</summary>

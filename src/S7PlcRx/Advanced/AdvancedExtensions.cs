@@ -11,17 +11,29 @@ using S7PlcRx.Production;
 namespace S7PlcRx.Advanced;
 
 /// <summary>
-/// Advanced extensions for enhanced S7 PLC functionality and performance optimization.
+/// Provides advanced extension methods for efficient batch operations, diagnostics, and performance analysis on PLC
+/// (Programmable Logic Controller) instances using the IRxS7 interface.
 /// </summary>
+/// <remarks>These extension methods enable high-performance reading, writing, monitoring, and analysis of PLC
+/// variables, supporting scenarios such as batch updates, optimized data access, and system diagnostics. Methods are
+/// designed to simplify complex PLC interactions and provide recommendations for optimization. All methods require a
+/// valid IRxS7 instance and may throw exceptions if invalid arguments are supplied. Thread safety and performance
+/// considerations are addressed where relevant in individual method documentation.</remarks>
 public static class AdvancedExtensions
 {
     /// <summary>
-    /// Observes multiple variables efficiently using batch optimization.
+    /// Observes the values of multiple PLC variables as a batch and emits updates as a dictionary when any of the
+    /// specified variables change.
     /// </summary>
-    /// <typeparam name="T">The type.</typeparam>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="variables">The variables to observe.</param>
-    /// <returns>An observable dictionary of variable names and their values.</returns>
+    /// <remarks>The returned observable is hot and shared among all subscribers. If a specified variable is
+    /// not already being polled, polling is automatically enabled for that variable. The sequence emits a new
+    /// dictionary only when the set of variable values changes.</remarks>
+    /// <typeparam name="T">The type of the variable values to observe. Must be compatible with the PLC variable types.</typeparam>
+    /// <param name="plc">The PLC instance that provides access to the variables to observe. Cannot be null.</param>
+    /// <param name="variables">The names of the PLC variables to observe. If empty, an empty dictionary is emitted.</param>
+    /// <returns>An observable sequence that emits a dictionary mapping each specified variable name to its most recent value.
+    /// The dictionary is updated and emitted whenever any of the observed variables change.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="plc"/> parameter is null.</exception>
     public static IObservable<Dictionary<string, T?>> ObserveBatch<T>(this IRxS7 plc, params string[] variables)
     {
         if (plc == null)
@@ -56,12 +68,19 @@ public static class AdvancedExtensions
     }
 
     /// <summary>
-    /// Reads multiple variables efficiently in a single operation.
+    /// Asynchronously reads the values of multiple variables from the PLC and returns a dictionary mapping variable
+    /// names to their values.
     /// </summary>
-    /// <typeparam name="T">The type.</typeparam>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="variables">The variables to read.</param>
-    /// <returns>A dictionary of variable names and their values.</returns>
+    /// <remarks>If a variable name does not exist in the PLC or cannot be read, its value in the returned
+    /// dictionary will be the default value for type T. The order of the returned dictionary corresponds to the order
+    /// of the requested variable names. This method may perform the reads in parallel for efficiency.</remarks>
+    /// <typeparam name="T">The type of the variable values to read from the PLC.</typeparam>
+    /// <param name="plc">The PLC instance from which to read the variable values. Cannot be null.</param>
+    /// <param name="variables">An array of variable names to read from the PLC. Each name must correspond to a valid variable in the PLC.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a dictionary mapping each requested
+    /// variable name to its value of type T, or to the default value of T if the variable could not be read or does not
+    /// exist. If no variables are specified, returns an empty dictionary.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
     public static async Task<Dictionary<string, T?>> ValueBatch<T>(this IRxS7 plc, params string[] variables)
     {
         if (plc == null)
@@ -137,12 +156,15 @@ public static class AdvancedExtensions
     }
 
     /// <summary>
-    /// Writes multiple values efficiently in batch operations.
+    /// Writes a batch of values to the PLC asynchronously using the specified tag-value pairs.
     /// </summary>
-    /// <typeparam name="T">The type.</typeparam>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="values">Dictionary of variable names and values to write.</param>
-    /// <returns>A task representing the batch write operation.</returns>
+    /// <remarks>If the underlying PLC implementation supports batch writing, the method attempts to write all
+    /// values in a single operation for improved performance. Otherwise, values are written individually in parallel.
+    /// No action is taken if the dictionary is null or empty.</remarks>
+    /// <typeparam name="T">The type of the values to write to the PLC.</typeparam>
+    /// <param name="plc">The PLC interface to which the values will be written.</param>
+    /// <param name="values">A dictionary containing tag names as keys and the corresponding values to write. Cannot be null or empty.</param>
+    /// <returns>A task that represents the asynchronous write operation.</returns>
     public static async Task ValueBatch<T>(this IRxS7 plc, Dictionary<string, T> values)
     {
         if (values == null || values.Count == 0)
@@ -174,14 +196,20 @@ public static class AdvancedExtensions
     }
 
     /// <summary>
-    /// Optimized batch read with verification and error handling.
-    /// Groups operations by data block for maximum efficiency.
+    /// Reads a batch of tags from the PLC in an optimized manner, grouping reads by data block to improve performance.
     /// </summary>
-    /// <typeparam name="T">The type of values to read.</typeparam>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="tagMapping">Dictionary mapping tag names to PLC addresses.</param>
-    /// <param name="timeoutMs">Operation timeout in milliseconds.</param>
-    /// <returns>Batch read result with success indicators.</returns>
+    /// <remarks>If the tagMapping dictionary is null or empty, the method returns a successful result with no
+    /// values. Tags are grouped by data block to minimize communication overhead. If a tag does not exist in the PLC's
+    /// tag list, it is added before reading. Each tag read is subject to the specified timeout.</remarks>
+    /// <typeparam name="T">The type of the values to read from the PLC tags.</typeparam>
+    /// <param name="plc">The PLC instance that provides access to the tags to be read. Cannot be null.</param>
+    /// <param name="tagMapping">A dictionary mapping logical tag names to their corresponding PLC addresses. Each key is the tag name, and each
+    /// value is the PLC address to read.</param>
+    /// <param name="timeoutMs">The maximum time, in milliseconds, to wait for each tag read operation before timing out. The default is 5000
+    /// milliseconds.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a BatchReadResult{T} with the values
+    /// read, per-tag success status, and any errors encountered.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
     public static async Task<BatchReadResult<T>> ReadBatchOptimized<T>(
         this IRxS7 plc,
         Dictionary<string, string> tagMapping,
@@ -268,14 +296,25 @@ public static class AdvancedExtensions
     }
 
     /// <summary>
-    /// Optimized batch write with verification and rollback capabilities.
+    /// Writes a batch of values to the specified PLC in an optimized manner, with optional write verification and
+    /// rollback support.
     /// </summary>
-    /// <typeparam name="T">The type of values to write.</typeparam>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="values">Values to write.</param>
-    /// <param name="verifyWrites">Whether to verify writes.</param>
-    /// <param name="enableRollback">Whether to enable rollback on failure.</param>
-    /// <returns>Batch write result.</returns>
+    /// <remarks>If enableRollback is set to true and any write fails, the method attempts to restore all
+    /// affected PLC addresses to their original values. Write verification, if enabled, reads back each value after
+    /// writing to ensure correctness. This method is asynchronous and should be awaited to ensure completion of all
+    /// write and verification operations.</remarks>
+    /// <typeparam name="T">The type of the values to write to the PLC.</typeparam>
+    /// <param name="plc">The PLC instance to which the values will be written. Cannot be null.</param>
+    /// <param name="values">A dictionary mapping PLC variable addresses to the values to write. Each key represents a PLC address, and each
+    /// value is the data to write to that address. If the dictionary is null or empty, no write operations are
+    /// performed.</param>
+    /// <param name="verifyWrites">true to verify each write by reading back the value after writing; otherwise, false. Verification may increase
+    /// operation time.</param>
+    /// <param name="enableRollback">true to enable rollback of all written values to their original state if any write fails; otherwise, false.
+    /// Rollback is attempted only if an error occurs during the batch write.</param>
+    /// <returns>A BatchWriteResult object containing the outcome of the batch write operation, including per-address success and
+    /// error information. If no values are provided, the result indicates overall success.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if plc is null.</exception>
     public static async Task<BatchWriteResult> WriteBatchOptimized<T>(
         this IRxS7 plc,
         Dictionary<string, T> values,
@@ -367,10 +406,16 @@ public static class AdvancedExtensions
     }
 
     /// <summary>
-    /// Gets detailed diagnostic information from the PLC.
+    /// Asynchronously collects diagnostic information and performance metrics from the specified PLC instance.
     /// </summary>
-    /// <param name="plc">The PLC instance.</param>
-    /// <returns>A comprehensive diagnostic report.</returns>
+    /// <remarks>If the PLC is not connected, only basic information is included in the diagnostics. For
+    /// S7-1500 PLCs, additional CPU information and connection latency are measured. Any errors encountered during
+    /// diagnostic collection are recorded in the Errors property of the returned ProductionDiagnostics
+    /// object.</remarks>
+    /// <param name="plc">The PLC instance from which to retrieve diagnostics. Must implement the IRxS7 interface.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a ProductionDiagnostics object with
+    /// collected diagnostic data, tag metrics, and optimization recommendations.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
     public static async Task<ProductionDiagnostics> GetDiagnostics(this IRxS7 plc)
     {
         if (plc == null)
@@ -424,11 +469,18 @@ public static class AdvancedExtensions
     }
 
     /// <summary>
-    /// Monitors tag performance and provides optimization recommendations.
+    /// Analyzes tag change performance on the specified PLC over a given monitoring duration and returns a summary of
+    /// tag change frequencies and recommendations.
     /// </summary>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="monitoringDuration">The duration to monitor performance.</param>
-    /// <returns>Performance analysis and optimization recommendations.</returns>
+    /// <remarks>This method subscribes to all tag changes on the PLC and tracks the frequency of changes for
+    /// each tag during the specified monitoring period. The analysis includes total tag changes, per-tag change counts,
+    /// and suggestions for optimizing performance based on observed activity. The method is thread-safe and does not
+    /// block the calling thread.</remarks>
+    /// <param name="plc">The PLC instance to monitor for tag changes. Cannot be null.</param>
+    /// <param name="monitoringDuration">The length of time to observe tag changes. Must be a positive time span.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a PerformanceAnalysis object with
+    /// tag change statistics and performance recommendations for the monitored period.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
     public static async Task<PerformanceAnalysis> AnalyzePerformance(this IRxS7 plc, TimeSpan monitoringDuration)
     {
         if (plc == null)
@@ -484,17 +536,28 @@ public static class AdvancedExtensions
     }
 
     /// <summary>
-    /// Creates a high-performance tag group for batch operations.
+    /// Creates a new high-performance tag group for batch reading or writing of multiple tags from the specified PLC
+    /// connection.
     /// </summary>
-    /// <typeparam name="T">The type.</typeparam>
-    /// <param name="plc">The PLC instance.</param>
-    /// <param name="groupName">The name of the tag group.</param>
-    /// <param name="tagNames">The tags to include in the group.</param>
-    /// <returns>
-    /// A high-performance tag group.
-    /// </returns>
+    /// <remarks>Use this method to efficiently manage and operate on multiple tags as a single group, which
+    /// can improve performance for batch operations.</remarks>
+    /// <typeparam name="T">The data type of the tag values in the group.</typeparam>
+    /// <param name="plc">The PLC connection used to access the tags. Cannot be null.</param>
+    /// <param name="groupName">The name assigned to the tag group. Used to identify the group within the PLC context.</param>
+    /// <param name="tagNames">An array of tag names to include in the group. Each name must correspond to a valid tag in the PLC.</param>
+    /// <returns>A new instance of HighPerformanceTagGroup{T} containing the specified tags, associated with the given PLC
+    /// connection.</returns>
     public static HighPerformanceTagGroup<T> CreateTagGroup<T>(this IRxS7 plc, string groupName, params string[] tagNames) => new(plc, groupName, tagNames);
 
+    /// <summary>
+    /// Extracts the data block identifier from the specified address string.
+    /// </summary>
+    /// <remarks>If the address does not start with "DB" or is null or empty, the method returns "SYSTEM". If
+    /// the address does not contain a period ('.') after the "DB" prefix, or if the period occurs at or before the
+    /// third character, "SYSTEM" is also returned.</remarks>
+    /// <param name="address">The address string from which to extract the data block identifier. Must not be null or empty and should start
+    /// with "DB" to return a valid identifier.</param>
+    /// <returns>A string containing the data block identifier if the address is valid and starts with "DB"; otherwise, "SYSTEM".</returns>
     private static string ExtractDataBlockId(string address)
     {
         if (string.IsNullOrEmpty(address) || !address.StartsWith("DB", StringComparison.OrdinalIgnoreCase))
@@ -506,10 +569,22 @@ public static class AdvancedExtensions
         return dotIndex <= 2 ? "SYSTEM" : address.Substring(0, dotIndex);
     }
 
+    /// <summary>
+    /// Analyzes the distribution of tags across data blocks and returns a count of tags per data block identifier.
+    /// </summary>
+    /// <param name="tags">The collection of tags to analyze. Each tag must have a non-null address.</param>
+    /// <returns>A dictionary mapping each data block identifier to the number of tags associated with it. If no tags are
+    /// provided, the dictionary will be empty.</returns>
     private static Dictionary<string, int> AnalyzeDataBlockDistribution(IEnumerable<Tag> tags) => tags
             .GroupBy(t => ExtractDataBlockId(t.Address!))
             .ToDictionary(g => g.Key, g => g.Count());
 
+    /// <summary>
+    /// Analyzes production diagnostics and generates a list of optimization recommendations based on detected
+    /// performance issues.
+    /// </summary>
+    /// <param name="diagnostics">The diagnostics data containing tag metrics and connection latency information to be analyzed.</param>
+    /// <returns>A list of strings containing recommended optimizations. The list is empty if no issues are detected.</returns>
     private static List<string> GenerateOptimizationRecommendations(ProductionDiagnostics diagnostics)
     {
         var recommendations = new List<string>();
@@ -532,6 +607,17 @@ public static class AdvancedExtensions
         return recommendations;
     }
 
+    /// <summary>
+    /// Analyzes tag change frequencies over a specified monitoring period and generates performance optimization
+    /// recommendations based on observed activity patterns.
+    /// </summary>
+    /// <remarks>Tags that change infrequently may benefit from reduced polling frequency, while tags that
+    /// change frequently may be candidates for batch operations. This method does not modify the input data.</remarks>
+    /// <param name="tagChangeCounts">A thread-safe dictionary mapping tag names to the number of times each tag changed during the monitoring period.
+    /// Each entry represents the total change count for a specific tag.</param>
+    /// <param name="monitoringDuration">The total duration over which tag changes were monitored. Must be a positive time interval.</param>
+    /// <returns>A list of performance recommendations based on the frequency of tag changes. The list is empty if no
+    /// recommendations are applicable or if the monitoring duration is zero or negative.</returns>
     private static List<string> GeneratePerformanceRecommendations(
         ConcurrentDictionary<string, int> tagChangeCounts,
         TimeSpan monitoringDuration)
@@ -570,11 +656,12 @@ public static class AdvancedExtensions
     }
 
     /// <summary>
-    /// Validates that a tag value is of the correct type.
+    /// Determines whether the specified tag is non-null and its value is compatible with the specified type parameter.
     /// </summary>
-    /// <typeparam name="T">The expected type.</typeparam>
-    /// <param name="tag">The tag to validate.</param>
-    /// <returns>True if the tag is valid, false otherwise.</returns>
+    /// <remarks>If T is object, any non-null tag is considered valid regardless of its value type.</remarks>
+    /// <typeparam name="T">The type to check the tag's value against.</typeparam>
+    /// <param name="tag">The tag to validate. May be null.</param>
+    /// <returns>true if the tag is not null and its value is compatible with type T; otherwise, false.</returns>
     private static bool TagValueIsValid<T>(Tag? tag) =>
         tag != null && (typeof(object) == typeof(T) || (tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
 }

@@ -4,8 +4,11 @@
 namespace S7PlcRx.Production;
 
 /// <summary>
-/// Circuit breaker states.
+/// Specifies the operational state of a circuit breaker used to control the flow of operations in response to failures.
 /// </summary>
+/// <remarks>Use this enumeration to determine or set the current state of a circuit breaker implementation. The
+/// state controls whether operations are allowed, blocked, or tested for recovery. Typical usage involves transitioning
+/// between these states based on error rates or recovery attempts.</remarks>
 public enum CircuitBreakerState
 {
     /// <summary>Circuit is closed (normal operation).</summary>

@@ -6,14 +6,11 @@ using S7PlcRx.Core;
 namespace S7PlcRx.BatchOperations;
 
 /// <summary>
-/// Represents a batch request for optimized PLC communication.
+/// Represents a single request to be processed as part of a batch operation.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="BatchRequest"/> class.
-/// </remarks>
-/// <param name="type">The request type.</param>
-/// <param name="tag">The tag to process.</param>
-/// <param name="priority">The priority of the request.</param>
+/// <param name="type">The type of the batch request to perform.</param>
+/// <param name="tag">The tag associated with the request to be processed.</param>
+/// <param name="priority">The priority level assigned to the request. Defaults to RequestPriority.Normal.</param>
 internal class BatchRequest(BatchRequestType type, Tag tag, RequestPriority priority = RequestPriority.Normal)
 {
     /// <summary>

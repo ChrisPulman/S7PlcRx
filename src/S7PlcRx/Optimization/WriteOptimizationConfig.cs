@@ -4,8 +4,12 @@
 namespace S7PlcRx.Optimization;
 
 /// <summary>
-/// Configuration for write optimization.
+/// Provides configuration options for optimizing write operations, including parallelism, verification, timing, and
+/// concurrency settings.
 /// </summary>
+/// <remarks>Use this class to customize the behavior of write operations, such as enabling parallel writes,
+/// specifying verification requirements, and controlling delays and timeouts. Adjusting these settings can help balance
+/// performance and reliability based on application needs.</remarks>
 public sealed class WriteOptimizationConfig
 {
     /// <summary>Gets or sets a value indicating whether gets or sets whether to enable parallel writes within data block groups.</summary>

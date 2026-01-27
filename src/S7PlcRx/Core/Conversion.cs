@@ -6,15 +6,26 @@ using System.Globalization;
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// Conversion.
+/// Provides static methods for converting between binary representations, numeric types, and bitwise operations.
+/// Intended for internal use in scenarios involving low-level data manipulation or communication with systems that
+/// require specific binary formats.
 /// </summary>
+/// <remarks>The Conversion class includes extension methods for converting between binary strings and numeric
+/// types, extracting or setting individual bits in bytes, and handling conversions between signed and unsigned integer
+/// representations. These methods are particularly useful when working with protocols or data formats that require
+/// explicit control over binary layouts, such as PLC communication or custom serialization. This class is not intended
+/// for general-purpose use and should be used with care, as incorrect usage may result in data loss or unexpected
+/// behavior.</remarks>
 internal static class Conversion
 {
     /// <summary>
-    /// Converts a binary string to int value.
+    /// Converts a string representation of a binary number to its 32-bit signed integer equivalent.
     /// </summary>
-    /// <param name="txt">The text.</param>
-    /// <returns>A int.</returns>
+    /// <remarks>The method interprets the input string as a binary number, with the leftmost character as the
+    /// most significant bit. The input string must not be empty and should only contain '0' and '1' characters;
+    /// otherwise, the result may not be meaningful.</remarks>
+    /// <param name="txt">The string containing the binary number to convert. Each character must be '0' or '1'.</param>
+    /// <returns>A 32-bit signed integer equivalent to the binary number represented by <paramref name="txt"/>.</returns>
     public static int BinStringToInt32(this string txt)
     {
         var ret = 0;
@@ -28,70 +39,98 @@ internal static class Conversion
     }
 
     /// <summary>
-    /// Converts a binary string to a byte. Can return null.
+    /// Converts an 8-character binary string to its equivalent byte value.
     /// </summary>
-    /// <param name="txt">The text.</param>
-    /// <returns>
-    /// A byte.
-    /// </returns>
+    /// <remarks>If the input string contains any characters other than '0' or '1', or if its length is not
+    /// exactly 8, the method returns null. This method is intended for use with valid 8-bit binary
+    /// representations.</remarks>
+    /// <param name="txt">The string containing exactly 8 characters, each of which must be '0' or '1', representing a binary number.</param>
+    /// <returns>A byte value equivalent to the binary string if the input has exactly 8 characters; otherwise, null.</returns>
     public static byte? BinStringToByte(this string txt) => txt.Length == 8 ? (byte)BinStringToInt32(txt) : null;
 
     /// <summary>
-    /// Converts from DWord (DBD) to double.
+    /// Converts the specified 32-bit unsigned integer to a double-precision floating-point number by interpreting its
+    /// binary representation.
     /// </summary>
-    /// <param name="input">The input.</param>
-    /// <returns>A double.</returns>
+    /// <remarks>This method performs a bitwise reinterpretation of the input value. The resulting double may
+    /// not represent a numerically meaningful value unless the input was originally produced from a double using the
+    /// corresponding conversion.</remarks>
+    /// <param name="input">The 32-bit unsigned integer whose bit pattern is to be reinterpreted as a double-precision floating-point value.</param>
+    /// <returns>A double-precision floating-point number whose binary representation matches that of the input value.</returns>
     public static double ConvertToDouble(this uint input) => LReal.FromByteArray(DWord.ToByteArray(input));
 
     /// <summary>
-    /// Converts from DWord (DBD) to float.
+    /// Converts the specified 32-bit unsigned integer to its IEEE 754 single-precision floating-point representation by
+    /// interpreting the bit pattern as a float.
     /// </summary>
-    /// <param name="input">The input.</param>
-    /// <returns>A float.</returns>
+    /// <remarks>This method does not perform numeric conversion; it reinterprets the raw bits of the input as
+    /// a float. Use this method when you need to treat the binary representation of an unsigned integer as a
+    /// floating-point value, such as when working with low-level data formats or serialization.</remarks>
+    /// <param name="input">The 32-bit unsigned integer whose bit pattern is to be reinterpreted as a single-precision floating-point value.</param>
+    /// <returns>A single-precision floating-point value whose bit pattern is identical to that of the input integer.</returns>
     public static float ConvertToFloat(this uint input) => Real.FromByteArray(DWord.ToByteArray(input));
 
     /// <summary>
-    /// Converts from uint value to int value; it's used to retrieve negative values from DBDs.
+    /// Converts the specified unsigned integer to a 32-bit signed integer by interpreting its hexadecimal
+    /// representation.
     /// </summary>
-    /// <param name="input">The input.</param>
-    /// <returns>A int.</returns>
+    /// <remarks>If the hexadecimal value of the input exceeds the range of a 32-bit signed integer, an
+    /// exception is thrown.</remarks>
+    /// <param name="input">The unsigned integer value to convert.</param>
+    /// <returns>A 32-bit signed integer that represents the hexadecimal value of the input.</returns>
     public static int ConvertToInt(this uint input) => int.Parse(input.ToString("X"), NumberStyles.HexNumber);
 
     /// <summary>
-    /// Converts from ushort value to short value; it's used to retrieve negative values from words.
+    /// Converts the specified 16-bit unsigned integer to a 16-bit signed integer by interpreting its hexadecimal
+    /// representation.
     /// </summary>
-    /// <param name="input">The input.</param>
-    /// <returns>A short.</returns>
+    /// <remarks>This method interprets the input value as a hexadecimal number and parses it as a signed
+    /// 16-bit integer. Values greater than 0x7FFF will be converted to their corresponding negative signed values due
+    /// to two's complement representation.</remarks>
+    /// <param name="input">The 16-bit unsigned integer to convert.</param>
+    /// <returns>A 16-bit signed integer that represents the hexadecimal value of the input.</returns>
     public static short ConvertToShort(this ushort input) => short.Parse(input.ToString("X"), NumberStyles.HexNumber);
 
     /// <summary>
-    /// Converts from double to DWord (DBD).
+    /// Converts the specified single-precision floating-point value to a 32-bit unsigned integer by interpreting its
+    /// binary representation.
     /// </summary>
-    /// <param name="input">The input.</param>
-    /// <returns>A uint.</returns>
+    /// <remarks>This method does not perform numeric conversion or rounding. Instead, it reinterprets the raw
+    /// bits of the floating-point value as an unsigned integer. Use this method when you need to access the underlying
+    /// bit pattern of a float.</remarks>
+    /// <param name="input">The single-precision floating-point value whose bit pattern is to be reinterpreted as a 32-bit unsigned integer.</param>
+    /// <returns>A 32-bit unsigned integer that has the same binary representation as the input floating-point value.</returns>
     public static uint ConvertToUInt(this float input) => DWord.FromByteArray(LReal.ToByteArray(input));
 
     /// <summary>
-    /// Converts from Int32 value to UInt32 value; it's used to pass negative values to DBDs.
+    /// Converts the specified 32-bit signed integer to its equivalent 32-bit unsigned integer by interpreting its
+    /// hexadecimal representation.
     /// </summary>
-    /// <param name="input">The input.</param>
-    /// <returns>A uint.</returns>
+    /// <remarks>This method interprets the hexadecimal string representation of the input value as an
+    /// unsigned integer. Negative input values will be converted based on their hexadecimal form, which may result in
+    /// large unsigned values.</remarks>
+    /// <param name="input">The 32-bit signed integer to convert.</param>
+    /// <returns>A 32-bit unsigned integer that represents the hexadecimal value of the input integer.</returns>
     public static uint ConvertToUInt(this int input) => uint.Parse(input.ToString("X"), NumberStyles.HexNumber);
 
     /// <summary>
-    /// Converts from short value to ushort value; it's used to pass negative values to DWs.
+    /// Converts a 16-bit signed integer to its equivalent 16-bit unsigned integer by interpreting the value as a
+    /// hexadecimal number.
     /// </summary>
-    /// <param name="input">The input.</param>
-    /// <returns>A ushort.</returns>
+    /// <remarks>This method interprets the binary representation of the input as a hexadecimal value and
+    /// converts it to an unsigned 16-bit integer. Negative input values will be converted to their two's complement
+    /// unsigned representation.</remarks>
+    /// <param name="input">The 16-bit signed integer to convert.</param>
+    /// <returns>A 16-bit unsigned integer that represents the hexadecimal value of the input.</returns>
     public static ushort ConvertToUshort(this short input) => ushort.Parse(input.ToString("X"), NumberStyles.HexNumber);
 
     /// <summary>
-    /// Helper to get a bit value given a byte and the bit index.
-    /// Example: DB1.DBX0.5 -&gt; var bytes = ReadBytes(DB1.DBW0); bool bit = bytes[0].SelectBit(5).
+    /// Determines whether the specified bit is set in the given byte value.
     /// </summary>
-    /// <param name="data">The data.</param>
-    /// <param name="bitPosition">The bit position.</param>
-    /// <returns>A bool.</returns>
+    /// <param name="data">The byte value to examine.</param>
+    /// <param name="bitPosition">The zero-based position of the bit to check, where 0 represents the least significant bit. Must be in the range
+    /// 0 to 7.</param>
+    /// <returns>true if the bit at the specified position is set; otherwise, false.</returns>
     public static bool SelectBit(this byte data, int bitPosition)
     {
         var mask = 1 << bitPosition;
@@ -134,13 +173,16 @@ internal static class Conversion
     }
 
     /// <summary>
-    /// Converts the value to a binary string.
+    /// Converts the specified numeric value or array to its binary string representation.
     /// </summary>
-    /// <param name="value">The value.</param>
-    /// <returns>A string.</returns>
-    /// <exception cref="Exception">
-    /// Conversion error in ValToBinString with the type.
-    /// </exception>
+    /// <remarks>Each supported numeric type is converted to its full-width binary representation (e.g., 8
+    /// bits for Byte, 16 bits for Int16, 32 bits for Int32, and 64 bits for Int64). For arrays, the binary
+    /// representations of all elements are concatenated in order. Types other than the supported numeric types will
+    /// result in an empty string.</remarks>
+    /// <param name="value">An object representing a single numeric value or an array of numeric values. Supported types are Byte, Int16,
+    /// Int32, Int64, and their corresponding array types.</param>
+    /// <returns>A string containing the binary representation of the input value or array. Returns an empty string if the input
+    /// type is not supported or if an error occurs during conversion.</returns>
     public static string ValToBinString(this object value)
     {
         var txt = string.Empty;

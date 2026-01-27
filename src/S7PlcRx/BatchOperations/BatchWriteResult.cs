@@ -6,8 +6,12 @@ using System.Reactive.Linq;
 namespace S7PlcRx.BatchOperations;
 
 /// <summary>
-/// Result of a batch write operation.
+/// Represents the result of a batch write operation, including per-item success status, error messages, and overall
+/// outcome.
 /// </summary>
+/// <remarks>Use this class to inspect which items in a batch write succeeded or failed, retrieve error details
+/// for failed items, and determine whether the entire batch was successful or if a rollback was performed. The
+/// dictionaries map item identifiers (such as tag names) to their respective statuses and error messages.</remarks>
 public class BatchWriteResult
 {
     /// <summary>Gets the success status for each tag.</summary>

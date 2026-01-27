@@ -4,8 +4,12 @@
 namespace S7PlcRx.Optimization;
 
 /// <summary>
-/// Configuration for read optimization.
+/// Provides configuration options for optimizing read operations, including parallelism, delays, concurrency limits,
+/// and timeouts within data block groups.
 /// </summary>
+/// <remarks>Use this class to fine-tune the performance characteristics of read operations in scenarios where
+/// data is organized into block groups. Adjusting these settings can help balance throughput, latency, and resource
+/// usage based on application requirements.</remarks>
 public sealed class ReadOptimizationConfig
 {
     /// <summary>Gets or sets a value indicating whether gets or sets whether to enable parallel reads within data block groups.</summary>

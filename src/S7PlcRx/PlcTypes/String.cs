@@ -6,22 +6,26 @@ using System.Text;
 namespace S7PlcRx.PlcTypes;
 
 /// <summary>
-/// String.
+/// Provides utility methods for converting between strings and byte arrays using ASCII encoding.
 /// </summary>
+/// <remarks>All methods in this class use ASCII encoding for conversions. These methods are intended for
+/// scenarios where data is known to be ASCII-compatible. Non-ASCII characters will be replaced with '?' during encoding
+/// and decoding. The class is internal and intended for use within the assembly.</remarks>
 internal static class String
 {
     /// <summary>
-    /// From the byte array.
+    /// Decodes a UTF-8 encoded byte array into a string.
     /// </summary>
-    /// <param name="bytes">The bytes.</param>
-    /// <returns>A string.</returns>
+    /// <param name="bytes">The byte array containing the UTF-8 encoded text to decode. Cannot be null.</param>
+    /// <returns>A string representation of the decoded UTF-8 text. Returns an empty string if the array is empty.</returns>
     public static string FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
     /// <summary>
-    /// Converts bytes from span to string.
+    /// Converts the specified read-only span of ASCII-encoded bytes to its equivalent string representation.
     /// </summary>
-    /// <param name="bytes">The bytes span.</param>
-    /// <returns>A string.</returns>
+    /// <param name="bytes">A read-only span containing the bytes to decode as an ASCII string.</param>
+    /// <returns>A string that represents the decoded ASCII characters. Returns an empty string if <paramref name="bytes"/> is
+    /// empty.</returns>
     public static string FromSpan(ReadOnlySpan<byte> bytes)
     {
         if (bytes.IsEmpty)
@@ -38,12 +42,13 @@ internal static class String
     }
 
     /// <summary>
-    /// Froms the byte array.
+    /// Converts a specified range of bytes from a byte array to a string.
     /// </summary>
-    /// <param name="bytes">The bytes.</param>
-    /// <param name="start">The start.</param>
-    /// <param name="length">The length.</param>
-    /// <returns>A string.</returns>
+    /// <param name="bytes">The byte array containing the data to convert.</param>
+    /// <param name="start">The zero-based index in the array at which to begin conversion.</param>
+    /// <param name="length">The number of bytes to convert starting from <paramref name="start"/>.</param>
+    /// <returns>A string representation of the specified range of bytes, or an empty string if the range exceeds the bounds of
+    /// the array.</returns>
     public static string FromByteArray(byte[] bytes, int start, int length)
     {
         if (bytes.Length < start + length)
@@ -55,10 +60,13 @@ internal static class String
     }
 
     /// <summary>
-    /// To the byte array.
+    /// Converts the specified string to a byte array using ASCII encoding.
     /// </summary>
-    /// <param name="value">The value.</param>
-    /// <returns>A byte array.</returns>
+    /// <remarks>Characters in the input string that are not representable in ASCII are replaced with a
+    /// question mark ("?") in the resulting byte array.</remarks>
+    /// <param name="value">The string to convert to a byte array. If null or empty, an empty array is returned.</param>
+    /// <returns>A byte array containing the ASCII-encoded bytes of the input string, or an empty array if the input is null or
+    /// empty.</returns>
     public static byte[] ToByteArray(string? value)
     {
         if (string.IsNullOrEmpty(value))
@@ -71,11 +79,14 @@ internal static class String
     }
 
     /// <summary>
-    /// Writes string to the specified span as ASCII bytes.
+    /// Encodes the specified string as ASCII bytes and writes the result to the provided destination span.
     /// </summary>
-    /// <param name="value">The string value.</param>
-    /// <param name="destination">The destination span.</param>
-    /// <returns>The number of bytes written.</returns>
+    /// <remarks>Characters in the input string that cannot be represented in ASCII are replaced with a
+    /// question mark ('?').</remarks>
+    /// <param name="value">The string to encode as ASCII. If null or empty, no bytes are written.</param>
+    /// <param name="destination">The span to which the encoded ASCII bytes are written. Must be large enough to hold the encoded bytes.</param>
+    /// <returns>The number of bytes written to the destination span. Returns 0 if the input string is null or empty.</returns>
+    /// <exception cref="ArgumentException">Thrown if the destination span is not large enough to contain the encoded bytes.</exception>
     public static int ToSpan(string? value, Span<byte> destination)
     {
         if (string.IsNullOrEmpty(value))
@@ -103,12 +114,15 @@ internal static class String
     }
 
     /// <summary>
-    /// Tries to write string to the specified span as ASCII bytes.
+    /// Attempts to encode the specified string as ASCII bytes and write the result to the provided destination buffer.
     /// </summary>
-    /// <param name="value">The string value.</param>
-    /// <param name="destination">The destination span.</param>
-    /// <param name="bytesWritten">The number of bytes written.</param>
-    /// <returns>True if successful, false if the destination is too small.</returns>
+    /// <remarks>If the input string is null or empty, no bytes are written and the method returns true. The
+    /// method returns false if the destination buffer is not large enough to hold the encoded bytes.</remarks>
+    /// <param name="value">The string to encode as ASCII. Can be null or empty.</param>
+    /// <param name="destination">The buffer that receives the ASCII-encoded bytes of the string.</param>
+    /// <param name="bytesWritten">When this method returns, contains the number of bytes written to the destination buffer. Set to 0 if the input
+    /// string is null or empty.</param>
+    /// <returns>true if the string was successfully encoded and written to the destination buffer; otherwise, false.</returns>
     public static bool TryToSpan(string? value, Span<byte> destination, out int bytesWritten)
     {
         bytesWritten = 0;

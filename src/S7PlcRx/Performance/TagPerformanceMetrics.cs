@@ -4,8 +4,11 @@
 namespace S7PlcRx.Performance;
 
 /// <summary>
-/// Performance metrics for tag operations.
+/// Represents performance metrics for a specific tag, including operation counts, timing statistics, and success rates.
 /// </summary>
+/// <remarks>Use this class to track and analyze the performance of tag-related operations, such as reads and
+/// writes, over time. The metrics provided can help identify bottlenecks, monitor reliability, and optimize system
+/// performance. All properties are intended to be updated as new operation data becomes available.</remarks>
 public class TagPerformanceMetrics
 {
     /// <summary>Gets or sets the tag name.</summary>

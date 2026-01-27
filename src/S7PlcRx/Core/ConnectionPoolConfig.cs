@@ -4,8 +4,11 @@
 namespace S7PlcRx.Core;
 
 /// <summary>
-/// Connection pool configuration.
+/// Represents the configuration settings for a connection pool, including limits, timeouts, and behavior options.
 /// </summary>
+/// <remarks>Use this class to specify parameters that control the size, performance, and health monitoring of a
+/// connection pool. Adjusting these settings can help optimize resource usage and connection reliability for
+/// applications that manage multiple concurrent connections.</remarks>
 public sealed class ConnectionPoolConfig
 {
     /// <summary>Gets or sets the maximum pool size.</summary>

@@ -7,8 +7,13 @@ using S7PlcRx.Enterprise;
 namespace S7PlcRx.Core;
 
 /// <summary>
-/// Production connection pool for high-throughput scenarios.
+/// Manages a pool of PLC connections, providing load-balanced access and connection reuse according to the specified
+/// configuration.
 /// </summary>
+/// <remarks>The ConnectionPool enables efficient management of multiple PLC connections by reusing and balancing
+/// requests across available connections. It supports configurable pool size and connection reuse strategies. This
+/// class is thread-safe for concurrent access. Call Dispose to release all connections when the pool is no longer
+/// needed.</remarks>
 public class ConnectionPool : IDisposable
 {
     private readonly List<IRxS7> _connections = [];

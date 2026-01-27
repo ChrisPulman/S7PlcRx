@@ -4,7 +4,7 @@
 namespace S7PlcRx.Core;
 
 /// <summary>
-/// Individual operation detail within a batch.
+/// Represents the details of an operation, including its type, status, duration, and related metadata.
 /// </summary>
 public class OperationDetail
 {

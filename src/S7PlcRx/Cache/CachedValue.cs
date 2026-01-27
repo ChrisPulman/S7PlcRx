@@ -4,14 +4,11 @@
 namespace S7PlcRx.Cache;
 
 /// <summary>
-/// Represents a cached value with metadata.
+/// Represents a value stored in the cache along with its timestamp and access count.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="CachedValue"/> class.
-/// </remarks>
-/// <param name="value">The cached value.</param>
-/// <param name="timestamp">When the value was cached.</param>
-/// <param name="hitCount">The number of times this value has been accessed.</param>
+/// <param name="value">The value to be cached. Can be null.</param>
+/// <param name="timestamp">The date and time when the value was cached, in UTC.</param>
+/// <param name="hitCount">The initial number of times the cached value has been accessed. Defaults to 0.</param>
 internal class CachedValue(object? value, DateTime timestamp, long hitCount = 0)
 {
     /// <summary>Gets the cached value.</summary>
