@@ -6,14 +6,17 @@
     <NoWarn>$(NoWarn);IDE0042</NoWarn>
   </PropertyGroup>
   
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">    
+    <PackageReference Include="System.Text.Json" Version="10.0.4" />
     <PackageReference Include="Polyfill" Version="9.13.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="System.Reactive" Version="6.1.0" />
     <PackageReference Include="System.Memory" Version="4.6.3" />
-    <PackageReference Include="System.Text.Json" Version="10.0.3" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="System.Reactive" Version="6.1.0" />
   </ItemGroup>
 
 </Project>
