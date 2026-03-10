@@ -44,6 +44,7 @@ public class RxS7 : IRxS7
     private readonly object _socketLock = new();
     private readonly Stopwatch _stopwatch = new();
     private readonly Subject<bool> _paused = new();
+    private DateTime _lastConnectedAtUtc = DateTime.MinValue;
     private bool _pause;
 
     /// <summary>
@@ -80,6 +81,11 @@ public class RxS7 : IRxS7
         _disposables.Add(IsConnected.Subscribe(x =>
         {
             IsConnectedValue = x;
+            if (x)
+            {
+                _lastConnectedAtUtc = DateTime.UtcNow;
+            }
+
             _status.OnNext($"{DateTime.Now} - PLC Connected Status: {x}");
         }));
 
@@ -259,16 +265,32 @@ public class RxS7 : IRxS7
     public async Task<T?> Value<T>(string? variable)
     {
         _pause = true;
-        _ = await _paused.Where(x => x).FirstAsync();
-        var tag = TagList[variable!];
-        if (tag?.Type == typeof(object))
+        try
         {
-            tag?.Type = typeof(T);
-        }
+            _ = await _paused.Where(x => x).FirstAsync();
+            var tag = TagList[variable!];
+            if (tag?.Type == typeof(object))
+            {
+                tag.Type = typeof(T);
+            }
 
-        GetTagValue(tag);
-        _pause = false;
-        return TagValueIsValid<T>(tag) ? (T?)tag?.Value : default;
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                GetTagValue(tag);
+                if (TagValueIsValid<T>(tag))
+                {
+                    return (T?)tag?.Value;
+                }
+
+                await Task.Delay(20).ConfigureAwait(false);
+            }
+
+            return default;
+        }
+        finally
+        {
+            _pause = false;
+        }
     }
 
     /// <summary>
@@ -327,8 +349,19 @@ public class RxS7 : IRxS7
                 tag.Type = typeof(T);
             }
 
-            GetTagValue(tag);
-            return TagValueIsValid<T>(tag) ? (T?)tag?.Value : default;
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                GetTagValue(tag);
+                if (TagValueIsValid<T>(tag))
+                {
+                    return (T?)tag?.Value;
+                }
+
+                await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+            }
+
+            return default;
         }
         finally
         {
@@ -1706,22 +1739,59 @@ public class RxS7 : IRxS7
                     return default;
                 }
 
-                var bReceive = new byte[1024];
-                var result = _socketRx.Receive(tag, bReceive, 1024);
-                if (bReceive[21] != 0xff)
+                // Fast path for small reads: a single frame is expected and this avoids parser/pool overhead
+                // in high-frequency scalar polling.
+                if (count <= 32)
                 {
-                    if (bReceive[21] != 0)
+                    var smallReceive = new byte[256];
+                    var smallResult = _socketRx.Receive(tag, smallReceive, smallReceive.Length);
+                    if (smallResult < 25 || smallReceive[21] != 0xFF)
                     {
-                        _lastErrorCode.OnNext(ErrorCode.ReadData);
-                        _lastError.OnNext($"Tag {tag.Name} failed to read - {nameof(ErrorCode.WrongNumberReceivedBytes)} code {bReceive[21]}");
+                        return default;
                     }
 
+                    Array.Copy(smallReceive, 25, bytes, 0, count);
+                    return bytes;
+                }
+
+                var receiveSize = Math.Max(_socketRx.DataReadLength + 256, count + 256);
+                var bReceive = new byte[receiveSize];
+                var result = _socketRx.ReceiveIsoData(tag, ref bReceive);
+                if (result < 17)
+                {
                     return default;
                 }
 
-                Array.Copy(bReceive, 25, bytes, 0, count);
+                var item = new S7MultiVar.ReadItem(dataType, db, startByteAdr, count, tag.Name ?? string.Empty);
+                var parsed = S7MultiVar.ParseReadVarResponse(bReceive.AsSpan(0, result), [item], ArrayPool<byte>.Shared);
+                if (parsed.Count == 0)
+                {
+                    return default;
+                }
 
-                return bytes;
+                var readResult = parsed[0];
+                if (readResult.ReturnCode != 0xFF || readResult.RentedBuffer == null || readResult.Length <= 0)
+                {
+                    return default;
+                }
+
+                try
+                {
+                    var bytesToCopy = Math.Min(count, readResult.Length);
+                    Array.Copy(readResult.RentedBuffer, 0, bytes, 0, bytesToCopy);
+                    if (bytesToCopy == count)
+                    {
+                        return bytes;
+                    }
+
+                    var trimmed = new byte[bytesToCopy];
+                    Array.Copy(bytes, 0, trimmed, 0, bytesToCopy);
+                    return trimmed;
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(readResult.RentedBuffer);
+                }
             }
             catch (Exception exc)
             {
@@ -1752,28 +1822,41 @@ public class RxS7 : IRxS7
         {
             var resultBytes = new List<byte>();
             var index = startByteAdr;
+            var chunkSize = Math.Max(1, _socketRx.DataReadLength - 32);
             while (numBytes > 0)
             {
-                // Allow 32 bytes for the header
-                var maxToRead = Math.Min(numBytes, _socketRx.DataReadLength - 32);
+                var maxToRead = Math.Min(numBytes, chunkSize);
                 var bytes = default(byte[]);
                 for (var i = 0; i < 3; i++)
                 {
                     bytes = ReadBytes(tag, dataType, db, index, maxToRead);
-                    if (bytes != null)
+                    if (bytes != null && bytes.Length > 0)
                     {
                         break;
                     }
                 }
 
-                if (bytes == null)
+                if (bytes == null || bytes.Length == 0)
                 {
+                    if (chunkSize > 1)
+                    {
+                        chunkSize = Math.Max(1, chunkSize / 2);
+                        continue;
+                    }
+
+                    _lastErrorCode.OnNext(ErrorCode.ReadData);
+                    _lastError.OnNext($"Tag {tag.Name} failed to read - unable to read chunk at DB{db}.DBB{index}.");
                     return [];
                 }
 
                 resultBytes.AddRange(bytes);
-                numBytes -= maxToRead;
-                index += maxToRead;
+                numBytes -= bytes.Length;
+                index += bytes.Length;
+
+                if (bytes.Length < maxToRead)
+                {
+                    chunkSize = Math.Max(1, bytes.Length);
+                }
             }
 
             return [.. resultBytes];
@@ -1803,6 +1886,12 @@ public class RxS7 : IRxS7
                     {
                         if (IsConnectedValue)
                         {
+                            if (DateTime.UtcNow - _lastConnectedAtUtc < TimeSpan.FromMilliseconds(250))
+                            {
+                                _paused.OnNext(true);
+                                return;
+                            }
+
                             var tagList = TagList.ToList().Where(t => !t.DoNotPoll);
                             if (!tagList.Any() || _pause)
                             {

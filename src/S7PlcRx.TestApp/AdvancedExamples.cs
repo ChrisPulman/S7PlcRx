@@ -17,8 +17,8 @@ namespace S7PlcRx.Examples;
 /// </summary>
 public static class AdvancedExamples
 {
-    internal const string IpAddress = "192.168.0.5";
-    internal const CpuType PlcType = CpuType.S71200;
+    internal const string IpAddress = "172.16.13.1";
+    internal const CpuType PlcType = CpuType.S71500;
 
     /// <summary>
     /// Demonstrates basic batch reading optimization for multiple tags.
