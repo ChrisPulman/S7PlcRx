@@ -10,7 +10,7 @@ await AdvancedExamples.RunAllExamples();
 Console.WriteLine("Press any key to start the S7PlcRx example...");
 Console.ReadLine();
 
-var plc = S71500.Create("192.168.0.5", interval: 5);
+var plc = S71500.Create("172.16.13.1", interval: 5);
 plc.LastError.Subscribe(Console.WriteLine);
 plc.Status.Subscribe(Console.WriteLine);
 const string StartLogging = nameof(StartLogging);
