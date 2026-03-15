@@ -8,7 +8,7 @@
   
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">    
     <PackageReference Include="System.Text.Json" Version="10.0.4" />
-    <PackageReference Include="Polyfill" Version="9.18.0">
+    <PackageReference Include="Polyfill" Version="9.22.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
