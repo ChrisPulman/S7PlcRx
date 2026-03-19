@@ -1739,59 +1739,35 @@ public class RxS7 : IRxS7
                     return default;
                 }
 
-                // Fast path for small reads: a single frame is expected and this avoids parser/pool overhead
-                // in high-frequency scalar polling.
-                if (count <= 32)
-                {
-                    var smallReceive = new byte[256];
-                    var smallResult = _socketRx.Receive(tag, smallReceive, smallReceive.Length);
-                    if (smallResult < 25 || smallReceive[21] != 0xFF)
-                    {
-                        return default;
-                    }
-
-                    Array.Copy(smallReceive, 25, bytes, 0, count);
-                    return bytes;
-                }
-
                 var receiveSize = Math.Max(_socketRx.DataReadLength + 256, count + 256);
                 var bReceive = new byte[receiveSize];
                 var result = _socketRx.ReceiveIsoData(tag, ref bReceive);
-                if (result < 17)
+                if (result < 25)
                 {
                     return default;
                 }
 
-                var item = new S7MultiVar.ReadItem(dataType, db, startByteAdr, count, tag.Name ?? string.Empty);
-                var parsed = S7MultiVar.ParseReadVarResponse(bReceive.AsSpan(0, result), [item], ArrayPool<byte>.Shared);
-                if (parsed.Count == 0)
+                if (bReceive[21] != 0xFF)
                 {
                     return default;
                 }
 
-                var readResult = parsed[0];
-                if (readResult.ReturnCode != 0xFF || readResult.RentedBuffer == null || readResult.Length <= 0)
+                var availableDataLength = GetReadResponseDataLengthBytes(bReceive, result);
+                if (availableDataLength <= 0)
                 {
                     return default;
                 }
 
-                try
+                var bytesToCopy = Math.Min(count, availableDataLength);
+                Array.Copy(bReceive, 25, bytes, 0, bytesToCopy);
+                if (bytesToCopy == count)
                 {
-                    var bytesToCopy = Math.Min(count, readResult.Length);
-                    Array.Copy(readResult.RentedBuffer, 0, bytes, 0, bytesToCopy);
-                    if (bytesToCopy == count)
-                    {
-                        return bytes;
-                    }
+                    return bytes;
+                }
 
-                    var trimmed = new byte[bytesToCopy];
-                    Array.Copy(bytes, 0, trimmed, 0, bytesToCopy);
-                    return trimmed;
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(readResult.RentedBuffer);
-                }
+                var trimmed = new byte[bytesToCopy];
+                Array.Copy(bytes, 0, trimmed, 0, bytesToCopy);
+                return trimmed;
             }
             catch (Exception exc)
             {
@@ -1838,9 +1814,9 @@ public class RxS7 : IRxS7
 
                 if (bytes == null || bytes.Length == 0)
                 {
-                    if (chunkSize > 1)
+                    if (maxToRead > 1)
                     {
-                        chunkSize = Math.Max(1, chunkSize / 2);
+                        chunkSize = Math.Max(1, maxToRead / 2);
                         continue;
                     }
 
@@ -1853,7 +1829,7 @@ public class RxS7 : IRxS7
                 numBytes -= bytes.Length;
                 index += bytes.Length;
 
-                if (bytes.Length < maxToRead)
+                if (bytes.Length < maxToRead && maxToRead > 1)
                 {
                     chunkSize = Math.Max(1, bytes.Length);
                 }
@@ -1865,6 +1841,31 @@ public class RxS7 : IRxS7
         {
             return [];
         }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
+    private int GetReadResponseDataLengthBytes(byte[] response, int responseLength)
+    {
+        if (responseLength <= 25)
+        {
+            return 0;
+        }
+
+        var fallbackLength = responseLength - 25;
+        var transportSize = response[22];
+        var dataLength = Word.FromByteArray(response, 23);
+        if (dataLength <= 0)
+        {
+            return fallbackLength;
+        }
+
+        var parsedLength = transportSize switch
+        {
+            4 => (dataLength + 7) / 8,
+            _ => dataLength,
+        };
+
+        return Math.Min(parsedLength, fallbackLength);
     }
 
     /// <summary>
