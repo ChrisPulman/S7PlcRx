@@ -31,10 +31,15 @@ internal class S7SocketRx : IDisposable
     private const string Failed = nameof(Failed);
     private const string Success = nameof(Success);
     private const int DefaultTimeout = 10000;
-    private const int MaxRetryDelaySeconds = 30;
+    private const int InitialRetryDelayMilliseconds = 250;
+    private const int MaxRetryDelayMilliseconds = 5000;
     private const int PingTimeoutMs = 2000;
+    private const int PortProbeTimeoutMs = 750;
     private const int AvailabilityFailureThreshold = 3;
     private const int ConnectionFailureThreshold = 3;
+    private static readonly TimeSpan PlcReadyProbeInterval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan PlcReadyTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan RecentOperationAvailabilityWindow = TimeSpan.FromSeconds(3);
 
     // Enhanced observables for better monitoring
     private readonly Subject<ConnectionMetrics> _metricsSubject = new();
@@ -60,6 +65,7 @@ internal class S7SocketRx : IDisposable
     private int _consecutiveErrors;
     private int _consecutiveAvailabilityFailures;
     private int _consecutiveConnectionFailures;
+    private int _restartInProgress;
 
     // Active TSAP profile used to connect (for multi-connection compatibility)
     private TsapProfile _activeTsapProfile = TsapProfile.PG;
@@ -112,8 +118,6 @@ internal class S7SocketRx : IDisposable
             }
 
             var dis = new CompositeDisposable();
-            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            dis.Add(_socket);
             _initComplete = false;
 
             // Subject may have been disposed during teardown; recreate lazily.
@@ -218,15 +222,16 @@ internal class S7SocketRx : IDisposable
             {
                 // Exponential backoff with cap: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
                 // Use bit shifting for better performance and prevent overflow
-                var delaySeconds = Math.Min(Math.Min(1 << x.index, MaxRetryDelaySeconds), MaxRetryDelaySeconds);
+                var exponent = Math.Min(x.index, 4);
+                var delayMilliseconds = Math.Min(InitialRetryDelayMilliseconds * (1 << exponent), MaxRetryDelayMilliseconds);
 
                 // Log only first 5 attempts and then every 10th attempt to prevent log flooding
                 if (x.index < 5 || x.index % 10 == 0)
                 {
-                    LogWarning($"Connection attempt {x.index + 1} failed: {x.ex.Message}. Retrying in {delaySeconds}s...");
+                    LogWarning($"Connection attempt {x.index + 1} failed: {x.ex.Message}. Retrying in {delayMilliseconds}ms...");
                 }
 
-                return Observable.Timer(TimeSpan.FromSeconds(delaySeconds));
+                return Observable.Timer(TimeSpan.FromMilliseconds(delayMilliseconds));
             }))
         .Publish(false)
         .RefCount();
@@ -350,43 +355,7 @@ internal class S7SocketRx : IDisposable
     /// <returns>The number of bytes received and written to the buffer, or -1 if the operation fails or the device is not
     /// connected.</returns>
     public int Receive(Tag tag, byte[] buffer, int size, int offset = 0)
-    {
-        if (!_initComplete)
-        {
-            return -1;
-        }
-
-        try
-        {
-            var stopwatch = Stopwatch.StartNew();
-
-            if (_socket?.Connected == true)
-            {
-                var received = _socket.Receive(buffer, offset, size, SocketFlags.None);
-
-                stopwatch.Stop();
-                RecordSuccessfulOperation(stopwatch.Elapsed, received, isReceive: true);
-
-                if (tag != null && Debugger.IsAttached)
-                {
-                    var result = buffer[21] == 255 ? Success : Failed;
-                    Debug.WriteLine($"{DateTime.Now} Read Tag: {tag.Name} value: {tag.Value} {result} ({received} bytes, {stopwatch.ElapsedMilliseconds}ms)");
-                }
-
-                return received;
-            }
-
-            RecordError();
-            _socketExceptionSubject.OnNext(new S7Exception("Device not connected"));
-        }
-        catch (Exception ex)
-        {
-            RecordError();
-            _socketExceptionSubject.OnNext(ex);
-        }
-
-        return -1;
-    }
+        => ReceiveCore(tag, buffer, size, offset, traceOperation: true);
 
     /// <summary>
     /// Sends data to the connected device using the specified tag and buffer.
@@ -661,6 +630,257 @@ internal class S7SocketRx : IDisposable
         }
     }
 
+    private async Task<bool> WaitForPlcReadyAsync(Socket socket)
+    {
+        var deadline = DateTime.UtcNow + PlcReadyTimeout;
+        var consecutiveSuccessfulProbes = 0;
+
+        while (!_disposedValue && DateTime.UtcNow < deadline)
+        {
+            if (!CheckConnectionStatusOptimized(socket))
+            {
+                return false;
+            }
+
+            var cpuData = GetSZLData(socket, 28);
+            var orderCode = GetSZLData(socket, 17);
+            if (cpuData.data.Length >= 204 && orderCode.data.Length >= 25)
+            {
+                consecutiveSuccessfulProbes++;
+                if (consecutiveSuccessfulProbes >= 2)
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                consecutiveSuccessfulProbes = 0;
+            }
+
+            await Task.Delay(PlcReadyProbeInterval).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
+    private (byte[] data, ushort size) GetSZLData(Socket socket, ushort szlArea, ushort index = 0)
+    {
+        byte[] s7_SZL1 = [3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 5, 0, 0, 8, 0, 8, 0, 1, 18, 4, 17, 68, 1, 0, 255, 9, 0, 4, 0, 0, 0, 0];
+        byte[] s7_SZL2 = [3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 6, 0, 0, 12, 0, 4, 0, 1, 18, 8, 18, 68, 1, 1, 0, 0, 0, 0, 10, 0, 0, 0];
+
+        const int bufferSize = 1024;
+        var data = _bufferPool.Rent(bufferSize);
+        var resultData = _bufferPool.Rent(bufferSize);
+
+        try
+        {
+            int length;
+            var done = false;
+            var first = true;
+            byte seqIn = 0;
+            ushort seqOut = 0;
+            var lastError = 0;
+            var offset = 0;
+            ushort lengthOfDataRead = 0;
+            int szlDataLength;
+
+            do
+            {
+                if (first)
+                {
+                    Word.ToByteArray(++seqOut, s7_SZL1, 11);
+                    Word.ToByteArray(szlArea, s7_SZL1, 29);
+                    Word.ToByteArray(index, s7_SZL1, 31);
+                    if (SendOnSocket(socket, s7_SZL1, s7_SZL1.Length) != s7_SZL1.Length)
+                    {
+                        return (Array.Empty<byte>(), 0);
+                    }
+                }
+                else
+                {
+                    Word.ToByteArray(++seqOut, s7_SZL2, 11);
+                    s7_SZL2[24] = seqIn;
+                    if (SendOnSocket(socket, s7_SZL2, s7_SZL2.Length) != s7_SZL2.Length)
+                    {
+                        return (Array.Empty<byte>(), 0);
+                    }
+                }
+
+                length = ReceiveIsoData(socket, ref data);
+
+                if (lastError == 0 && length > 32)
+                {
+                    if (first && Word.FromByteArray(data, 27) == 0 && data[29] == 255)
+                    {
+                        szlDataLength = Word.FromByteArray(data, 31) - 8;
+                        done = data[26] == 0;
+                        seqIn = data[24];
+                        lengthOfDataRead = Word.FromByteArray(data, 37);
+                        Array.Copy(data, 41, resultData, offset, szlDataLength);
+                        offset += szlDataLength;
+                        first = false;
+                    }
+                    else if (Word.FromByteArray(data, 27) == 0 && data[29] == 255)
+                    {
+                        szlDataLength = Word.FromByteArray(data, 31);
+                        done = data[26] == 0;
+                        seqIn = data[24];
+                        Array.Copy(data, 37, resultData, offset, szlDataLength);
+                        offset += szlDataLength;
+                    }
+                    else
+                    {
+                        lastError = (int)ErrorCode.WrongVarFormat;
+                    }
+                }
+                else
+                {
+                    lastError = (int)ErrorCode.WrongNumberReceivedBytes;
+                }
+            }
+            while (!done && lastError == 0);
+
+            if (lastError == 0)
+            {
+                var result = new byte[offset];
+                Array.Copy(resultData, result, offset);
+                return (result, lengthOfDataRead);
+            }
+
+            return (Array.Empty<byte>(), 0);
+        }
+        finally
+        {
+            _bufferPool.Return(data);
+            _bufferPool.Return(resultData);
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
+    private int SendOnSocket(Socket socket, byte[] buffer, int size)
+    {
+        var total = 0;
+        while (total < size)
+        {
+            var sent = socket.Send(buffer, total, size - total, SocketFlags.None);
+            if (sent <= 0)
+            {
+                return total;
+            }
+
+            total += sent;
+        }
+
+        return total;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
+    private int ReceiveExact(Socket socket, byte[] buffer, int size, int offset = 0)
+    {
+        var total = 0;
+        while (total < size)
+        {
+            var read = socket.Receive(buffer, offset + total, size - total, SocketFlags.None);
+            if (read <= 0)
+            {
+                return total > 0 ? total : read;
+            }
+
+            total += read;
+        }
+
+        return total;
+    }
+
+    private int ReceiveIsoData(Socket socket, ref byte[] bytes)
+    {
+        var done = false;
+        var size = 0;
+        var lastError = 0;
+
+        while (lastError == 0 && !done)
+        {
+            var headerReceived = ReceiveExact(socket, bytes, 4);
+            if (headerReceived != 4)
+            {
+                lastError = (int)ErrorCode.WrongNumberReceivedBytes;
+                break;
+            }
+
+            size = Word.FromByteArray(bytes, 2);
+
+            if (size == 7)
+            {
+                if (ReceiveExact(socket, bytes, 3, 4) != 3)
+                {
+                    lastError = (int)ErrorCode.WrongNumberReceivedBytes;
+                }
+            }
+            else if (size > DataReadLength + 7 || size < 16)
+            {
+                lastError = (int)ErrorCode.WrongNumberReceivedBytes;
+            }
+            else
+            {
+                done = true;
+            }
+        }
+
+        if (lastError != 0)
+        {
+            return 0;
+        }
+
+        if (ReceiveExact(socket, bytes, 3, 4) != 3)
+        {
+            return 0;
+        }
+
+        return ReceiveExact(socket, bytes, size - 7, 7) == size - 7 ? size : 0;
+    }
+
+    private int ReceiveRaw(Tag? tag, byte[] buffer, int size, int offset = 0)
+        => ReceiveCore(tag, buffer, size, offset, traceOperation: false);
+
+    private int ReceiveCore(Tag? tag, byte[] buffer, int size, int offset, bool traceOperation)
+    {
+        if (!_initComplete)
+        {
+            return -1;
+        }
+
+        try
+        {
+            var stopwatch = Stopwatch.StartNew();
+
+            if (_socket?.Connected == true)
+            {
+                var received = _socket.Receive(buffer, offset, size, SocketFlags.None);
+
+                stopwatch.Stop();
+                RecordSuccessfulOperation(stopwatch.Elapsed, received, isReceive: true);
+
+                if (traceOperation && tag != null && Debugger.IsAttached)
+                {
+                    var result = buffer[21] == 255 ? Success : Failed;
+                    Debug.WriteLine($"{DateTime.Now} Read Tag: {tag.Name} value: {tag.Value} {result} ({received} bytes, {stopwatch.ElapsedMilliseconds}ms)");
+                }
+
+                return received;
+            }
+
+            RecordError();
+            _socketExceptionSubject.OnNext(new S7Exception("Device not connected"));
+        }
+        catch (Exception ex)
+        {
+            RecordError();
+            _socketExceptionSubject.OnNext(ex);
+        }
+
+        return -1;
+    }
+
     /// <summary>
     /// Attempts to establish and optimize a connection to a Siemens PLC using multiple TSAP profiles for maximum
     /// compatibility.
@@ -677,6 +897,16 @@ internal class S7SocketRx : IDisposable
         await _connectionLock.WaitAsync();
         try
         {
+            if (_disposedValue)
+            {
+                return false;
+            }
+
+            if (_initComplete && _socket != null && CheckConnectionStatusOptimized(_socket))
+            {
+                return true;
+            }
+
             // Try known TSAP profiles to maximize multi-connection compatibility
             var profiles = new[] { TsapProfile.PG, TsapProfile.OP, TsapProfile.PGAlt };
 
@@ -707,21 +937,22 @@ internal class S7SocketRx : IDisposable
                 await attemptSocket.ConnectAsync(server).ConfigureAwait(false);
 #endif
 
-                _isConnected = CheckConnectionStatusOptimized(attemptSocket);
-                if (_isConnected == false)
+                if (!CheckConnectionStatusOptimized(attemptSocket))
                 {
                     CloseSocketOptimized(attemptSocket);
                     continue;
                 }
 
                 // Handshake with current profile
-                if (await PerformOptimizedHandshakeAsync(attemptSocket, profile).ConfigureAwait(false))
+                if (await PerformOptimizedHandshakeAsync(attemptSocket, profile).ConfigureAwait(false) &&
+                    await WaitForPlcReadyAsync(attemptSocket).ConfigureAwait(false))
                 {
                     var oldSocket = _socket;
                     _socket = attemptSocket;
                     CloseSocketOptimized(oldSocket);
                     _activeTsapProfile = profile;
                     _initComplete = true;
+                    _isConnected = true;
                     _lastSuccessfulOperation = DateTime.UtcNow;
                     _consecutiveErrors = 0;
                     _consecutiveAvailabilityFailures = 0;
@@ -1087,7 +1318,7 @@ internal class S7SocketRx : IDisposable
         var total = 0;
         while (total < size)
         {
-            var read = Receive(tag, buffer, size - total, offset + total);
+            var read = ReceiveRaw(tag, buffer, size - total, offset + total);
             if (read <= 0)
             {
                 return total > 0 ? total : read;
@@ -1153,6 +1384,7 @@ internal class S7SocketRx : IDisposable
     {
         _lastSuccessfulOperation = DateTime.UtcNow;
         _consecutiveErrors = 0;
+        _consecutiveAvailabilityFailures = 0;
 
         if (isReceive)
         {
@@ -1176,7 +1408,7 @@ internal class S7SocketRx : IDisposable
         _metrics.RecordError();
 
         // Trigger connection restart if too many consecutive errors
-        if (_consecutiveErrors > 5)
+        if (_consecutiveErrors == 6)
         {
             LogWarning($"Excessive failures detected: {_consecutiveErrors}. Restarting connection.");
             RestartConnection();
@@ -1198,22 +1430,35 @@ internal class S7SocketRx : IDisposable
                 return;
             }
 
+            if (Interlocked.CompareExchange(ref _restartInProgress, 1, 0) != 0)
+            {
+                return;
+            }
+
             try
             {
                 LogWarning("Restarting connection due to failures");
-                CloseSocketOptimized(_socket);
+                var socket = _socket;
                 _socket = null;
                 _initComplete = false;
                 _isConnected = false;
+                CloseSocketOptimized(socket);
 
-                await Task.Delay(1000);
+                await Task.Delay(1000).ConfigureAwait(false);
 
-                _disposable?.Dispose();
-                _disposable = Connect.Subscribe();
+                if (!_disposedValue)
+                {
+                    _disposable?.Dispose();
+                    _disposable = Connect.Subscribe();
+                }
             }
             catch (Exception ex)
             {
                 LogError($"Connection restart failed: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _restartInProgress, 0);
             }
         });
 
@@ -1372,19 +1617,64 @@ internal class S7SocketRx : IDisposable
             return false;
         }
 
+        if (_initComplete && _socket != null && CheckConnectionStatusOptimized(_socket) &&
+            DateTime.UtcNow - _lastSuccessfulOperation <= RecentOperationAvailabilityWindow)
+        {
+            return true;
+        }
+
         try
         {
             using var ping = new Ping();
             var result = await ping.SendPingAsync(IP, PingTimeoutMs).ConfigureAwait(false);
-            return result.Status == IPStatus.Success;
+            if (result.Status == IPStatus.Success)
+            {
+                return true;
+            }
         }
         catch (PingException)
         {
-            return false;
         }
         catch (Exception ex)
         {
             LogError($"Ping failed: {ex.Message}");
+        }
+
+        return await CheckPortAvailabilityAsync().ConfigureAwait(false);
+    }
+
+    private async Task<bool> CheckPortAvailabilityAsync()
+    {
+        using var probeSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        probeSocket.Blocking = false;
+
+        try
+        {
+            var server = new IPEndPoint(IPAddress.Parse(IP), 102);
+#if NETSTANDARD2_0
+            var connectTask = Task.Factory.FromAsync(
+                (callback, state) => probeSocket.BeginConnect(server, callback, state),
+                probeSocket.EndConnect,
+                null);
+            var timeoutTask = Task.Delay(PortProbeTimeoutMs);
+            var completedTask = await Task.WhenAny(connectTask, timeoutTask).ConfigureAwait(false);
+            return completedTask == connectTask && probeSocket.Connected;
+#else
+            using var cts = new CancellationTokenSource(PortProbeTimeoutMs);
+            await probeSocket.ConnectAsync(server, cts.Token).ConfigureAwait(false);
+            return probeSocket.Connected;
+#endif
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
             return false;
         }
     }
