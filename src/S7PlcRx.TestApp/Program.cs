@@ -5,7 +5,7 @@ using System.Reactive.Linq;
 using S7PlcRx;
 using S7PlcRx.Examples;
 
-////await AdvancedExamples.RunAllExamples();
+await AdvancedExamples.RunAllExamples();
 
 Console.WriteLine("Press any key to start the S7PlcRx example...");
 Console.ReadLine();

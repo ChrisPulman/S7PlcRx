@@ -338,6 +338,41 @@ public class MockServer : IDisposable
     /// <returns>Result.</returns>
     public int RegisterArea<T>(int areaCode, int index, ref T pUsrData, int size)
     {
+        if (typeof(T) == typeof(byte))
+        {
+            throw new ArgumentException("Use RegisterArea(int areaCode, int index, byte[] pUsrData, int size) for byte areas.", nameof(pUsrData));
+        }
+
+        var areaUid = (areaCode << 16) + index;
+        var handle = GCHandle.Alloc(pUsrData, GCHandleType.Pinned);
+        var result = NativeMethods.Srv_RegisterArea(_server, areaCode, index, handle.AddrOfPinnedObject(), size);
+        if (result == 0)
+        {
+            _hArea.Add(areaUid, handle);
+        }
+        else
+        {
+            handle.Free();
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Registers the area using a byte-array backing store.
+    /// </summary>
+    /// <param name="areaCode">The area code.</param>
+    /// <param name="index">The index.</param>
+    /// <param name="pUsrData">The area backing buffer.</param>
+    /// <param name="size">The size.</param>
+    /// <returns>Result.</returns>
+    public int RegisterArea(int areaCode, int index, byte[] pUsrData, int size)
+    {
+        if (pUsrData is null)
+        {
+            throw new ArgumentNullException(nameof(pUsrData));
+        }
+
         var areaUid = (areaCode << 16) + index;
         var handle = GCHandle.Alloc(pUsrData, GCHandleType.Pinned);
         var result = NativeMethods.Srv_RegisterArea(_server, areaCode, index, handle.AddrOfPinnedObject(), size);
@@ -507,13 +542,13 @@ public class MockServer : IDisposable
         _defaultTm = new byte[DefaultTmSize];
 
         // Register DB1 so Snap7 can service ReadVar/WriteVar (including multi-item) against a real backing store.
-        _ = RegisterArea(SrvAreaDB, 1, ref _defaultDb1[0], _defaultDb1.Length);
+        _ = RegisterArea(SrvAreaDB, 1, _defaultDb1, _defaultDb1.Length);
 
         // Register the standard non-DB areas so IB/QB/MB and bit addressing can be used in tests.
-        _ = RegisterArea(SrvAreaPe, 0, ref _defaultPe[0], _defaultPe.Length);
-        _ = RegisterArea(SrvAreaPa, 0, ref _defaultPa[0], _defaultPa.Length);
-        _ = RegisterArea(SrvAreaMk, 0, ref _defaultMk[0], _defaultMk.Length);
-        _ = RegisterArea(SrvAreaCt, 0, ref _defaultCt[0], _defaultCt.Length);
-        _ = RegisterArea(SrvAreaTm, 0, ref _defaultTm[0], _defaultTm.Length);
+        _ = RegisterArea(SrvAreaPe, 0, _defaultPe, _defaultPe.Length);
+        _ = RegisterArea(SrvAreaPa, 0, _defaultPa, _defaultPa.Length);
+        _ = RegisterArea(SrvAreaMk, 0, _defaultMk, _defaultMk.Length);
+        _ = RegisterArea(SrvAreaCt, 0, _defaultCt, _defaultCt.Length);
+        _ = RegisterArea(SrvAreaTm, 0, _defaultTm, _defaultTm.Length);
     }
 }
