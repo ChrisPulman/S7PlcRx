@@ -2074,6 +2074,11 @@ public class RxS7 : IRxS7
                 return false;
         }
 
+        if (package.Length > 200 && dataType == DataType.DataBlock)
+        {
+            return WriteMultipleBytes(tag, [.. package], db, startByteAdr);
+        }
+
         return WriteBytes(tag, dataType, db, startByteAdr, package);
     }
 
