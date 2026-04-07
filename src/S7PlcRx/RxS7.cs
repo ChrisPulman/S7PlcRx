@@ -1798,7 +1798,8 @@ public class RxS7 : IRxS7
         {
             var resultBytes = new List<byte>();
             var index = startByteAdr;
-            var chunkSize = Math.Max(1, _socketRx.DataReadLength - 32);
+            var maxChunkSize = Math.Max(1, _socketRx.DataReadLength - 32);
+            var chunkSize = tag.Type == typeof(byte[]) ? Math.Min(480, maxChunkSize) : maxChunkSize;
             while (numBytes > 0)
             {
                 var maxToRead = Math.Min(numBytes, chunkSize);
@@ -1852,18 +1853,13 @@ public class RxS7 : IRxS7
         }
 
         var fallbackLength = responseLength - 25;
-        var transportSize = response[22];
         var dataLength = Word.FromByteArray(response, 23);
         if (dataLength <= 0)
         {
             return fallbackLength;
         }
 
-        var parsedLength = transportSize switch
-        {
-            4 => (dataLength + 7) / 8,
-            _ => dataLength,
-        };
+        var parsedLength = (dataLength + 7) / 8;
 
         return Math.Min(parsedLength, fallbackLength);
     }
