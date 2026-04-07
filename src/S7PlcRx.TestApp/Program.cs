@@ -2,13 +2,15 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Linq;
+using System.Text;
 using S7PlcRx;
 using S7PlcRx.Examples;
+using S7PlcRx.PlcTypes;
 
-await AdvancedExamples.RunAllExamples();
+////await AdvancedExamples.RunAllExamples();
 
-Console.WriteLine("Press any key to start the S7PlcRx example...");
-Console.ReadLine();
+////Console.WriteLine("Press any key to start the S7PlcRx example...");
+////Console.ReadLine();
 
 var plc = S71500.Create("172.16.13.1", interval: 5);
 plc.LastError.Subscribe(Console.WriteLine);
@@ -23,7 +25,7 @@ const string TagValues = nameof(TagValues);
 plc.AddUpdateTagItem<byte>(StartLogging, "DB100.DBB3")
     .AddUpdateTagItem<byte[]>(PlcData, "DB100.DBB0", 64).SetTagPollIng(false)
     .AddUpdateTagItem<byte[]>(TestItems, "DB101.DBB0", 520).SetTagPollIng(false)
-    .AddUpdateTagItem<byte[]>(TagNames1, "DB102.DBB0", 4096).SetTagPollIng(false)
+    ////.AddUpdateTagItem<byte[]>(TagNames1, "DB102.DBB0", 4096).SetTagPollIng(false)
     .AddUpdateTagItem<float[]>(TagValues, "DB103.DBD4", 98).SetTagPollIng(false);
 
 plc.IsConnected
@@ -61,8 +63,8 @@ plc.IsConnected
                 Console.WriteLine($"bytesTestItems: {bytesTestItems?.Length}");
                 await Task.Delay(500);
                 Console.WriteLine("Reading TagNames");
-                var bytesTagNames1 = await plc?.Value<byte[]>(TagNames1)!;
-                Console.WriteLine($"bytesTagNames1: {bytesTagNames1?.Length}");
+                var bytesTagNames1 = await DecodeTagNames(plc); ////plc?.Value<byte[]>(TagNames1)!;
+                Console.WriteLine($"bytesTagNames1: {bytesTagNames1}");
                 await Task.Delay(500);
                 var dummy = await plc?.Value<byte>(StartLogging)!;
                 Console.WriteLine($"dummy: {dummy}");
@@ -89,3 +91,77 @@ plc.IsConnected
 
 Console.WriteLine("Press any key to exit...");
 Console.ReadKey();
+
+static bool IsSTX(byte[]? bytes) => bytes?.Length > 3 && bytes[0] == 'S' && bytes[1] == 'T' && bytes[2] == 'X';
+
+static async Task<IEnumerable<string>> DecodeTagNames(IRxS7 plc)
+{
+    try
+    {
+        const int bytesPerTagName = 32;
+        var noOfBytes = Convert.ToInt32(bytesPerTagName * 64);
+
+        plc?.AddUpdateTagItem<byte[]>(TagNames1, "DB102.DBB0", 2048 + 4).SetTagPollIng(false);
+        var bytes = default(byte[]);
+        var count = 0;
+        while (!IsSTX(bytes) || bytes?[5] == 0)
+        {
+            if (count++ > 10)
+            {
+                return [];
+            }
+
+            bytes = await plc!.Value<byte[]>(TagNames1);
+            await Task.Delay(50);
+        }
+
+        if (noOfBytes > bytes?.Length)
+        {
+            return [];
+        }
+
+        var tagNames = GetTagNames(bytes, bytesPerTagName, noOfBytes);
+
+        await Task.Delay(500);
+
+        return tagNames;
+    }
+    catch
+    {
+    }
+
+    return [];
+}
+
+static IEnumerable<string> GetTagNames(byte[]? bytes, int bytesPerTagName, int? noOfBytes)
+{
+    if (!(bytes?.Length != 0 && noOfBytes.HasValue && IsSTX(bytes)))
+    {
+        yield break;
+    }
+
+    for (var i = 4; i < noOfBytes; i += bytesPerTagName)
+    {
+        var itemLen = bytes![i + 1];
+        yield return GetItemBytesToString(bytes, i + 2, itemLen);
+    }
+}
+
+static string GetItemBytesToString(byte[]? bytes, int sourceIndex, int length)
+{
+    if (bytes?.Length == 0)
+    {
+        return string.Empty;
+    }
+
+    try
+    {
+        var itemBytes = new byte[length];
+        Array.Copy(bytes!, sourceIndex, itemBytes, 0, length);
+        return Encoding.ASCII.GetString(itemBytes.TakeWhile(x => x != 0).ToArray());
+    }
+    catch (Exception)
+    {
+        return string.Empty;
+    }
+}
