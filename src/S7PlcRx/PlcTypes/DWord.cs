@@ -13,7 +13,7 @@ namespace S7PlcRx.PlcTypes;
 /// <remarks>All conversions assume S7 DWord format, which uses big-endian byte order. These methods are intended
 /// for working with Siemens S7 PLC data or other protocols that represent 32-bit unsigned integers in big-endian
 /// format. Methods throw exceptions if provided buffers are too small to contain a DWord value.</remarks>
-internal static class DWord
+public static class DWord
 {
     /// <summary>
     /// Creates a 32-bit unsigned integer from a byte array.
@@ -172,5 +172,13 @@ internal static class DWord
     /// <param name="value">An array of 32-bit unsigned integers to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input values. The length of the returned array is four
     /// times the length of the input array.</returns>
-    public static byte[] ToByteArray(uint[] value) => TypeConverter.ToByteArray(value, ToByteArray);
+    public static byte[] ToByteArray(uint[] value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        return TypeConverter.ToByteArray(value, ToByteArray);
+    }
 }

@@ -13,7 +13,7 @@ namespace S7PlcRx.PlcTypes;
 /// <remarks>The methods in this class handle endianness according to the S7 protocol, which uses big-endian byte
 /// order. Use these methods to serialize and deserialize float values when communicating with Siemens S7 PLCs or
 /// working with S7 Real data formats. All methods are static and intended for internal use.</remarks>
-internal static class Real
+public static class Real
 {
     /// <summary>
     /// Converts a byte array to a single-precision floating-point value.
@@ -99,7 +99,15 @@ internal static class Real
     /// </summary>
     /// <param name="value">The array of <see cref="float"/> values to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input values.</returns>
-    public static byte[] ToByteArray(float[] value) => TypeConverter.ToByteArray(value, ToByteArray);
+    public static byte[] ToByteArray(float[] value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value), "Input array cannot be null");
+        }
+
+        return TypeConverter.ToByteArray(value, ToByteArray);
+    }
 
     /// <summary>
     /// Converts a span of single-precision floating-point values to their byte representations and writes them to the

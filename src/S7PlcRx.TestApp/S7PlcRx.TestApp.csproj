@@ -8,7 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MockS7Plc\MockS7Plc.csproj" />
     <ProjectReference Include="..\S7PlcRx\S7PlcRx.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\MockS7Plc\runtimes\win-x64\native\snap7.dll" Link="runtimes\win-x64\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\MockS7Plc\runtimes\win-x86\native\snap7.dll" Link="runtimes\win-x86\native\snap7.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
