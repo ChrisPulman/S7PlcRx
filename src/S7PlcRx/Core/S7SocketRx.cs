@@ -927,7 +927,7 @@ internal class S7SocketRx : IDisposable
 
                 var server = new IPEndPoint(IPAddress.Parse(IP), 102);
 
-#if NETSTANDARD2_0
+#if NETFRAMEWORK
                 var connectTask = Task.Factory.FromAsync(
                     (callback, state) => attemptSocket.BeginConnect(server, callback, state),
                     attemptSocket.EndConnect,
@@ -998,7 +998,7 @@ internal class S7SocketRx : IDisposable
         var bReceive = _bufferPool.Rent(256);
         try
         {
-#if NETSTANDARD2_0
+#if NETFRAMEWORK
             return await PerformOptimizedHandshakeNetStandardAsync(socket, bReceive, profile).ConfigureAwait(false);
 #else
             return await PerformOptimizedHandshakeModernAsync(socket, bReceive, profile).ConfigureAwait(false);
@@ -1010,7 +1010,7 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-#if NETSTANDARD2_0
+#if NETFRAMEWORK
     private async Task<bool> PerformOptimizedHandshakeNetStandardAsync(Socket socket, byte[] bReceive, TsapProfile profile)
     {
         try
@@ -1651,7 +1651,7 @@ internal class S7SocketRx : IDisposable
         try
         {
             var server = new IPEndPoint(IPAddress.Parse(IP), 102);
-#if NETSTANDARD2_0
+#if NETFRAMEWORK
             var connectTask = Task.Factory.FromAsync(
                 (callback, state) => probeSocket.BeginConnect(server, callback, state),
                 probeSocket.EndConnect,

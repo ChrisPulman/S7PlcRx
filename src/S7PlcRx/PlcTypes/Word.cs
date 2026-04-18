@@ -13,7 +13,7 @@ namespace S7PlcRx.PlcTypes;
 /// byte is the high-order byte and the second byte is the low-order byte. These methods are intended for scenarios
 /// where explicit control over byte order is required, such as binary serialization, communication protocols, or file
 /// I/O. The class is static and cannot be instantiated.</remarks>
-internal static class Word
+public static class Word
 {
     /// <summary>
     /// Creates a 16-bit unsigned integer from a byte array.
@@ -134,7 +134,15 @@ internal static class Word
     /// </summary>
     /// <param name="value">The array of 16-bit unsigned integers to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input values.</returns>
-    public static byte[] ToByteArray(ushort[] value) => TypeConverter.ToByteArray(value, ToByteArray);
+    public static byte[] ToByteArray(ushort[] value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value), "Input array cannot be null");
+        }
+
+        return TypeConverter.ToByteArray(value, ToByteArray);
+    }
 
     /// <summary>
     /// Converts a sequence of 16-bit unsigned integers to their byte representation and writes the result to the

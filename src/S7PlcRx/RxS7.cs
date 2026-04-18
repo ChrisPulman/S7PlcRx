@@ -847,15 +847,8 @@ public class RxS7 : IRxS7
     /// <paramref name="s"/>, if the conversion succeeded, or zero if the conversion failed. This parameter is passed
     /// uninitialized.</param>
     /// <returns><see langword="true"/> if the conversion succeeded; otherwise, <see langword="false"/>.</returns>
-    private static bool TryParseInt(ReadOnlySpan<char> s, out int value)
-    {
-#if NETSTANDARD2_0
-        value = 0;
-        return int.TryParse(s.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-#else
-        return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-#endif
-    }
+    private static bool TryParseInt(ReadOnlySpan<char> s, out int value) =>
+        int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
 
     /// <summary>
     /// Attempts to parse a data block address for a multi-variable tag and extract its components.

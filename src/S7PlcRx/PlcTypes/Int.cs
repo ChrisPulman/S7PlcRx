@@ -13,7 +13,7 @@ namespace S7PlcRx.PlcTypes;
 /// <remarks>This class is intended for working with Siemens S7 PLC data formats, which use big-endian byte order
 /// for 16-bit signed integers. All methods assume S7 Int format unless otherwise specified. The class is internal and
 /// not intended for direct use outside of the containing assembly.</remarks>
-internal static class Int
+public static class Int
 {
     /// <summary>
     /// Converts a 32-bit signed integer to a 16-bit signed integer, applying a custom transformation for values greater
@@ -186,5 +186,13 @@ internal static class Int
     /// </summary>
     /// <param name="value">An array of 16-bit signed integers to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input values.</returns>
-    public static byte[] ToByteArray(short[] value) => TypeConverter.ToByteArray(value, ToByteArray);
+    public static byte[] ToByteArray(short[] value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value), "Input array cannot be null");
+        }
+
+        return TypeConverter.ToByteArray(value, ToByteArray);
+    }
 }

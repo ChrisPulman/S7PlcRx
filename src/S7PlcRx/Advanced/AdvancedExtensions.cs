@@ -88,71 +88,7 @@ public static class AdvancedExtensions
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
 
-        if (variables == null || variables.Length == 0)
-        {
-            return [];
-        }
-
-        if (plc is RxS7 rx)
-        {
-            var tags = variables
-                .Select(v => rx.TagList[v])
-                .Where(t => t != null)
-                .ToList();
-
-            if (tags?.Count == variables.Length)
-            {
-                var multi = rx.ReadMultiVar(tags!);
-                if (multi != null)
-                {
-                    var dict = new Dictionary<string, T?>(multi.Count);
-                    foreach (var kvp in multi)
-                    {
-                        if (kvp.Value is null)
-                        {
-                            dict[kvp.Key] = default;
-                            continue;
-                        }
-
-                        if (kvp.Value is T typed)
-                        {
-                            dict[kvp.Key] = typed;
-                        }
-                        else
-                        {
-                            // Type mismatch (e.g. T=object). Use fallback path.
-                            dict = null;
-                            break;
-                        }
-                    }
-
-                    if (dict != null)
-                    {
-                        return dict;
-                    }
-                }
-            }
-        }
-
-        var results = new Dictionary<string, T?>();
-        var tasks = new List<Task<T?>>();
-
-        // Create tasks for each variable read
-        foreach (var variable in variables)
-        {
-            tasks.Add(plc.Value<T>(variable));
-        }
-
-        // Wait for all reads to complete
-        var values = await Task.WhenAll(tasks);
-
-        // Combine results
-        for (var i = 0; i < variables.Length; i++)
-        {
-            results[variables[i]] = values[i];
-        }
-
-        return results;
+        return await plc.ReadValuesAsync<T>(variables).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -172,27 +108,12 @@ public static class AdvancedExtensions
             return;
         }
 
-        if (plc is RxS7 rx)
+        if (plc == null)
         {
-            var tags = values
-                .Select(kvp =>
-                {
-                    var t = rx.TagList[kvp.Key];
-                    t?.NewValue = kvp.Value;
-
-                    return t;
-                })
-                .Where(t => t != null)
-                .ToList();
-
-            if (tags?.Count == values.Count && rx.WriteMultiVar(tags!))
-            {
-                return;
-            }
+            throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
 
-        var tasks = values.Select(kvp => Task.Run(() => plc.Value(kvp.Key, kvp.Value))).ToArray();
-        await Task.WhenAll(tasks);
+        await plc.WriteValuesAsync(values).ConfigureAwait(false);
     }
 
     /// <summary>

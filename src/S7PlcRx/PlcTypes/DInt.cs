@@ -14,7 +14,7 @@ namespace S7PlcRx.PlcTypes;
 /// values. Methods are provided for reading and writing single or multiple DInt values from and to byte arrays and
 /// spans. All methods assume S7 DInt format and handle endianness as required. This class is intended for internal use
 /// when working with S7 PLC data structures.</remarks>
-internal static class DInt
+public static class DInt
 {
     /// <summary>
     /// Converts a 64-bit signed integer to a 32-bit signed integer, applying a custom transformation for values greater
@@ -196,5 +196,13 @@ internal static class DInt
     /// <param name="value">An array of 32-bit integers to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input integer array. The length of the returned array
     /// is four times the length of the input array.</returns>
-    public static byte[] ToByteArray(int[] value) => TypeConverter.ToByteArray(value, ToByteArray);
+    public static byte[] ToByteArray(int[] value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        return TypeConverter.ToByteArray(value, ToByteArray);
+    }
 }

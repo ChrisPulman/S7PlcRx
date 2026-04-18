@@ -11,7 +11,7 @@ namespace S7PlcRx.PlcTypes;
 /// <remarks>All methods in this class use ASCII encoding for conversions. These methods are intended for
 /// scenarios where data is known to be ASCII-compatible. Non-ASCII characters will be replaced with '?' during encoding
 /// and decoding. The class is internal and intended for use within the assembly.</remarks>
-internal static class String
+public static class String
 {
     /// <summary>
     /// Decodes a UTF-8 encoded byte array into a string.
@@ -33,12 +33,7 @@ internal static class String
             return string.Empty;
         }
 
-#if NETSTANDARD2_0
-        // Encoding APIs do not accept spans on netstandard2.0.
-        return Encoding.ASCII.GetString(bytes.ToArray());
-#else
         return Encoding.ASCII.GetString(bytes);
-#endif
     }
 
     /// <summary>
@@ -51,6 +46,11 @@ internal static class String
     /// the array.</returns>
     public static string FromByteArray(byte[] bytes, int start, int length)
     {
+        if (bytes == null || bytes.Length == 0)
+        {
+            return string.Empty;
+        }
+
         if (bytes.Length < start + length)
         {
             return string.Empty;
@@ -94,23 +94,12 @@ internal static class String
             return 0;
         }
 
-#if NETSTANDARD2_0
-        var bytes = Encoding.ASCII.GetBytes(value);
-        if (bytes.Length > destination.Length)
-        {
-            throw new ArgumentException("Destination span is too small", nameof(destination));
-        }
-
-        bytes.AsSpan().CopyTo(destination);
-        return bytes.Length;
-#else
         if (!Encoding.ASCII.TryGetBytes(value, destination, out var bytesWritten))
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         return bytesWritten;
-#endif
     }
 
     /// <summary>
@@ -132,18 +121,6 @@ internal static class String
             return true;
         }
 
-#if NETSTANDARD2_0
-        var bytes = Encoding.ASCII.GetBytes(value);
-        if (bytes.Length > destination.Length)
-        {
-            return false;
-        }
-
-        bytes.AsSpan().CopyTo(destination);
-        bytesWritten = bytes.Length;
-        return true;
-#else
         return Encoding.ASCII.TryGetBytes(value, destination, out bytesWritten);
-#endif
     }
 }

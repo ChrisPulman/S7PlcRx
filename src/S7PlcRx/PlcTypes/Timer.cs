@@ -11,7 +11,7 @@ namespace S7PlcRx.PlcTypes;
 /// <remarks>This class is intended for working with Siemens S7 PLC timer values, enabling conversion to and from
 /// the S7-specific byte format and standard .NET types such as double and ushort. All members are static and the class
 /// cannot be instantiated.</remarks>
-internal static class Timer
+public static class Timer
 {
     /// <summary>
     /// Converts a byte array to a double-precision floating-point number.
@@ -183,5 +183,13 @@ internal static class Timer
     /// </summary>
     /// <param name="value">The array of 16-bit unsigned integers to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input values.</returns>
-    public static byte[] ToByteArray(ushort[] value) => TypeConverter.ToByteArray(value, ToByteArray);
+    public static byte[] ToByteArray(ushort[] value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        return TypeConverter.ToByteArray(value, ToByteArray);
+    }
 }

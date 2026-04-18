@@ -11,7 +11,7 @@ namespace S7PlcRx.PlcTypes;
 /// <remarks>The buffer automatically grows as data is added. The internal array is rented from the shared array
 /// pool and returned when disposed. This class is not thread-safe.</remarks>
 /// <param name="size">The initial capacity of the internal buffer, in bytes. Must be greater than zero.</param>
-internal class ByteArray(int size) : IDisposable
+public class ByteArray(int size) : IDisposable
 {
     private byte[] _buffer = ArrayPool<byte>.Shared.Rent(size);
     private int _position;
@@ -88,7 +88,15 @@ internal class ByteArray(int size) : IDisposable
     /// Adds the contents of the specified <see cref="ByteArray"/> to the collection.
     /// </summary>
     /// <param name="byteArray">The <see cref="ByteArray"/> instance whose contents will be added. Cannot be null.</param>
-    public void Add(ByteArray byteArray) => Add(byteArray.Span);
+    public void Add(ByteArray byteArray)
+    {
+        if (byteArray == null)
+        {
+            throw new ArgumentNullException(nameof(byteArray));
+        }
+
+        Add(byteArray.Span);
+    }
 
     /// <summary>
     /// Resets the current position to the beginning, effectively clearing any progress or state tracked by the

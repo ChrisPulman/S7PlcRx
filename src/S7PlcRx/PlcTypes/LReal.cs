@@ -14,7 +14,7 @@ namespace S7PlcRx.PlcTypes;
 /// .NET double values, including proper handling of endianness. All methods are static and intended for internal use
 /// when working with S7 protocol data. This class is not thread-safe, but all members are stateless and safe for
 /// concurrent use.</remarks>
-internal static class LReal
+public static class LReal
 {
     /// <summary>
     /// Converts a byte array to a double-precision floating-point number.
@@ -179,5 +179,13 @@ internal static class LReal
     /// <param name="value">The array of double values to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input double array. The array will be empty if the
     /// input array is empty.</returns>
-    public static byte[] ToByteArray(double[] value) => TypeConverter.ToByteArray(value, ToByteArray);
+    public static byte[] ToByteArray(double[] value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        return TypeConverter.ToByteArray(value, ToByteArray);
+    }
 }
