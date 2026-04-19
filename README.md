@@ -789,6 +789,114 @@ var connection = pool.GetConnection;
 - **`S7300`** - S7-300 PLC factory
 - **`S7200`** - S7-200 PLC factory
 
+### ValueTask and IObservableAsync Extensions
+
+The `S7PlcRx.Advanced.AsyncExtensions` surface adds async-first helpers on top of `IRxS7` without changing the core PLC interface. These extensions prefer cached values and optimized multi-variable reads/writes where possible, and add `ReactiveUI.Extensions.Async`-based observation APIs on .NET 8 or later.
+
+#### Added Extension Methods
+
+- **`ReadValueAsync<T>(string, CancellationToken)`** - Reads a single tag as `ValueTask<T?>`, completing synchronously when a compatible cached value is already available.
+- **`ReadValuesAsync<T>(params string[])`** - Reads multiple tags as `ValueTask<Dictionary<string, T?>>`.
+- **`ReadValuesAsync<T>(IReadOnlyList<string>, CancellationToken)`** - Reads multiple tags with cancellation support for deferred reads.
+- **`WriteValuesAsync<T>(IReadOnlyDictionary<string, T>, CancellationToken)`** - Writes multiple tag values using the optimized multi-variable write path when available.
+- **`ObserveValueAsync<T>(string)`** - Exposes a single PLC tag as `IObservableAsync<T?>` on .NET 8+.
+- **`ObserveValuesAsync<T>(params string[])`** - Exposes batch tag observation as `IObservableAsync<Dictionary<string, T?>>` on .NET 8+.
+
+#### Reading a Single Value with `ReadValueAsync`
+
+```csharp
+using S7PlcRx.Advanced;
+
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+
+var temperature = await plc.ReadValueAsync<float>("Temperature");
+Console.WriteLine($"Temperature: {temperature:F1}°C");
+```
+
+#### Reading Multiple Values with Cancellation
+
+```csharp
+using S7PlcRx.Advanced;
+
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0").SetTagPollIng(false);
+plc.AddUpdateTagItem<float>("Pressure", "DB1.DBD4").SetTagPollIng(false);
+plc.AddUpdateTagItem<bool>("Running", "DB1.DBX8.0").SetTagPollIng(false);
+
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+var values = await plc.ReadValuesAsync<object>(
+    new[] { "Temperature", "Pressure", "Running" },
+    cts.Token);
+
+Console.WriteLine($"Temperature: {values["Temperature"]}");
+Console.WriteLine($"Pressure: {values["Pressure"]}");
+Console.WriteLine($"Running: {values["Running"]}");
+```
+
+#### Writing Multiple Values with `WriteValuesAsync`
+
+```csharp
+using S7PlcRx.Advanced;
+
+plc.AddUpdateTagItem<float>("TempSetpoint", "DB2.DBD0").SetTagPollIng(false);
+plc.AddUpdateTagItem<float>("PressureSetpoint", "DB2.DBD4").SetTagPollIng(false);
+
+await plc.WriteValuesAsync(new Dictionary<string, float>
+{
+    ["TempSetpoint"] = 72.5f,
+    ["PressureSetpoint"] = 1.8f,
+});
+```
+
+#### Observing a Single Tag with `ObserveValueAsync` (.NET 8+)
+
+```csharp
+using ReactiveUI.Extensions.Async;
+using S7PlcRx.Advanced;
+
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+
+await using var subscription = await plc.ObserveValueAsync<float>("Temperature")
+    .SubscribeAsync(
+        async (value, cancellationToken) =>
+        {
+            Console.WriteLine($"Async temperature update: {value:F1}°C");
+            await Task.CompletedTask;
+        },
+        CancellationToken.None);
+```
+
+#### Observing a Batch with `ObserveValuesAsync` (.NET 8+)
+
+```csharp
+using ReactiveUI.Extensions.Async;
+using S7PlcRx.Advanced;
+
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+plc.AddUpdateTagItem<float>("Pressure", "DB1.DBD4");
+
+await using var subscription = await plc.ObserveValuesAsync<float>("Temperature", "Pressure")
+    .SubscribeAsync(
+        async (values, cancellationToken) =>
+        {
+            if (values.TryGetValue("Temperature", out var temperature) &&
+                values.TryGetValue("Pressure", out var pressure))
+            {
+                Console.WriteLine($"Batch update: {temperature:F1}°C / {pressure:F2} bar");
+            }
+
+            await Task.CompletedTask;
+        },
+        CancellationToken.None);
+```
+
+#### Existing Batch Helpers Built on the Async Extensions
+
+The existing batch helpers in `AdvancedExtensions` now route through the async-first APIs:
+
+- **`ValueBatch<T>(params string[])`** delegates to `ReadValuesAsync<T>(...)`
+- **`ValueBatch<T>(Dictionary<string, T>)`** delegates to `WriteValuesAsync<T>(...)`
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
