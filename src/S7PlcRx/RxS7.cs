@@ -489,7 +489,7 @@ public class RxS7 : IRxS7
     /// <param name="tag">The tag to add or update. The tag's Address property must not be null, empty, or consist only of white-space
     /// characters.</param>
     /// <exception cref="TagAddressOutOfRangeException">Thrown if the tag's Address property is null, empty, or consists only of white-space characters.</exception>
-    internal void AddUpdateTagItem(Tag tag)
+    internal void AddUpdateTagItemInternal(Tag tag)
     {
         if (string.IsNullOrWhiteSpace(tag?.Address))
         {
@@ -518,7 +518,7 @@ public class RxS7 : IRxS7
     /// </summary>
     /// <param name="tagName">The name of the tag item to remove. Cannot be null, empty, or consist only of white-space characters.</param>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="tagName"/> is null, empty, or consists only of white-space characters.</exception>
-    internal void RemoveTagItem(string tagName)
+    internal void RemoveTagItemInternal(string tagName)
     {
         if (string.IsNullOrWhiteSpace(tagName))
         {

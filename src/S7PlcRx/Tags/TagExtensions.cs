@@ -44,7 +44,7 @@ public static class TagExtensions
                 tag = new(tagName, address, typeof(T));
             }
 
-            plc.AddUpdateTagItem(tag);
+            plc.AddUpdateTagItemInternal(tag);
         }
 
         return (tag, @this);
@@ -75,7 +75,7 @@ public static class TagExtensions
                 tag = new(tagName, address, type);
             }
 
-            plc.AddUpdateTagItem(tag);
+            plc.AddUpdateTagItemInternal(tag);
         }
 
         return (tag, @this);
@@ -110,7 +110,7 @@ public static class TagExtensions
                 tag = new(tagName, address, typeof(T));
             }
 
-            plc.AddUpdateTagItem(tag);
+            plc.AddUpdateTagItemInternal(tag);
         }
 
         return (tag, @this.plc);
@@ -142,7 +142,7 @@ public static class TagExtensions
                 tag = new(tagName, address, type);
             }
 
-            plc.AddUpdateTagItem(tag);
+            plc.AddUpdateTagItemInternal(tag);
         }
 
         return (tag, @this.plc);
@@ -189,7 +189,7 @@ public static class TagExtensions
     {
         if (@this is RxS7 plc)
         {
-            plc.RemoveTagItem(tagName);
+            plc.RemoveTagItemInternal(tagName);
         }
     }
 

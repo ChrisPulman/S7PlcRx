@@ -556,7 +556,7 @@ public class S7PlcRxComprehensiveTests
         }
 
         // Test tag management during runtime
-        plc.RemoveTagItem("ProcessBit");
+        plc.RemoveTagItemInternal("ProcessBit");
         Assert.That(plc.TagList.Count, Is.EqualTo(11));
 
         var (newTag, _) = plc.AddUpdateTagItem<int>("ProcessDInt", "DB1.DBD20");
