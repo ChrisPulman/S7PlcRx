@@ -491,26 +491,36 @@ public class RxS7 : IRxS7
     /// <exception cref="TagAddressOutOfRangeException">Thrown if the tag's Address property is null, empty, or consists only of white-space characters.</exception>
     internal void AddUpdateTagItemInternal(Tag tag)
     {
+        if (string.IsNullOrWhiteSpace(tag?.Name))
+        {
+            throw new ArgumentNullException(nameof(tag));
+        }
+
         if (string.IsNullOrWhiteSpace(tag?.Address))
         {
             throw new TagAddressOutOfRangeException(tag);
         }
 
         _lockTagList.Wait();
-        if (TagList[tag!.Name!] is Tag tagExists)
+        try
         {
-            tagExists.Name = tag.Name;
-            tagExists.Value = tag.Value;
-            tagExists.Address = tag.Address;
-            tagExists.Type = tag.Type;
-            tagExists.ArrayLength = tag.ArrayLength;
+            if (TagList[tag.Name!] is Tag tagExists)
+            {
+                tagExists.Name = tag.Name;
+                tagExists.Value = tag.Value;
+                tagExists.Address = tag.Address;
+                tagExists.Type = tag.Type;
+                tagExists.ArrayLength = tag.ArrayLength;
+            }
+            else
+            {
+                TagList.Add(tag);
+            }
         }
-        else
+        finally
         {
-            TagList.Add(tag);
+            _lockTagList.Release();
         }
-
-        _lockTagList.Release();
     }
 
     /// <summary>
@@ -526,12 +536,17 @@ public class RxS7 : IRxS7
         }
 
         _lockTagList.Wait();
-        if (TagList.ContainsKey(tagName!))
+        try
         {
-            TagList.Remove(tagName!);
+            if (TagList.ContainsKey(tagName!))
+            {
+                TagList.Remove(tagName!);
+            }
         }
-
-        _lockTagList.Release();
+        finally
+        {
+            _lockTagList.Release();
+        }
     }
 
     /// <summary>
@@ -1889,35 +1904,38 @@ public class RxS7 : IRxS7
                                 return;
                             }
 
-                            await _lockTagList.WaitAsync();
                             _stopwatch.Restart();
                             _paused.OnNext(false);
-                            foreach (var tag in tagList)
+                            try
                             {
-                                if (tag.DoNotPoll)
+                                foreach (var tag in tagList)
                                 {
-                                    continue;
-                                }
-
-                                try
-                                {
-                                    while (!IsConnectedValue)
+                                    if (tag.DoNotPoll)
                                     {
-                                        await Task.Delay(10);
+                                        continue;
                                     }
 
-                                    _pLCRequestSubject.OnNext(new PLCRequest(PLCRequestType.Read, tag));
-                                }
-                                catch (Exception ex)
-                                {
-                                    _lastError.OnNext(ex.Message);
-                                    _status.OnNext($"{tag.Name} could not be read from {tag.Address}. Error: " + ex);
+                                    try
+                                    {
+                                        while (!IsConnectedValue)
+                                        {
+                                            await Task.Delay(10);
+                                        }
+
+                                        _pLCRequestSubject.OnNext(new PLCRequest(PLCRequestType.Read, tag));
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _lastError.OnNext(ex.Message);
+                                        _status.OnNext($"{tag.Name} could not be read from {tag.Address}. Error: " + ex);
+                                    }
                                 }
                             }
-
-                            _stopwatch.Stop();
-                            _readTime.OnNext(_stopwatch.ElapsedTicks);
-                            _lockTagList.Release();
+                            finally
+                            {
+                                _stopwatch.Stop();
+                                _readTime.OnNext(_stopwatch.ElapsedTicks);
+                            }
                         }
                     });
 

@@ -106,6 +106,26 @@ public class S7PlcRxBasicTests
     }
 
     /// <summary>
+    /// Test that a failed tag add does not prevent later tag mutations.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
+    [Test]
+    public async Task AddUpdateTagItem_InvalidName_ShouldNotBlockLaterTagMutations()
+    {
+        // Arrange
+        using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
+
+        // Act
+        Assert.Throws<ArgumentNullException>(() => plc.AddUpdateTagItem<byte>(null!, "DB1.DBB0"));
+        var addTask = Task.Run(() => plc.AddUpdateTagItem<byte>("ValidByte", "DB1.DBB1"));
+        var completedTask = await Task.WhenAny(addTask, Task.Delay(1000));
+
+        // Assert
+        Assert.That(completedTask, Is.SameAs(addTask));
+        Assert.That(plc.TagList.ContainsKey("ValidByte"), Is.True);
+    }
+
+    /// <summary>
     /// Test observables are created correctly.
     /// </summary>
     [Test]
