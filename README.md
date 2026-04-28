@@ -1,6 +1,4 @@
-﻿![License](https://img.shields.io/github/license/ChrisPulman/S7PlcRx.svg) [![Build](https://github.com/ChrisPulman/S7PlcRx/actions/workflows/BuildOnly.yml/badge.svg)](https://github.com/ChrisPulman/S7PlcRx/actions/workflows/BuildOnly.yml) ![Nuget](https://img.shields.io/nuget/dt/S7PlcRx?color=pink&style=plastic) [![NuGet](https://img.shields.io/nuget/v/S7PlcRx.svg?style=plastic)](https://www.nuget.org/packages/S7PlcRx)
-
-![Alt](https://repobeats.axiom.co/api/embed/48a23aed3690ef69ed277b96f2154062dd436af2.svg "Repobeats analytics image")
+![License](https://img.shields.io/github/license/ChrisPulman/S7PlcRx.svg) [![Build](https://github.com/ChrisPulman/S7PlcRx/actions/workflows/BuildOnly.yml/badge.svg)](https://github.com/ChrisPulman/S7PlcRx/actions/workflows/BuildOnly.yml) ![Nuget](https://img.shields.io/nuget/dt/S7PlcRx?color=pink&style=plastic) [![NuGet](https://img.shields.io/nuget/v/S7PlcRx.svg?style=plastic)](https://www.nuget.org/packages/S7PlcRx)
 
 <p align="left">
   <a href="https://github.com/ChrisPulman/S7PlcRx">
@@ -8,909 +6,1904 @@
   </a>
 </p>
 
-# S7PlcRx 🚀
-**Enterprise-Grade Reactive S7 PLC Communications Library**
+# S7PlcRx
 
-## 📖 Introduction
+Reactive Siemens S7 PLC communication for .NET. S7PlcRx provides tag-based S7 reads/writes, Rx observables, optimized batch helpers, caching, diagnostics, production reliability helpers, high-availability helpers, PLC byte conversion utilities, and source-generator assisted property bindings.
 
-S7PlcRx is a comprehensive, production-ready reactive library for communicating with Siemens S7 PLCs. Built on Reactive Extensions (Rx.NET), it provides real-time data streaming, advanced performance optimizations, enterprise-grade reliability, and comprehensive industrial automation features.
+> Siemens and S7 are trademarks of Siemens AG. This project is independent and is not affiliated with or endorsed by Siemens AG. Test all automation code against a simulator or safe test rig before using production equipment.
 
-### Disclaimer
-This project is not affiliated with or endorsed by Siemens AG. It is an independent implementation for educational and industrial use.
-S7PlcRx is designed to work with Siemens S7 PLCs, including S7-1500, S7-1200, S7-400, S7-300, S7-200, and Logo 0BA8 models.
-The use of this libarary is at your own risk. The author is not responsible for any damages or losses incurred from using this library in production environments.
-Ensure that you test thoroughly in a safe environment before deploying to production systems and always follow best practices for industrial automation.
+## Contents
 
-## 🏭 Why S7PlcRx?
-S7PlcRx is designed to meet the demanding requirements of modern industrial automation systems. It combines the power of reactive programming with high-performance optimizations, making it ideal for real-time PLC data monitoring, control, and diagnostics.
+- [Supported PLCs and frameworks](#supported-plcs-and-frameworks)
+- [PLC prerequisites](#plc-prerequisites)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Addressing and data types](#addressing-and-data-types)
+- [Core tag API](#core-tag-api)
+- [Reactive reading](#reactive-reading)
+- [Manual reads and writes](#manual-reads-and-writes)
+- [Batch, async, and optimized APIs](#batch-async-and-optimized-apis)
+- [Source generator property binding](#source-generator-property-binding)
+- [Performance and cache features](#performance-and-cache-features)
+- [Enterprise features](#enterprise-features)
+- [Production reliability and diagnostics](#production-reliability-and-diagnostics)
+- [PLC type conversion helpers](#plc-type-conversion-helpers)
+- [Public API reference](#public-api-reference)
+- [Build and test](#build-and-test)
 
-### ✨ Key Features
+## Supported PLCs and frameworks
 
-- **🔄 Reactive Data Streaming** - Real-time PLC data observation using Rx.NET
-- **⚡ High-Performance Optimizations** - 5-10x faster with intelligent batching and caching
-- **🏭 Enterprise-Grade Reliability** - Circuit breakers, failover, and 99.9% uptime
-- **📊 Advanced Analytics** - Performance monitoring and AI-driven optimization
-- **🎯 Symbolic Addressing** - CSV/JSON/XML symbol table support
-- **🌐 Multi-PLC Support** - High-availability with automatic failover
-- **📈 Production Diagnostics** - Comprehensive system health monitoring
+| PLC family | API |
+|---|---|
+| S7-1500 | `CpuType.S71500`, `S71500.Create(...)` |
+| S7-1200 | `CpuType.S71200`, `S71200.Create(...)` |
+| S7-400 | `CpuType.S7400`, `S7400.Create(...)` |
+| S7-300 | `CpuType.S7300`, `S7300.Create(...)` |
+| S7-200 | `CpuType.S7200`, `S7200.Create(...)` |
+| Logo 0BA8 | enum support where supported by the protocol path |
 
-### 🏭 Supported PLC Models
+`S7PlcRx` targets `net462`, `net472`, `net481`, `net8.0`, `net9.0`, and `net10.0`.
 
-- **S7-1500** (S71500) - Latest generation with advanced features
-- **S7-1200** (S71200) - Compact performance PLCs  
-- **S7-400** (S7400) - High-end automation systems
-- **S7-300** (S7300) - Modular automation systems
-- **S7-200** (S7200) - Micro automation systems
-- **Logo 0BA8** - Logic modules for basic automation
+`S7PlcRx.SourceGenerators` targets `netstandard2.0` and runs as a Roslyn analyzer/source generator.
 
-## 🚀 Quick Start
+## PLC prerequisites
 
-### Installation
+For absolute DB addressing such as `DB1.DBD0` on modern Siemens CPUs:
 
-S7PlcRx is available on [NuGet](https://www.nuget.org/packages/S7PlcRx/).
+1. Enable PUT/GET communication.
+2. Use non-optimized DB layout for directly addressed DBs.
+3. Confirm IP address, rack, and slot.
+4. Keep write tests away from live actuators until proven safe.
+5. For source-generated byte-array batching, place related tags in the same DB and adjacent byte ranges.
+
+## Installation
 
 ```powershell
-# Package Manager
 Install-Package S7PlcRx
+```
 
-# .NET CLI  
+```bash
 dotnet add package S7PlcRx
 ```
 
-### ⚙️ PLC Configuration
+Repository/analyzer usage for the source generator:
 
-Before using S7PlcRx, configure your Siemens PLC:
-
-1. **Enable PUT/GET Communication** in PLC settings
-2. **Set Data Blocks to Non-Optimized** for direct address access
-3. **Configure Network Parameters** (IP address, subnet)
-
-### 🔌 Basic Connection
-
-```csharp
-using S7PlcRx;
-using S7PlcRx.Enums;
-using System.Reactive.Linq;
-
-// Create PLC connection
-using var plc = new RxS7(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1);
-
-// Monitor connection status reactively
-plc.IsConnected
-    .Where(connected => connected)
-    .Subscribe(_ => Console.WriteLine("✅ PLC Connected!"));
-
-// Add tags for monitoring
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
-plc.AddUpdateTagItem<bool>("Running", "DB1.DBX4.0");
-
-// Observe real-time data changes
-plc.Observe<float>("Temperature")
-    .Subscribe(temp => Console.WriteLine($"🌡️ Temperature: {temp:F1}°C"));
-
-plc.Observe<bool>("Running")
-    .Subscribe(running => Console.WriteLine($"⚙️ Running: {running}"));
+```xml
+<ProjectReference Include="..\S7PlcRx.SourceGenerators\S7PlcRx.SourceGenerators.csproj"
+                  OutputItemType="Analyzer"
+                  ReferenceOutputAssembly="false"
+                  PrivateAssets="all" />
 ```
 
-## 📋 Core Functionality
-
-### 🏷️ Tag Management
-
-#### Adding Tags with Different Data Types
+## Quick start
 
 ```csharp
-// Basic data types
-plc.AddUpdateTagItem<bool>("MotorRunning", "DB1.DBX0.0");
-plc.AddUpdateTagItem<byte>("Status", "DB1.DBB2");
-plc.AddUpdateTagItem<short>("Counter", "DB1.DBW4");
-plc.AddUpdateTagItem<int>("ProductCount", "DB1.DBD6");
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD10");
-plc.AddUpdateTagItem<double>("Precision", "DB1.DBD14");
+using System.Reactive.Linq;
+using S7PlcRx;
+using S7PlcRx.Enums;
 
-// Array types with specified lengths
-plc.AddUpdateTagItem<byte[]>("ByteArray", "DB1.DBB100", length: 64);
-plc.AddUpdateTagItem<float[]>("TemperatureArray", "DB1.DBD200", length: 10);
+using var plc = new RxS7(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1, interval: 100);
 
-// Chainable tag creation
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+plc.AddUpdateTagItem<bool>("Running", "DB1.DBX4.0");
+plc.AddUpdateTagItem<float>("TemperatureSetPoint", "DB1.DBD8");
+
+using var connected = plc.IsConnected
+    .DistinctUntilChanged()
+    .Subscribe(x => Console.WriteLine($"Connected: {x}"));
+
+using var temperature = plc.Observe<float>("Temperature")
+    .Where(x => x.HasValue)
+    .Subscribe(x => Console.WriteLine($"Temperature: {x:F1} °C"));
+
+plc.Value("TemperatureSetPoint", 72.5f);
+```
+
+Factory equivalent:
+
+```csharp
+using IRxS7 plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+```
+
+## Addressing and data types
+
+| Area | Examples | Notes |
+|---|---|---|
+| DB bit | `DB1.DBX0.0`, `DB1.DBX4.7` | Bit index must be 0-7. |
+| DB byte | `DB1.DBB0` | `byte`, `byte[]`, generated raw ranges. |
+| DB word | `DB1.DBW2` | `short`, `ushort`. |
+| DB double word | `DB1.DBD4` | `int`, `uint`, `float`; `double` uses 8 bytes from the start offset. |
+| Inputs | `I0.0`, `IB0`, `IW0`, `ID0`; `E` aliases | Input area. |
+| Outputs | `Q0.0`, `QB0`, `QW0`, `QD0`; `A` aliases | Output area. |
+| Memory | `M0.0`, `MB0`, `MW0`, `MD0` | Marker memory. |
+| Timers | `T1` | S7 timers. |
+| Counters | `C1`, `Z1` | S7 counters. |
+
+| S7 representation | C# type | Address example | Bytes |
+|---|---:|---|---:|
+| BOOL | `bool` | `DB1.DBX0.0` | bit in byte |
+| BYTE | `byte` | `DB1.DBB1` | 1 |
+| BYTE array | `byte[]` | `DB1.DBB100`, `arrayLength: 64` | length |
+| INT | `short` | `DB1.DBW2` | 2 |
+| WORD | `ushort` | `DB1.DBW4` | 2 |
+| DINT | `int` | `DB1.DBD6` | 4 |
+| DWORD | `uint` | `DB1.DBD10` | 4 |
+| REAL | `float` | `DB1.DBD14` | 4 |
+| LREAL | `double` | `DB1.DBD18` | 8 |
+| STRING | `string` | `DB1.DBB40` | variable |
+| Arrays | `short[]`, `ushort[]`, `int[]`, `uint[]`, `float[]`, `double[]` | first element address plus `arrayLength` | element size x length |
+
+## Core tag API
+
+Register tags:
+
+```csharp
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+plc.AddUpdateTagItem<bool>("Running", "DB1.DBX4.0");
+plc.AddUpdateTagItem<byte[]>("RecipeBytes", "DB10.DBB0", arrayLength: 64);
+plc.AddUpdateTagItem<float[]>("Curve", "DB20.DBD0", arrayLength: 16);
+```
+
+Fluent registration and polling control:
+
+```csharp
 plc.AddUpdateTagItem<float>("Temp1", "DB1.DBD0")
    .AddUpdateTagItem<float>("Temp2", "DB1.DBD4")
    .AddUpdateTagItem<bool>("Alarm", "DB1.DBX8.0")
-   .SetTagPollIng(false); // Disable polling on last tag
+   .SetTagPollIng(false); // disables polling on the last tag
+
+plc.GetTag("Temp1").SetTagPollIng(false);
+plc.GetTag("Temp1").SetTagPollIng(true);
+plc.RemoveTagItem("Temp1");
 ```
 
-#### Tag Polling Control
-
-```csharp
-// Add tag without automatic polling
-var (tag, _) = plc.AddUpdateTagItem<float>("ManualRead", "DB1.DBD0")
-                  .SetTagPollIng(false);
-
-// Enable polling later
-plc.GetTag("ManualRead").SetTagPollIng(true);
-
-// Disable polling temporarily  
-plc.GetTag("ManualRead").SetTagPollIng(false);
-```
-
-#### Tag Removal
-
-```csharp
-// Remove specific tag
-plc.RemoveTagItem("OldTag");
-
-// Check if tag exists
-if (plc.TagList.ContainsKey("Temperature"))
-{
-    var (tag, _) = plc.GetTag("Temperature");
-    Console.WriteLine($"Tag found: {tag?.Name}");
-}
-```
-
-### 📖 Reading Data
-
-#### Reactive Data Observation
-
-```csharp
-// Observe single tag changes
-plc.Observe<float>("Temperature")
-    .Where(temp => temp > 80.0f)
-    .Subscribe(temp => Console.WriteLine($"🚨 High Temperature: {temp:F1}°C"));
-
-// Observe multiple tags with filtering
-plc.Observe<bool>("AlarmStatus")
-    .Where(alarm => alarm)
-    .Subscribe(_ => Console.WriteLine("🔔 ALARM TRIGGERED!"));
-
-// Observe with time-based operations
-plc.Observe<float>("Pressure")
-    .Sample(TimeSpan.FromSeconds(5)) // Sample every 5 seconds
-    .Subscribe(pressure => Console.WriteLine($"📊 Pressure: {pressure:F2} bar"));
-
-// Buffer values for analysis
-plc.Observe<float>("FlowRate")
-    .Buffer(TimeSpan.FromMinutes(1))
-    .Subscribe(values => 
-    {
-        var avg = values.Average();
-        Console.WriteLine($"📈 Average Flow Rate (1min): {avg:F2} L/min");
-    });
-```
-
-#### Manual Reading
-
-```csharp
-// Read single values
-var temperature = await plc.Value<float>("Temperature");
-var isRunning = await plc.Value<bool>("Running");
-var productCount = await plc.Value<int>("ProductCount");
-
-Console.WriteLine($"Current Temperature: {temperature:F1}°C");
-Console.WriteLine($"System Running: {isRunning}");
-Console.WriteLine($"Products Made: {productCount}");
-```
-
-### ✏️ Writing Data
-
-#### Direct Value Writing
-
-```csharp
-// Write different data types
-plc.Value("SetPoint", 75.5f);           // Float
-plc.Value("Enable", true);              // Boolean  
-plc.Value("RecipeNumber", 42);          // Integer
-plc.Value("OperatorID", 1234);          // Word
-
-// Write arrays
-plc.Value("Recipe", new float[] { 25.0f, 50.0f, 75.0f });
-plc.Value("ByteData", new byte[] { 0x01, 0x02, 0x03 });
-```
-
-#### Conditional Writing
-
-```csharp
-// Write only when connected
-plc.IsConnected
-    .Where(connected => connected)
-    .Subscribe(_ => 
-    {
-        plc.Value("Heartbeat", DateTime.Now.Ticks);
-        plc.Value("SystemReady", true);
-    });
-```
-
-### 📊 System Information
-
-#### CPU Information
-
-```csharp
-// Get CPU info reactively
-plc.GetCpuInfo()
-    .Subscribe(info => 
-    {
-        Console.WriteLine("📟 PLC Information:");
-        Console.WriteLine($"  AS Name: {info[0]}");
-        Console.WriteLine($"  Module: {info[1]}");
-        Console.WriteLine($"  Serial: {info[3]}");
-        Console.WriteLine($"  Order Code: {info[5]}");
-        Console.WriteLine($"  Version: {info[6]} {info[7]} {info[8]}");
-    });
-
-// Get CPU info once
-var cpuInfo = await plc.GetCpuInfo().FirstAsync();
-```
-
-### 🐕 Watchdog Configuration
-
-Keep your PLC connection alive with automatic watchdog functionality:
-
-```csharp
-// Create PLC with watchdog
-var plc = new RxS7(
-    cpuType: CpuType.S71500,
-    ip: "192.168.1.100", 
-    rack: 0,
-    slot: 1,
-    watchDogAddress: "DB100.DBW0",    // Must be DBW address
-    interval: 100,                    // Polling interval (ms)
-    watchDogValueToWrite: 4500,       // Watchdog value
-    watchDogInterval: 10              // Watchdog write interval (seconds)
-);
-
-// Configure watchdog display
-plc.ShowWatchDogWriting = true; // Show watchdog activity
-
-// Monitor watchdog status
-plc.Status
-    .Where(status => status.Contains("WatchDog"))
-    .Subscribe(status => Console.WriteLine($"🐕 {status}"));
-```
-
-## ⚡ Performance Optimizations
-
-### 🚀 Batch Operations
-
-Dramatically improve performance with intelligent batch operations:
-
-```csharp
-using S7PlcRx.Performance;
-
-// Batch reading - up to 10x faster
-var tagNames = new[] { "Temp1", "Temp2", "Temp3", "Pressure1", "Flow1" };
-var results = await plc.ReadOptimized<float>(tagNames);
-
-foreach (var (tag, value) in results)
-{
-    Console.WriteLine($"{tag}: {value:F2}");
-}
-
-// Batch writing with verification
-var writeValues = new Dictionary<string, float>
-{
-    ["SetPoint1"] = 75.5f,
-    ["SetPoint2"] = 80.0f,
-    ["SetPoint3"] = 65.0f
-};
-
-var config = new WriteOptimizationConfig
-{
-    EnableParallelWrites = true,
-    VerifyWrites = true,
-    InterGroupDelayMs = 10
-};
-
-var writeResult = await plc.WriteOptimized(writeValues, config);
-Console.WriteLine($"✅ {writeResult.SuccessfulWrites.Count} writes completed");
-```
-
-### 📊 Performance Monitoring
-
-```csharp
-// Monitor real-time performance
-plc.MonitorPerformance(TimeSpan.FromSeconds(30))
-    .Subscribe(metrics => 
-    {
-        Console.WriteLine($"📈 Performance Metrics:");
-        Console.WriteLine($"  Operations/sec: {metrics.OperationsPerSecond:F1}");
-        Console.WriteLine($"  Avg Response: {metrics.AverageResponseTime:F0}ms");
-        Console.WriteLine($"  Error Rate: {metrics.ErrorRate:P2}");
-        Console.WriteLine($"  Active Tags: {metrics.ActiveTagCount}");
-    });
-
-// Get performance statistics
-var stats = plc.GetPerformanceStatistics();
-Console.WriteLine($"Total Operations: {stats.TotalOperations}");
-Console.WriteLine($"Connection Uptime: {stats.ConnectionUptime.TotalHours:F1}h");
-```
-
-### 🎯 Smart Caching
-
-```csharp
-using S7PlcRx.Optimization;
-
-// Enable intelligent caching
-var cachedValue = await plc.ValueCached<float>("Temperature", TimeSpan.FromSeconds(1));
-
-// Monitor cache performance
-var cacheStats = plc.GetCacheStatistics();
-Console.WriteLine($"Cache Hit Rate: {cacheStats.HitRate:P1}");
-Console.WriteLine($"Cache Entries: {cacheStats.TotalEntries}");
-
-// Clear cache when needed
-plc.ClearCache();
-```
-
-### 🔍 Smart Tag Monitoring
-
-Monitor only significant changes to reduce noise:
-
-```csharp
-// Monitor with change threshold and debouncing
-plc.MonitorTagSmart<float>("Temperature", changeThreshold: 0.5, debounceMs: 100)
-    .Subscribe(change => 
-    {
-        Console.WriteLine($"🔔 Significant Change:");
-        Console.WriteLine($"  Tag: {change.TagName}");
-        Console.WriteLine($"  Previous: {change.PreviousValue:F2}");
-        Console.WriteLine($"  Current: {change.CurrentValue:F2}");
-        Console.WriteLine($"  Change: {change.ChangeAmount:F2}");
-    });
-```
-
-## 🏭 Enterprise Features
-
-### 🎯 High-Performance Tag Groups
-
-Group related tags for optimized batch operations:
-
-```csharp
-using S7PlcRx.Performance;
-
-// Create specialized tag groups
-var temperatureGroup = plc.CreateTagGroup("Temperatures",
-    "DB1.DBD0",   // Reactor temp
-    "DB1.DBD4",   // Cooling temp  
-    "DB1.DBD8",   // Ambient temp
-    "DB1.DBD12"   // Exhaust temp
-);
-
-// Read all temperatures efficiently
-var temperatures = await temperatureGroup.ReadAll<float>();
-foreach (var temp in temperatures)
-{
-    Console.WriteLine($"{temp.Key}: {temp.Value:F1}°C");
-}
-
-// Monitor group changes
-temperatureGroup.ObserveGroup()
-    .Subscribe(groupData => 
-    {
-        var avgTemp = groupData.Values.OfType<float>().Average();
-        Console.WriteLine($"🌡️ Average Temperature: {avgTemp:F1}°C");
-    });
-
-// Cleanup
-temperatureGroup.Dispose();
-```
-
-### 🌐 Symbol Table Support
-
-Use symbolic names instead of absolute addresses:
-
-```csharp
-using S7PlcRx.Enterprise;
-
-// Load symbol table from CSV
-var csvData = @"Name,Address,DataType,Length,Description
-ProcessTemperature,DB1.DBD0,REAL,1,Main Process Temperature
-SystemPressure,DB1.DBD4,REAL,1,System Operating Pressure
-MotorRunning,DB1.DBX8.0,BOOL,1,Motor Running Status
-RecipeArray,DB2.DBD0,REAL,10,Recipe Parameters";
-
-var symbolTable = await plc.LoadSymbolTable(csvData, SymbolTableFormat.Csv);
-
-// Use symbolic addressing
-var temperature = await plc.ReadSymbol<float>("ProcessTemperature");
-plc.WriteSymbol("MotorRunning", true);
-
-// Monitor symbolic tags
-plc.Observe<float>("ProcessTemperature")
-    .Subscribe(temp => Console.WriteLine($"Process Temp: {temp:F1}°C"));
-```
-
-### 🌐 High Availability & Failover
-
-```csharp
-// Create high-availability setup
-var primaryPlc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1);
-var backupPlcs = new List<IRxS7>
-{
-    new RxS7(CpuType.S71500, "192.168.1.101", 0, 1),
-    new RxS7(CpuType.S71500, "192.168.1.102", 0, 1)
-};
-
-using var haManager = S7EnterpriseExtensions.CreateHighAvailabilityConnection(
-    primaryPlc, backupPlcs, TimeSpan.FromSeconds(10));
-
-// Monitor failover events
-haManager.FailoverEvents
-    .Subscribe(evt => Console.WriteLine($"🔄 Failover: {evt.Reason}"));
-
-// Use active PLC transparently
-var activePlc = haManager.ActivePLC;
-```
-
-## 🏭 Production Diagnostics
-
-### 📊 System Health Monitoring
-
-```csharp
-using S7PlcRx.Production;
-
-// Comprehensive system diagnostics
-var diagnostics = await plc.GetDiagnostics();
-
-Console.WriteLine("🏭 System Diagnostics:");
-Console.WriteLine($"  PLC Type: {diagnostics.PLCType}");
-Console.WriteLine($"  Connection: {(diagnostics.IsConnected ? "✅" : "❌")}");
-Console.WriteLine($"  Latency: {diagnostics.ConnectionLatencyMs:F0}ms");
-Console.WriteLine($"  Total Tags: {diagnostics.TagMetrics.TotalTags}");
-Console.WriteLine($"  Active Tags: {diagnostics.TagMetrics.ActiveTags}");
-
-Console.WriteLine("\n💡 Recommendations:");
-foreach (var recommendation in diagnostics.Recommendations)
-{
-    Console.WriteLine($"  • {recommendation}");
-}
-```
-
-### 📈 Performance Analysis
-
-```csharp
-// Analyze performance over time
-var analysis = await plc.AnalyzePerformance(TimeSpan.FromMinutes(5));
-
-Console.WriteLine($"📊 Performance Analysis ({analysis.MonitoringDuration.TotalMinutes:F1}min):");
-Console.WriteLine($"  Total Changes: {analysis.TotalTagChanges}");
-Console.WriteLine($"  Avg Changes/Tag: {analysis.AverageChangesPerTag:F1}");
-
-// View most active tags
-var topTags = analysis.TagChangeFrequencies
-    .OrderByDescending(kvp => kvp.Value)
-    .Take(5);
-
-Console.WriteLine("\n🔥 Most Active Tags:");
-foreach (var (tag, changes) in topTags)
-{
-    Console.WriteLine($"  {tag}: {changes} changes");
-}
-```
-
-### ✅ Production Readiness Validation
-
-```csharp
-var config = new ProductionValidationConfig
-{
-    MaxAcceptableResponseTime = TimeSpan.FromSeconds(1),
-    MinimumReliabilityRate = 0.95,
-    ReliabilityTestCount = 10,
-    MinimumProductionScore = 80.0
-};
-
-var validation = await plc.ValidateProductionReadiness(config);
-
-Console.WriteLine($"✅ Production Ready: {validation.IsProductionReady}");
-Console.WriteLine($"📊 Overall Score: {validation.OverallScore:F1}/100");
-
-foreach (var test in validation.ValidationTests)
-{
-    var status = test.Success ? "✅" : "❌";
-    Console.WriteLine($"  {status} {test.TestName}: {test.Duration.TotalMilliseconds:F0}ms");
-}
-```
-
-### ⚡ Circuit Breaker & Error Handling
-
-```csharp
-var errorConfig = new ProductionErrorConfig
-{
-    MaxRetryAttempts = 3,
-    BaseRetryDelayMs = 100,
-    UseExponentialBackoff = true,
-    CircuitBreakerThreshold = 5,
-    CircuitBreakerTimeout = TimeSpan.FromSeconds(30)
-};
-
-// Execute with automatic retry and circuit breaker
-var result = await plc.ExecuteWithErrorHandling(async () =>
-{
-    return await plc.Value<float>("CriticalSensor");
-}, errorConfig);
-```
-
-## 🏭 Complete Production Example
-
-Here's a comprehensive example showing multiple features working together:
+Tag stream projections:
 
 ```csharp
 using S7PlcRx;
-using S7PlcRx.Enums;
-using S7PlcRx.Performance;
-using S7PlcRx.Enterprise;
-using S7PlcRx.Production;
+
+using var dictionary = plc.ObserveAll
+    .TagToDictionary<object>()
+    .Subscribe(values => Console.WriteLine(values.Count));
+
+using var namedValue = plc.Observe<float>("Temperature")
+    .ToTagValue("Temperature")
+    .Subscribe(item => Console.WriteLine($"{item.Tag}={item.Value}"));
+```
+
+## Reactive reading
+
+```csharp
 using System.Reactive.Linq;
 
-class ProductionSystem
-{
-    private readonly IRxS7 _plc;
-    private readonly HighPerformanceTagGroup<float> _processGroup;
-    private readonly HighPerformanceTagGroup<bool> _alarmGroup;
+using var highTemp = plc.Observe<float>("Temperature")
+    .Where(x => x > 80.0f)
+    .Subscribe(x => Console.WriteLine($"High temperature: {x:F1}"));
 
-    public async Task StartAsync()
-    {
-        // 1. Initialize PLC with watchdog
-        using var plc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1, 
-            "DB100.DBW0", 100, 4500, 10);
+using var sampledPressure = plc.Observe<float>("Pressure")
+    .Sample(TimeSpan.FromSeconds(5))
+    .Subscribe(x => Console.WriteLine($"Pressure: {x:F2}"));
 
-        // 2. Load symbol table
-        var symbolTable = await LoadSymbolTableAsync(plc);
-        
-        // 3. Create high-performance tag groups
-        var processGroup = plc.CreateTagGroup("ProcessData",
-            "DB1.DBD0",   // Temperature
-            "DB1.DBD4",   // Pressure
-            "DB1.DBD8",   // Flow rate
-            "DB1.DBW12"   // Speed
-        );
-
-        var alarmGroup = plc.CreateTagGroup("Alarms",
-            "DB2.DBX0.0", // High temp alarm
-            "DB2.DBX0.1", // High pressure alarm
-            "DB2.DBX0.2", // Equipment fault
-            "DB2.DBX0.3"  // Emergency stop
-        );
-
-        // 4. Enable performance monitoring
-        var performanceSubscription = plc.MonitorPerformance(TimeSpan.FromSeconds(30))
-            .Subscribe(metrics => LogPerformanceMetrics(metrics));
-
-        // 5. Monitor process data
-        var processSubscription = processGroup.ObserveGroup()
-            .Sample(TimeSpan.FromSeconds(1))
-            .Subscribe(data => ProcessDataUpdate(data));
-
-        // 6. Monitor alarms with immediate response
-        var alarmSubscription = alarmGroup.ObserveGroup()
-            .Where(alarms => alarms.Values.OfType<bool>().Any(alarm => alarm))
-            .Subscribe(alarms => HandleAlarms(alarms));
-
-        // 7. Smart temperature monitoring
-        var tempMonitoring = plc.MonitorTagSmart<float>("ProcessTemperature", 0.5, 100)
-            .Subscribe(change => HandleTemperatureChange(change));
-
-        // 8. Batch operations for efficiency
-        await PerformBatchOperations(plc);
-
-        // 9. System health validation
-        await ValidateSystemHealth(plc);
-
-        Console.WriteLine("🏭 Production system started successfully!");
-        
-        // Keep running
-        Console.ReadLine();
-
-        // Cleanup
-        performanceSubscription.Dispose();
-        processSubscription.Dispose();
-        alarmSubscription.Dispose();
-        tempMonitoring.Dispose();
-        processGroup.Dispose();
-        alarmGroup.Dispose();
-    }
-
-    private async Task<SymbolTable> LoadSymbolTableAsync(IRxS7 plc)
-    {
-        var csvData = @"Name,Address,DataType,Length,Description
-ProcessTemperature,DB1.DBD0,REAL,1,Main Process Temperature
-ProcessPressure,DB1.DBD4,REAL,1,System Operating Pressure
-FlowRate,DB1.DBD8,REAL,1,Flow Rate Sensor
-MotorSpeed,DB1.DBW12,INT,1,Motor Speed RPM
-HighTempAlarm,DB2.DBX0.0,BOOL,1,High Temperature Alarm
-HighPressureAlarm,DB2.DBX0.1,BOOL,1,High Pressure Alarm";
-
-        return await plc.LoadSymbolTable(csvData, SymbolTableFormat.Csv);
-    }
-
-    private void LogPerformanceMetrics(PerformanceMetrics metrics)
-    {
-        Console.WriteLine($"📊 Performance: {metrics.OperationsPerSecond:F1} ops/sec, " +
-                         $"Response: {metrics.AverageResponseTime:F0}ms, " +
-                         $"Errors: {metrics.ErrorRate:P2}");
-    }
-
-    private void ProcessDataUpdate(Dictionary<string, object> data)
-    {
-        // Process real-time data updates
-        foreach (var (tag, value) in data)
-        {
-            Console.WriteLine($"📈 {tag}: {value}");
-        }
-    }
-
-    private void HandleAlarms(Dictionary<string, object> alarms)
-    {
-        var activeAlarms = alarms.Where(kvp => kvp.Value is bool b && b);
-        foreach (var (alarm, _) in activeAlarms)
-        {
-            Console.WriteLine($"🚨 ALARM: {alarm}");
-            // Implement alarm handling logic
-        }
-    }
-
-    private void HandleTemperatureChange(SmartTagChange<float> change)
-    {
-        Console.WriteLine($"🌡️ Temperature changed: {change.PreviousValue:F1}°C → " +
-                         $"{change.CurrentValue:F1}°C (Δ{change.ChangeAmount:F1}°C)");
-    }
-
-    private async Task PerformBatchOperations(IRxS7 plc)
-    {
-        // Batch read process values
-        var processValues = await plc.ReadOptimized<float>(new[] 
-        {
-            "ProcessTemperature", "ProcessPressure", "FlowRate"
-        });
-
-        // Batch write setpoints
-        var setpoints = new Dictionary<string, float>
-        {
-            ["TempSetpoint"] = 75.0f,
-            ["PressureSetpoint"] = 2.5f,
-            ["FlowSetpoint"] = 100.0f
-        };
-
-        var writeResult = await plc.WriteOptimized(setpoints, new WriteOptimizationConfig
-        {
-            VerifyWrites = true,
-            EnableParallelWrites = true
-        });
-
-        Console.WriteLine($"✅ Batch operations: {writeResult.SuccessfulWrites.Count} setpoints updated");
-    }
-
-    private async Task ValidateSystemHealth(IRxS7 plc)
-    {
-        var diagnostics = await plc.GetDiagnostics();
-        
-        if (diagnostics.ConnectionLatencyMs > 500)
-        {
-            Console.WriteLine($"⚠️ High latency detected: {diagnostics.ConnectionLatencyMs:F0}ms");
-        }
-
-        var validation = await plc.ValidateProductionReadiness();
-        Console.WriteLine($"✅ Production readiness: {validation.OverallScore:F1}/100");
-    }
-}
+using var averageFlow = plc.Observe<float>("FlowRate")
+    .Buffer(TimeSpan.FromMinutes(1))
+    .Where(values => values.Count > 0)
+    .Select(values => values.Average())
+    .Subscribe(avg => Console.WriteLine($"Average flow: {avg:F2}"));
 ```
 
-## 📚 Advanced Topics
-
-### 🎯 Data Type Support
-
-| S7 Type | C# Type | Address Format | Example |
-|---------|---------|----------------|---------|
-| Bool | `bool` | `DB?.DBX?.?` | `DB1.DBX0.0` |
-| Byte | `byte` | `DB?.DBB?` | `DB1.DBB0` |
-| Word | `ushort` | `DB?.DBW?` | `DB1.DBW0` |
-| Int | `short` | `DB?.DBW?` | `DB1.DBW0` |
-| DWord | `uint` | `DB?.DBD?` | `DB1.DBD0` |
-| DInt | `int` | `DB?.DBD?` | `DB1.DBD0` |
-| Real | `float` | `DB?.DBD?` | `DB1.DBD0` |
-| LReal | `double` | `DB?.DBD?` | `DB1.DBD0` |
-| Arrays | `T[]` | `DB?.DB*?` | `DB1.DBB0` (with length) |
-
-### 🔧 Memory Areas
-
-- **Data Blocks (DB)**: `DB1.DBD0`, `DB1.DBX0.0`, `DB1.DBW0`
-- **Inputs (I/E)**: `IB0`, `IW0`, `ID0`, `I0.0`
-- **Outputs (Q/A)**: `QB0`, `QW0`, `QD0`, `Q0.0`  
-- **Memory (M)**: `MB0`, `MW0`, `MD0`, `M0.0`
-- **Timers (T)**: `T1`, `T2`
-- **Counters (C)**: `C1`, `C2`
-
-### ⚙️ Connection Pool Configuration
+Connection and diagnostic streams:
 
 ```csharp
-using S7PlcRx.Core;
-
-var poolConfig = new ConnectionPoolConfig
-{
-    MaxConnections = 10,
-    ConnectionTimeout = TimeSpan.FromSeconds(30),
-    EnableConnectionReuse = true,
-    HealthCheckInterval = TimeSpan.FromMinutes(1)
-};
-
-var connectionConfigs = new[]
-{
-    new PlcConnectionConfig 
-    { 
-        PLCType = CpuType.S71500, 
-        IPAddress = "192.168.1.100", 
-        Rack = 0, 
-        Slot = 1 
-    }
-};
-
-using var pool = S7EnterpriseExtensions.CreateConnectionPool(connectionConfigs, poolConfig);
-var connection = pool.GetConnection;
+plc.IsConnected.Subscribe(x => Console.WriteLine($"Connected: {x}"));
+plc.LastError.Subscribe(Console.WriteLine);
+plc.LastErrorCode.Subscribe(code => Console.WriteLine($"Error code: {code}"));
+plc.Status.Subscribe(Console.WriteLine);
+plc.IsPaused.Subscribe(paused => Console.WriteLine($"Paused: {paused}"));
+plc.ReadTime.Subscribe(ticks => Console.WriteLine($"Read ticks: {ticks}"));
 ```
 
-## 🔧 Best Practices
-
-### ⚡ Performance Optimization
-
-1. **Use Batch Operations** - Group multiple reads/writes together
-2. **Enable Intelligent Caching** - Cache frequently accessed values
-3. **Optimize Data Block Layout** - Group related tags in same DB
-4. **Monitor Performance Metrics** - Track and optimize bottlenecks
-5. **Use Tag Groups** - Group logically related tags for efficiency
-
-### 🛡️ Reliability
-
-1. **Implement Circuit Breakers** - Prevent cascade failures
-2. **Use Watchdog Functionality** - Keep connections alive
-3. **Enable Automatic Retry** - Handle temporary network issues
-4. **Monitor System Health** - Proactive issue detection
-5. **Validate Production Readiness** - Ensure system reliability
-
-## 📖 API Reference
-
-### Core Classes
-
-- **`RxS7`** - Main PLC communication class
-- **`IRxS7`** - PLC interface for dependency injection
-- **`Tag`** - Represents a PLC tag/variable
-- **`Tags`** - Collection of PLC tags
-
-### Extension Classes
-
-- **`TagExtensions`** - Tag management and operations`
-- **`PerformanceExtensions`** - Performance optimization methods
-- **`OptimizationExtensions`** - Caching and smart monitoring  
-- **`EnterpriseExtensions`** - Enterprise features (High Availability, symbols)
-- **`ProductionExtensions`** - Production reliability features
-- **`AdvancedExtensions`** - Advanced batch operations and diagnostics
-
-### Factory Classes
-
-- **`S71500`** - S7-1500 PLC factory
-- **`S71200`** - S7-1200 PLC factory  
-- **`S7400`** - S7-400 PLC factory
-- **`S7300`** - S7-300 PLC factory
-- **`S7200`** - S7-200 PLC factory
-
-### ValueTask and IObservableAsync Extensions
-
-The `S7PlcRx.Advanced.AsyncExtensions` surface adds async-first helpers on top of `IRxS7` without changing the core PLC interface. These extensions prefer cached values and optimized multi-variable reads/writes where possible, and add `ReactiveUI.Extensions.Async`-based observation APIs on .NET 8 or later.
-
-#### Added Extension Methods
-
-- **`ReadValueAsync<T>(string, CancellationToken)`** - Reads a single tag as `ValueTask<T?>`, completing synchronously when a compatible cached value is already available.
-- **`ReadValuesAsync<T>(params string[])`** - Reads multiple tags as `ValueTask<Dictionary<string, T?>>`.
-- **`ReadValuesAsync<T>(IReadOnlyList<string>, CancellationToken)`** - Reads multiple tags with cancellation support for deferred reads.
-- **`WriteValuesAsync<T>(IReadOnlyDictionary<string, T>, CancellationToken)`** - Writes multiple tag values using the optimized multi-variable write path when available.
-- **`ObserveValueAsync<T>(string)`** - Exposes a single PLC tag as `IObservableAsync<T?>` on .NET 8+.
-- **`ObserveValuesAsync<T>(params string[])`** - Exposes batch tag observation as `IObservableAsync<Dictionary<string, T?>>` on .NET 8+.
-
-#### Reading a Single Value with `ReadValueAsync`
+CPU information:
 
 ```csharp
-using S7PlcRx.Advanced;
+using System.Reactive.Linq;
 
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
-
-var temperature = await plc.ReadValueAsync<float>("Temperature");
-Console.WriteLine($"Temperature: {temperature:F1}°C");
+var cpuInfo = await plc.GetCpuInfo().FirstAsync();
+Console.WriteLine($"AS name: {cpuInfo[0]}, Module: {cpuInfo[1]}");
 ```
 
-#### Reading Multiple Values with Cancellation
+## Manual reads and writes
 
 ```csharp
-using S7PlcRx.Advanced;
-
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0").SetTagPollIng(false);
-plc.AddUpdateTagItem<float>("Pressure", "DB1.DBD4").SetTagPollIng(false);
-plc.AddUpdateTagItem<bool>("Running", "DB1.DBX8.0").SetTagPollIng(false);
+var temperature = await plc.Value<float>("Temperature");
 
 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+var pressure = await plc.ValueAsync<float>("Pressure", cts.Token);
 
-var values = await plc.ReadValuesAsync<object>(
-    new[] { "Temperature", "Pressure", "Running" },
-    cts.Token);
-
-Console.WriteLine($"Temperature: {values["Temperature"]}");
-Console.WriteLine($"Pressure: {values["Pressure"]}");
-Console.WriteLine($"Running: {values["Running"]}");
+plc.Value("SetPoint", 72.5f);
+plc.Value("Enabled", true);
+plc.Value("RecipeNumber", (short)12);
+plc.Value("RecipeBytes", new byte[] { 0x01, 0x02, 0x03 });
 ```
 
-#### Writing Multiple Values with `WriteValuesAsync`
+Watchdog:
+
+```csharp
+using var plcWithWatchdog = new RxS7(
+    CpuType.S71500,
+    "192.168.1.100",
+    rack: 0,
+    slot: 1,
+    watchDogAddress: "DB100.DBW0",
+    interval: 100,
+    watchDogValueToWrite: 4500,
+    watchDogInterval: 10);
+
+plcWithWatchdog.ShowWatchDogWriting = true;
+```
+
+## Batch, async, and optimized APIs
+
+Advanced batch helpers:
 
 ```csharp
 using S7PlcRx.Advanced;
 
-plc.AddUpdateTagItem<float>("TempSetpoint", "DB2.DBD0").SetTagPollIng(false);
-plc.AddUpdateTagItem<float>("PressureSetpoint", "DB2.DBD4").SetTagPollIng(false);
+var values = await plc.ValueBatch<float>("Temp1", "Temp2", "Temp3");
+
+await plc.ValueBatch(new Dictionary<string, float>
+{
+    ["SetPoint1"] = 70.0f,
+    ["SetPoint2"] = 75.0f,
+});
+
+using var batchSub = plc.ObserveBatch<float>("Temp1", "Temp2")
+    .Subscribe(snapshot => Console.WriteLine(snapshot.Count));
+```
+
+Dictionary batch helpers:
+
+```csharp
+var tagMap = new Dictionary<string, string>
+{
+    ["Temperature"] = "DB1.DBD0",
+    ["Pressure"] = "DB1.DBD4",
+};
+
+var read = await plc.ReadBatchOptimized<float>(tagMap, timeoutMs: 5000);
+var write = await plc.WriteBatchOptimized(
+    new Dictionary<string, float> { ["Temperature"] = 22.5f },
+    verifyWrites: false,
+    enableRollback: false);
+```
+
+Async-first `ValueTask` helpers:
+
+```csharp
+using S7PlcRx.Advanced;
+
+var current = await plc.ReadValueAsync<float>("Temperature");
+var many = await plc.ReadValuesAsync<float>("Temp1", "Temp2");
 
 await plc.WriteValuesAsync(new Dictionary<string, float>
 {
-    ["TempSetpoint"] = 72.5f,
-    ["PressureSetpoint"] = 1.8f,
+    ["SetPoint1"] = 72.5f,
+    ["SetPoint2"] = 73.0f,
 });
 ```
 
-#### Observing a Single Tag with `ObserveValueAsync` (.NET 8+)
+.NET 8+ async observable helpers:
 
 ```csharp
 using ReactiveUI.Extensions.Async;
 using S7PlcRx.Advanced;
 
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
-
-await using var subscription = await plc.ObserveValueAsync<float>("Temperature")
+await using var sub = await plc.ObserveValueAsync<float>("Temperature")
     .SubscribeAsync(
         async (value, cancellationToken) =>
         {
-            Console.WriteLine($"Async temperature update: {value:F1}°C");
+            Console.WriteLine($"Async temperature: {value}" );
             await Task.CompletedTask;
         },
         CancellationToken.None);
 ```
 
-#### Observing a Batch with `ObserveValuesAsync` (.NET 8+)
+## Source generator property binding
+
+`S7PlcRx.SourceGenerators` generates PLC-bound properties from attributes. It removes repetitive tag registration, polling assignment, and setter write hooks.
+
+### Generated compile-time attributes
+
+The generator injects this namespace into the consuming compilation:
 
 ```csharp
-using ReactiveUI.Extensions.Async;
-using S7PlcRx.Advanced;
+namespace S7PlcRx.SourceGeneration;
 
-plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
-plc.AddUpdateTagItem<float>("Pressure", "DB1.DBD4");
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class S7PlcBindingAttribute : Attribute;
 
-await using var subscription = await plc.ObserveValuesAsync<float>("Temperature", "Pressure")
-    .SubscribeAsync(
-        async (values, cancellationToken) =>
-        {
-            if (values.TryGetValue("Temperature", out var temperature) &&
-                values.TryGetValue("Pressure", out var pressure))
-            {
-                Console.WriteLine($"Batch update: {temperature:F1}°C / {pressure:F2} bar");
-            }
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class S7TagAttribute : Attribute
+{
+    public S7TagAttribute(string address);
+    public string Address { get; }
+    public int PollIntervalMs { get; set; } = 100;
+    public S7TagDirection Direction { get; set; } = S7TagDirection.ReadWrite;
+    public int ArrayLength { get; set; } = 1;
+}
 
-            await Task.CompletedTask;
-        },
-        CancellationToken.None);
+public enum S7TagDirection
+{
+    ReadWrite,
+    ReadOnly,
+    WriteOnly
+}
 ```
 
-#### Existing Batch Helpers Built on the Async Extensions
+### Generated binding example
 
-The existing batch helpers in `AdvancedExtensions` now route through the async-first APIs:
+```csharp
+using S7PlcRx;
+using S7PlcRx.SourceGeneration;
 
-- **`ValueBatch<T>(params string[])`** delegates to `ReadValuesAsync<T>(...)`
-- **`ValueBatch<T>(Dictionary<string, T>)`** delegates to `WriteValuesAsync<T>(...)`
+[S7PlcBinding]
+public partial class MachineTags
+{
+    [S7Tag("DB1.DBD0", PollIntervalMs = 100)]
+    public partial float Temperature { get; set; }
 
-## 📄 License
+    [S7Tag("DB1.DBX4.0", PollIntervalMs = 100)]
+    public partial bool Running { get; set; }
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+    [S7Tag("DB1.DBW6", PollIntervalMs = 250, Direction = S7TagDirection.ReadOnly)]
+    public partial short ActualSpeed { get; set; }
 
-## 🤝 Contributing
+    [S7Tag("DB1.DBD8", Direction = S7TagDirection.WriteOnly)]
+    public partial float SetPoint { get; set; }
+}
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+using var plc = S71500.Create("192.168.1.100");
+var tags = new MachineTags();
+using var binding = tags.Bind(plc);
 
-## 📞 Support
+tags.SetPoint = 72.5f; // queues a PLC write
+```
 
-- **Issues**: [GitHub Issues](https://github.com/ChrisPulman/S7PlcRx/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ChrisPulman/S7PlcRx/discussions)  
-- **NuGet**: [S7PlcRx Package](https://www.nuget.org/packages/S7PlcRx)
+### Generator rules and behavior
 
----
+- The class must be `partial` and marked with `[S7PlcBinding]`.
+- Each bound property must be `partial` and marked with `[S7Tag("...")]`.
+- The generator emits backing fields, property implementations, a write hook, a read-apply hook, and `IDisposable Bind(IRxS7 plc)`.
+- Property setters call the runtime write hook when the value changes.
+- PLC reads update backing fields without creating write-back loops.
+- `PollIntervalMs > 0` enables interval reads; `PollIntervalMs = 0` disables interval reads.
+- `ReadOnly` disables property writes; `WriteOnly` disables interval reads; `ReadWrite` enables both.
+- `ArrayLength` defines array/string/byte range length.
+- Generated byte-array batching supports DB addresses: `DBX`, `DBB`, `DBW`, `DBD`.
 
-**S7PlcRx** - Empowering Industrial Automation with Reactive Technology ⚡🏭
+### Efficient byte-array DB grouping
+
+For same-DB nearby tags, the runtime reads one DB byte range and decodes properties locally:
+
+```text
+DB1.DBD0   Temperature  float  bytes 0..3
+DB1.DBD4   Pressure     float  bytes 4..7
+DB1.DBX8.0 Running      bool   byte 8 bit 0
+```
+
+Runtime range tag:
+
+```csharp
+plc.AddUpdateTagItem<byte[]>("__s7_binding_db1_0_9", "DB1.DBB0", arrayLength: 9);
+```
+
+Writes are coalesced on a short flush timer. The runtime performs read-modify-write byte-array writes so unrelated bytes/bits in the same range are preserved.
+
+### Manual runtime binding API
+
+```csharp
+using S7PlcRx.Binding;
+
+var definitions = new[]
+{
+    new S7TagDefinition("Temperature", "DB1.DBD0", typeof(float), 100, S7TagDirection.ReadWrite),
+    new S7TagDefinition("Running", "DB1.DBX4.0", typeof(bool), 100, S7TagDirection.ReadWrite),
+};
+
+using var runtime = S7TagRuntimeBinding.Bind(
+    plc,
+    definitions,
+    (name, value) => Console.WriteLine($"{name}={value}"));
+
+runtime.Write("Temperature", 25.5f);
+```
+
+## Performance and cache features
+
+```csharp
+using S7PlcRx.Optimization;
+using S7PlcRx.Performance;
+
+var cached = await plc.ValueCached<float>("Temperature", TimeSpan.FromSeconds(1));
+var cacheStats = plc.GetCacheStatistics();
+plc.ClearCache("Temperature");
+
+using var smart = plc.MonitorTagSmart<float>("Temperature", changeThreshold: 0.5, debounceMs: 100)
+    .Subscribe(change => Console.WriteLine($"{change.TagName}: {change.PreviousValue} -> {change.CurrentValue}"));
+
+using var perf = plc.MonitorPerformance(TimeSpan.FromSeconds(30))
+    .Subscribe(metrics => Console.WriteLine($"{metrics.OperationsPerSecond:F1} ops/sec"));
+
+var optimizedReads = await plc.ReadOptimized<float>(new[] { "Temp1", "Temp2" });
+var optimizedWrite = await plc.WriteOptimized(new Dictionary<string, float>
+{
+    ["SetPoint1"] = 72.5f,
+    ["SetPoint2"] = 73.0f,
+});
+
+var benchmark = await plc.RunBenchmark(new BenchmarkConfig
+{
+    LatencyTestCount = 10,
+    ThroughputTestDuration = TimeSpan.FromSeconds(10),
+    ReliabilityTestCount = 20,
+});
+
+var stats = plc.GetPerformanceStatistics();
+```
+
+High-performance tag groups:
+
+```csharp
+using S7PlcRx.Advanced;
+using S7PlcRx.Performance;
+
+using var group = plc.CreateTagGroup<float>("Process", "Temperature", "Pressure", "Flow");
+using var groupSub = group.ObserveGroup().Subscribe(snapshot => Console.WriteLine(snapshot.Count));
+
+var allValues = await group.ReadAll();
+await group.WriteAll(new Dictionary<string, float>
+{
+    ["Temperature"] = 21.0f,
+    ["Pressure"] = 1.2f,
+});
+```
+
+## Enterprise features
+
+Symbol tables:
+
+```csharp
+using S7PlcRx.Enterprise;
+
+var csv = """
+Name,Address,DataType,Length,Description
+Temperature,DB1.DBD0,REAL,1,Process temperature
+Running,DB1.DBX4.0,BOOL,1,Machine running
+Recipe,DB10.DBB0,ARRAY,64,Recipe bytes
+""";
+
+var table = await plc.LoadSymbolTable(csv, SymbolTableFormat.Csv);
+var temperature = await plc.ReadSymbol<float>("Temperature");
+plc.WriteSymbol("Running", true);
+```
+
+High availability:
+
+```csharp
+using S7PlcRx.Enterprise;
+
+using var primary = S71500.Create("192.168.1.100");
+var backups = new List<IRxS7>
+{
+    S71500.Create("192.168.1.101"),
+    S71500.Create("192.168.1.102"),
+};
+
+using var ha = EnterpriseExtensions.CreateHighAvailabilityConnection(primary, backups, TimeSpan.FromSeconds(10));
+using var failoverSub = ha.FailoverEvents.Subscribe(evt => Console.WriteLine(evt.Reason));
+IRxS7 active = ha.ActivePLC;
+await ha.TriggerFailover();
+```
+
+Connection pool:
+
+```csharp
+using S7PlcRx.Core;
+using S7PlcRx.Enterprise;
+using S7PlcRx.Enums;
+
+using var pool = EnterpriseExtensions.CreateConnectionPool(
+    new[]
+    {
+        new PlcConnectionConfig
+        {
+            PLCType = CpuType.S71500,
+            IPAddress = "192.168.1.100",
+            Rack = 0,
+            Slot = 1,
+            ConnectionName = "Line1Primary",
+        },
+    },
+    new ConnectionPoolConfig
+    {
+        MaxConnections = 10,
+        EnableConnectionReuse = true,
+        HealthCheckInterval = TimeSpan.FromMinutes(1),
+    });
+
+IRxS7 connection = pool.GetConnection;
+```
+
+## Production reliability and diagnostics
+
+```csharp
+using S7PlcRx.Advanced;
+using S7PlcRx.Production;
+
+var diagnostics = await plc.GetDiagnostics();
+Console.WriteLine($"Connected: {diagnostics.IsConnected}, latency: {diagnostics.ConnectionLatencyMs:F0} ms");
+
+var analysis = await plc.AnalyzePerformance(TimeSpan.FromMinutes(5));
+Console.WriteLine($"Total changes: {analysis.TotalTagChanges}" );
+
+var validation = await plc.ValidateProductionReadiness(new ProductionValidationConfig
+{
+    MaxAcceptableResponseTime = TimeSpan.FromMilliseconds(500),
+    MinimumReliabilityRate = 0.95,
+    ReliabilityTestCount = 10,
+    MinimumProductionScore = 80.0,
+});
+
+var result = await plc.ExecuteWithErrorHandling(
+    () => plc.Value<float>("CriticalSensor"),
+    new ProductionErrorConfig
+    {
+        MaxRetryAttempts = 3,
+        BaseRetryDelayMs = 1000,
+        UseExponentialBackoff = true,
+        CircuitBreakerThreshold = 5,
+        CircuitBreakerTimeout = TimeSpan.FromMinutes(1),
+    });
+
+var handler = plc.EnableProductionErrorHandling(new ProductionErrorConfig());
+var guarded = await handler.ExecuteAsync(() => plc.Value<float>("Temperature"));
+```
+
+## PLC type conversion helpers
+
+All conversion helpers use Siemens S7 byte ordering and are useful for codecs, tests, and generated/runtime byte-array binding logic.
+
+| Type/helper | Purpose | Common functions |
+|---|---|---|
+| `Bit` | Bit extraction/mutation from byte spans | `FromByte`, `FromSpan`, `ToBitArray`, `SetBit`, `GetBits`, `SetBits` |
+| `Boolean` | Single byte bit helpers | `GetValue`, `SetBit`, `ClearBit` |
+| `Byte` | Byte conversion | `ToByteArray`, `ToSpan`, `FromByteArray`, `FromSpan` |
+| `ByteArray` | Growable pooled byte buffer | `Add`, `Clear`, `TryCopyTo`, `Span`, `Memory`, `Array`, `Length` |
+| `Int` / `Word` | 16-bit signed/unsigned | `FromByteArray`, `FromSpan`, `ToArray`, `ToByteArray`, `ToSpan` |
+| `DInt` / `DWord` | 32-bit signed/unsigned | `FromByteArray`, `FromSpan`, `ToArray`, `ToByteArray`, `ToSpan` |
+| `Real` / `LReal` | 32/64-bit floating point | `FromByteArray`, `FromSpan`, `ToArray`, `ToByteArray`, `ToSpan` |
+| `Counter` / `Timer` | S7 counter/timer formats | `FromByteArray`, `FromSpan`, `ToArray`, `ToByteArray`, `ToSpan` |
+| `DateTime` / `DateTimeLong` | S7 date/time formats | `FromByteArray`, `FromSpan`, `ToArray`, `ToByteArray`, `ToSpan` |
+| `TimeSpan` | S7 time span conversion | `FromByteArray`, `FromSpan`, `ToArray`, `ToByteArray`, `ToSpan` |
+| `String`, `S7String`, `S7WString` | String encodings | `FromByteArray`, `FromSpan`, `ToByteArray`, `ToSpan`, `TryToSpan` |
+| `Struct`, `Class` | Reflection-based complex type conversion | `GetStructSize`/`GetClassSize`, `FromBytes`, `ToBytes` |
+
+```csharp
+using S7PlcRx.PlcTypes;
+
+Span<byte> bytes = stackalloc byte[4];
+Real.ToSpan(12.5f, bytes);
+float roundTrip = Real.FromSpan(bytes);
+```
+
+## Error handling
+
+```csharp
+plc.LastError.Subscribe(message => Console.WriteLine(message));
+plc.LastErrorCode.Subscribe(code => Console.WriteLine(code));
+```
+
+- `PlcException` carries an `ErrorCode` for PLC communication failures.
+- `S7Exception` is a general S7 exception type.
+- `TagAddressOutOfRangeException` is thrown for invalid tag addresses.
+- Production error handling adds retries and circuit-breaker behavior.
+
+## Public API reference
+
+This section is generated from the public C# surface in `src/S7PlcRx` and `src/S7PlcRx.SourceGenerators`, then paired with the usage guidance above. It is intended to make this README a single documentation source for the repository.
+
+### Source generator generated API
+
+The source generator emits these compile-time-only types into consumer projects:
+
+- `S7PlcRx.SourceGeneration.S7PlcBindingAttribute` — marks a `partial class` for PLC property binding generation.
+- `S7PlcRx.SourceGeneration.S7TagAttribute` — marks a `partial` property with an S7 address; properties: `Address`, `PollIntervalMs`, `Direction`, `ArrayLength`.
+- `S7PlcRx.SourceGeneration.S7TagDirection` — `ReadWrite`, `ReadOnly`, `WriteOnly`.
+- Generated instance method: `public IDisposable Bind(IRxS7 plc)` on each `[S7PlcBinding]` class.
+
+### Runtime public surface
+
+<details open>
+<summary>All public types and members</summary>
+
+#### Namespace `S7PlcRx`
+
+##### `S7PlcRx.IRxS7`
+Source: `IRxS7.cs:19`
+
+Defines an interface for reactive communication with a Siemens S7 PLC, providing observable access to connection status, errors, tag values, and PLC information, as well as methods for reading and writing variables asynchronously. <remarks>The IRxS7 interface exposes members for monitoring and interacting with a PLC in a reactive manner using observables. It supports observing connection state, errors, and tag values, as well as reading and writing variables with optional cancellation support. Implementations are expected to handle connection management and provide up-to-date PLC information. Thread safety and subscription management depend on the specific implementation.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public string IP get; }` | Gets the IP address associated with the current instance. |
+| `public IObservable<bool> IsConnected get; }` | Gets an observable sequence that indicates whether the connection is currently established. <remarks>Subscribers receive updates whenever the connection state changes. The sequence emits <see langword="true"/> when connected and <see langword="false"/> when disconnected.</remarks> |
+| `public bool IsConnectedValue get; }` | Gets a value indicating whether the connection is currently established. |
+| `public IObservable<string> LastError get; }` | Gets an observable sequence that provides error messages encountered during operation. <remarks>Subscribers receive error messages as they occur. The sequence completes when the underlying process completes or is disposed. No errors are pushed after completion.</remarks> |
+| `public IObservable<ErrorCode> LastErrorCode get; }` | Gets an observable sequence that provides notifications of the most recent error code encountered by the component. <remarks>Subscribers receive updates whenever a new error occurs. The sequence completes when the component is disposed or no longer reports errors. Thread safety and emission timing depend on the implementation of the observable.</remarks> |
+| `public IObservable<Tag?> ObserveAll get; }` | Gets an observable sequence that emits all tag updates as they occur. <remarks>Subscribers receive notifications for every tag, including additions, updates, and removals. The sequence emits a value of <see langword="null"/> when a tag is removed.</remarks> |
+| `public CpuType PLCType get; }` | Gets the type of programmable logic controller (PLC) associated with this instance. |
+| `public short Rack get; }` | Gets the rack number associated with the device or connection. |
+| `public short Slot get; }` | Gets the slot number associated with the current instance. |
+| `public IObservable<bool> IsPaused get; }` | Gets an observable sequence that indicates whether the operation is currently paused. <remarks>Subscribers receive a value of <see langword="true"/> when the operation is paused and <see langword="false"/> when it is active. The sequence emits updates whenever the paused state changes.</remarks> |
+| `public IObservable<string> Status get; }` | Gets an observable sequence that provides status updates as strings. <remarks>Subscribers receive status notifications as they occur. The sequence may complete or error depending on the underlying implementation.</remarks> |
+| `public Tags TagList get; }` | Gets the collection of tags associated with the current instance. |
+| `public bool ShowWatchDogWriting get; set; }` | Gets or sets a value indicating whether WatchDog writing operations are displayed. |
+| `public string? WatchDogAddress get; }` | Gets the network address of the WatchDog service, if configured. |
+| `public ushort WatchDogValueToWrite get; set; }` | Gets or sets the value to be written to the watchdog register. |
+| `public int WatchDogWritingTime get; }` | Gets the time interval, in milliseconds, used by the watchdog for writing operations. |
+| `public IObservable<long> ReadTime get; }` | Gets an observable sequence that provides the current read time in ticks. <remarks>Subscribers receive updates whenever the read time changes. The value represents the number of ticks elapsed, where one tick equals 100 nanoseconds.</remarks> |
+| `public IObservable<T?> Observe<T>(string? variable);` | Observes changes to the specified variable and returns a sequence of its values as they are updated. <typeparam name="T">The type of the variable to observe.</typeparam> <param name="variable">The name of the variable to observe. Can be null to observe the default variable, if applicable.</param> <returns>An observable sequence that emits the current and subsequent values of the specified variable. The value is null if the variable does not exist or has not been set.</returns> |
+| `public Task<T?> Value<T>(string? variable);` | Asynchronously retrieves the value of the specified variable, if it exists. <typeparam name="T">The type of the value to retrieve.</typeparam> <param name="variable">The name of the variable whose value is to be retrieved. Can be null to indicate the default variable.</param> <returns>A task that represents the asynchronous operation. The task result contains the value of the variable if found; otherwise, null.</returns> |
+| `public Task<T?> ValueAsync<T>(string? variable, CancellationToken cancellationToken);` | Asynchronously retrieves the value of the specified variable, if it exists. <typeparam name="T">The type of the value to retrieve.</typeparam> <param name="variable">The name of the variable to retrieve. Can be null to indicate the default variable, if supported.</param> <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param> <returns>A task that represents the asynchronous operation. The task result contains the value of the variable if found; otherwise, null.</returns> |
+| `public void Value<T>(string? variable, T? value);` | Sets the value of a variable with the specified name and value. <typeparam name="T">The type of the value to assign to the variable.</typeparam> <param name="variable">The name of the variable to set. Can be null to indicate an unnamed or default variable.</param> <param name="value">The value to assign to the variable. Can be null if the variable type allows null values.</param> |
+| `public IObservable<string[]> GetCpuInfo();` | Retrieves an observable sequence containing information about the system's CPU. <remarks>Subscribers receive updates as the CPU information changes. The format and content of each string array may vary depending on the platform or implementation.</remarks> <returns>An observable sequence of string arrays, where each array contains details about the CPU. The sequence emits new arrays when CPU information is updated.</returns> |
+
+##### `S7PlcRx.ITag`
+Source: `Tags/ITag.cs:9`
+
+Represents a tag that can be configured to control polling behavior.
+
+| Member | Summary |
+|---|---|
+| `public void SetDoNotPoll(bool value);` | Sets whether the object should be excluded from polling operations. <param name="value">true to prevent the object from being polled; otherwise, false.</param> |
+
+##### `S7PlcRx.PlcException`
+Source: `PlcException.cs:16`
+
+| Member | Summary |
+|---|---|
+| `public PlcException(ErrorCode errorCode) : this(errorCode, $"PLC communication failed with error '{errorCode}'.")` | Initializes a new instance of the <see cref="PlcException"/> class. <param name="errorCode">The error code.</param> |
+| `public PlcException(ErrorCode errorCode, Exception? innerException) : this(errorCode, innerException?.Message, innerException)` | Initializes a new instance of the <see cref="PlcException"/> class. <param name="errorCode">The error code.</param> <param name="innerException">The inner exception.</param> |
+| `public PlcException(ErrorCode errorCode, string? message) : base(message) => ...` | Initializes a new instance of the <see cref="PlcException"/> class. <param name="errorCode">The error code.</param> <param name="message">The message.</param> |
+| `public PlcException(ErrorCode errorCode, string? message, Exception? inner) : base(message, inner) => ...` | Initializes a new instance of the <see cref="PlcException"/> class. <param name="errorCode">The error code.</param> <param name="message">The message.</param> <param name="inner">The inner.</param> |
+| `public ErrorCode ErrorCode get; }` | Gets the error code. <value> The error code. </value> |
+
+##### `S7PlcRx.RxS7`
+Source: `RxS7.cs:32`
+
+Provides an observable, reactive interface for reading from and writing to Siemens S7 PLCs, supporting tag-based access, status monitoring, and asynchronous operations. <remarks>The RxS7 class enables integration with Siemens S7 programmable logic controllers (PLCs) using a tag-based model and reactive programming patterns. It exposes observables for PLC data, connection status, errors, and operational metrics, allowing clients to subscribe to real-time updates. The class supports both synchronous and asynchronous read/write operations, as well as advanced features such as watchdog monitoring and batch variable access. Thread safety is maintained for concurrent operations. Dispose the instance when no longer needed to release resources and terminate background operations.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public RxS7(CpuType type, string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 10)` | Initializes a new instance of the <see cref="RxS7"/> class and establishes a connection to a Siemens S7 PLC with optional. watchdog monitoring and periodic tag reading. <remarks>If a valid watchdog address is provided, the constructor enables periodic writing to the specified address to support external watchdog monitoring. Tag reading and connection status monitoring are started automatically upon construction.</remarks> <param name="type">The type of the PLC CPU to connect to.</param> <param name="ip">The IP address of the PLC to connect to.</param> <param name="rack">The rack number of the PLC hardware configuration.</param> <param name="slot">The slot number of the PLC CPU module.</param> <param name="watchDogAddress">The address of the watchdog tag in the PLC memory. Must be a DBW address or null to disable watchdog monitoring.</param> <param name="interval">The interval, in milliseconds, at which tag values are read from the PLC. Must be greater than 0.</param> <param name="watchDogValueToWrite">The value to write to the watchdog address during each watchdog cycle.</param> <param name="watchDogInterval">The interval, in seconds, at which the watchdog value is written. Must be greater than 0 if watchdog monitoring is enabled.</param> <exception cref="ArgumentException">Thrown if watchDogAddress is provided and is not a valid DBW address.</exception> <exception cref="ArgumentOutOfRangeException">Thrown if watchDogInterval is less than 1 when watchdog monitoring is enabled.</exception> |
+| `public IObservable<Tag?> ObserveAll => ...` | Gets an observable sequence that emits all tag updates as they occur. <remarks>Each observer receives tag updates in real time as they are published. The sequence is shared among all subscribers, and subscriptions are managed automatically. Observers may receive null values if a tag is removed or unavailable.</remarks> |
+| `public IObservable<bool> IsPaused => ...` | Gets an observable sequence that indicates whether the operation is currently paused. <remarks>The returned observable emits a value of <see langword="true"/> when the operation enters a paused state, and <see langword="false"/> when it resumes. Subscribers receive updates only when the paused state changes. The sequence is shared among all subscribers.</remarks> |
+| `public string IP get; }` | Gets the IP address associated with the current instance. |
+| `public IObservable<bool> IsConnected get; }` | Gets an observable sequence that indicates whether the connection is currently established. <remarks>Subscribers receive updates whenever the connection state changes. The sequence emits <see langword="true"/> when connected and <see langword="false"/> when disconnected.</remarks> |
+| `public bool IsConnectedValue get; private set; }` | Gets a value indicating whether the connection is currently established. |
+| `public IObservable<string> LastError => ...` | Gets an observable sequence that provides the most recent error messages encountered by the component. <remarks>Subscribers receive error messages as they occur. The sequence is shared among all subscribers, and each subscriber receives messages from the point of subscription onward.</remarks> |
+| `public IObservable<ErrorCode> LastErrorCode => ...` | Gets an observable sequence that emits the most recent error code reported by the system. <remarks>Subscribers receive updates whenever a new error code is reported. The sequence is shared among all subscribers and only remains active while there is at least one active subscription.</remarks> |
+| `public CpuType PLCType get; }` | Gets the type of PLC (Programmable Logic Controller) associated with this instance. |
+| `public short Rack get; }` | Gets the rack number associated with the device or component. |
+| `public bool ShowWatchDogWriting get; set; }` | Gets or sets a value indicating whether WatchDog writing output is displayed. |
+| `public short Slot get; }` | Gets the slot number associated with this instance. |
+| `public IObservable<string> Status => ...` | Gets an observable sequence that provides status updates as strings. <remarks>Subscribers receive status updates as they occur. The observable sequence is shared among all subscribers, and subscriptions are managed automatically. Status updates are pushed to observers in real time.</remarks> |
+| `public Tags TagList get; } = [];` | Gets the collection of tags associated with the current instance. |
+| `public string? WatchDogAddress get; }` | Gets the network address of the WatchDog service, if configured. |
+| `public ushort WatchDogValueToWrite get; set; } = 4500;` | Gets or sets the value to be written to the watchdog timer. |
+| `public int WatchDogWritingTime get; } = 10;` | Gets the interval, in seconds, that the watchdog uses when writing status updates. |
+| `public bool IsDisposed get; private set; }` | Gets a value indicating whether gets a value that indicates whether the object is disposed. |
+| `public IObservable<long> ReadTime => ...` | Gets an observable sequence that emits the current read time in ticks whenever a read operation occurs. <remarks>The observable sequence is shared among all subscribers. Each subscriber receives notifications when a read operation is performed, with the value representing the read time in ticks. The sequence completes when the underlying source completes.</remarks> |
+| `public IObservable<T?> Observe<T>(string? variable) => ...` | Returns an observable sequence that emits the current and future values of the specified variable, cast to the specified type. <remarks>The returned observable is hot and shared among all subscribers. Subscribers receive the most recent value and all subsequent updates. If the variable does not exist or its value cannot be cast to the specified type, the observable emits null.</remarks> <typeparam name="T">The type to which the variable's value is cast in the observable sequence.</typeparam> <param name="variable">The name of the variable to observe. If null, all variables are observed.</param> <returns>An observable sequence of values of type T, or null if the variable's value is not present or cannot be cast to T. The sequence emits a new value each time the variable changes.</returns> |
+| `public async Task<T?> Value<T>(string? variable)` | Asynchronously retrieves the value of the specified variable, cast to the specified type, if available. <remarks>If the variable's type is not known, it is set to the requested type <typeparamref name="T"/> before retrieving the value. The method waits for an internal pause condition to be met before proceeding.</remarks> <typeparam name="T">The type to which the variable's value is cast and returned.</typeparam> <param name="variable">The name of the variable whose value is to be retrieved. Can be null.</param> <returns>A value of type <typeparamref name="T"/> if the variable exists and can be cast to the specified type; otherwise, <see langword="default"/>.</returns> |
+| `public async Task<T?> ValueAsync<T>(string? variable, CancellationToken cancellationToken)` | Asynchronously retrieves the value of the specified variable, pausing polling operations during the read. <remarks>Polling is temporarily paused while the value is being read to ensure consistency. If no polling is active, the method may wait briefly before proceeding. The method is cancellation-friendly and will respond promptly to cancellation requests.</remarks> <typeparam name="T">The expected type of the variable's value to retrieve.</typeparam> <param name="variable">The name of the variable whose value is to be retrieved. Cannot be null, empty, or consist only of white-space characters.</param> <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param> <returns>A task that represents the asynchronous operation. The task result contains the value of the specified variable cast to type T, or the default value of T if the variable is not found or cannot be cast.</returns> <exception cref="ArgumentNullException">Thrown if variable is null, empty, or consists only of white-space characters.</exception> <exception cref="OperationCanceledException">Thrown if the operation is canceled via the cancellation token.</exception> |
+| `public void Value<T>(string? variable, T? value)` | Sets the value of the specified variable if it exists and the value is compatible with the variable's type. <remarks>If the variable does not exist or the value is null, this method does nothing. The value is only set if its type matches the variable's expected type or if the type parameter is object.</remarks> <typeparam name="T">The type of the value to assign to the variable.</typeparam> <param name="variable">The name of the variable whose value is to be set. Cannot be null.</param> <param name="value">The value to assign to the variable. Must be compatible with the variable's type.</param> |
+| `public void Dispose()` | Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources. |
+| `public IObservable<string[]> GetCpuInfo() => ...` | Retrieves detailed information about the connected CPU as an observable sequence. <remarks>The method waits until a connection is established before retrieving CPU information. If the required data is not immediately available, the method will retry until successful or until the subscription is disposed. The order and content of the returned string array correspond to specific CPU information fields. This method is intended for use in reactive programming scenarios where CPU information is needed asynchronously.</remarks> <returns>An observable sequence that emits a string array containing CPU information fields, such as the AS name, module name, copyright, serial number, module type name, order code, and version numbers. The sequence completes after emitting the data.</returns> |
+
+##### `S7PlcRx.S71200`
+Source: `Create/S71200.cs:9`
+
+Provides factory methods for creating connections to Siemens S7-1200 PLC devices.
+
+| Member | Summary |
+|---|---|
+| `public static IRxS7 Create(string ip, short rack = 0, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100)` | Creates a new instance of an S7 PLC connection with the specified configuration parameters. <param name="ip">The IP address of the S7 PLC to connect to.</param> <param name="rack">The rack number of the PLC. Must be between 0 and 7. The default is 0.</param> <param name="watchDogAddress">The address of the watchdog variable in the PLC memory. If null, the watchdog feature is disabled.</param> <param name="interval">The polling interval, in milliseconds, for reading data from the PLC. The default is 100 milliseconds.</param> <param name="watchDogValueToWrite">The value to write to the watchdog variable, if specified. The default is 4500.</param> <param name="watchDogInterval">The interval, in milliseconds, at which the watchdog value is written. The default is 100 milliseconds.</param> <returns>An object implementing the IRxS7 interface that represents the configured PLC connection.</returns> <exception cref="ArgumentOutOfRangeException">Thrown if the value of rack is less than 0 or greater than 7.</exception> |
+
+##### `S7PlcRx.S71500`
+Source: `Create/S71500.cs:9`
+
+Provides factory methods for creating connections to Siemens S7-1500 PLC devices.
+
+| Member | Summary |
+|---|---|
+| `public static IRxS7 Create(string ip, short rack = 0, short slot = 1, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 10)` | Creates a new instance of an S7 PLC client configured for the specified IP address, rack, slot, and optional watchdog monitoring. <remarks>If <paramref name="watchDogAddress"/> is specified, the client will periodically write <paramref name="watchDogValueToWrite"/> to the given address at the specified <paramref name="watchDogInterval"/>. This can be used to implement a heartbeat or keep-alive mechanism with the PLC.</remarks> <param name="ip">The IP address of the S7 PLC to connect to.</param> <param name="rack">The rack number of the PLC. Must be between 0 and 7.</param> <param name="slot">The slot number of the PLC CPU module. Must be between 1 and 31.</param> <param name="watchDogAddress">The address of the watchdog variable in the PLC memory to monitor. If null, watchdog monitoring is disabled.</param> <param name="interval">The polling interval, in milliseconds, for communication with the PLC. Must be positive.</param> <param name="watchDogValueToWrite">The value to write to the watchdog variable when monitoring is enabled.</param> <param name="watchDogInterval">The interval, in seconds, at which the watchdog value is written. Must be positive.</param> <returns>An IRxS7 instance configured to communicate with the specified S7 PLC and optional watchdog monitoring.</returns> <exception cref="ArgumentOutOfRangeException">Thrown when the value of <paramref name="rack"/> is not between 0 and 7, or <paramref name="slot"/> is not between 1 and 31.</exception> |
+
+##### `S7PlcRx.S7200`
+Source: `Create/S7200.cs:9`
+
+Provides factory methods for creating connections to Siemens S7-200 PLC devices.
+
+| Member | Summary |
+|---|---|
+| `public static IRxS7 Create(string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100) => ...` | Creates a new instance of an S7-200 PLC client for communication over TCP/IP with optional watchdog monitoring. <remarks>If a watchdog address is specified, the client will periodically write the specified value to the PLC at the given interval to support connection monitoring or fail-safe logic. Ensure that the PLC is configured to handle the watchdog mechanism as expected.</remarks> <param name="ip">The IP address of the S7-200 PLC to connect to. Cannot be null or empty.</param> <param name="rack">The rack number of the PLC CPU module. Typically 0 for S7-200 devices.</param> <param name="slot">The slot number of the PLC CPU module. Typically 0 or 1 for S7-200 devices.</param> <param name="watchDogAddress">The address in the PLC memory to use for the watchdog mechanism, or null to disable watchdog monitoring.</param> <param name="interval">The polling interval, in milliseconds, for regular communication with the PLC. Must be greater than 0.</param> <param name="watchDogValueToWrite">The value to write to the watchdog address during each watchdog cycle.</param> <param name="watchDogInterval">The interval, in milliseconds, at which the watchdog value is written. Must be greater than 0.</param> <returns>An IRxS7 instance configured to communicate with the specified S7-200 PLC, with optional watchdog monitoring enabled.</returns> |
+
+##### `S7PlcRx.S7300`
+Source: `Create/S7300.cs:9`
+
+Provides factory methods for creating connections to Siemens S7-300 PLC devices.
+
+| Member | Summary |
+|---|---|
+| `public static IRxS7 Create(string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100)` | Creates a new instance of an S7 PLC connection with the specified configuration parameters. <param name="ip">The IP address of the S7 PLC to connect to.</param> <param name="rack">The rack number of the PLC. Must be between 0 and 7, inclusive.</param> <param name="slot">The slot number of the PLC. Must be between 1 and 31, inclusive.</param> <param name="watchDogAddress">The address in the PLC memory to use for the watchdog mechanism, or null to disable the watchdog.</param> <param name="interval">The polling interval, in milliseconds, for communication with the PLC. Must be greater than 0.</param> <param name="watchDogValueToWrite">The value to write to the watchdog address during each interval.</param> <param name="watchDogInterval">The interval, in milliseconds, at which the watchdog value is written. Must be greater than 0.</param> <returns>An object implementing the IRxS7 interface that represents the configured PLC connection.</returns> <exception cref="ArgumentOutOfRangeException">Thrown when the value of <paramref name="rack"/> is not between 0 and 7, or when the value of <paramref name="slot"/> is not between 1 and 31.</exception> |
+
+##### `S7PlcRx.S7400`
+Source: `Create/S7400.cs:9`
+
+Provides factory methods for creating S7-400 PLC connections.
+
+| Member | Summary |
+|---|---|
+| `public static IRxS7 Create(string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100)` | Creates a new instance of an S7 PLC client configured for the specified IP address, rack, slot, and optional watchdog monitoring parameters. <remarks>If watchdog monitoring is enabled by specifying a non-null watchDogAddress, the client will periodically write the specified value to the given address at the defined interval. This can be used to implement a heartbeat or keep-alive mechanism with the PLC.</remarks> <param name="ip">The IP address of the S7 PLC to connect to.</param> <param name="rack">The rack number of the PLC. Must be between 0 and 7.</param> <param name="slot">The slot number of the PLC CPU. Must be between 1 and 31.</param> <param name="watchDogAddress">The address in the PLC memory to use for the watchdog mechanism, or null to disable watchdog monitoring.</param> <param name="interval">The polling interval, in milliseconds, for reading data from the PLC. Must be greater than 0.</param> <param name="watchDogValueToWrite">The value to write to the watchdog address during each interval if watchdog monitoring is enabled.</param> <param name="watchDogInterval">The interval, in milliseconds, at which the watchdog value is written if watchdog monitoring is enabled. Must be greater than 0.</param> <returns>An IRxS7 instance configured to communicate with the specified S7 PLC and optional watchdog monitoring.</returns> <exception cref="ArgumentOutOfRangeException">Thrown if rack is not between 0 and 7, or if slot is not between 1 and 31.</exception> |
+
+##### `S7PlcRx.S7Exception`
+Source: `S7Exception.cs:13`
+
+| Member | Summary |
+|---|---|
+| `public S7Exception()` | Initializes a new instance of the <see cref="S7Exception"/> class. |
+| `public S7Exception(string message) : base(message)` | Initializes a new instance of the <see cref="S7Exception"/> class. <param name="message">The message that describes the error.</param> |
+| `public S7Exception(string message, Exception innerException) : base(message, innerException)` | Initializes a new instance of the <see cref="S7Exception"/> class. <param name="message">The error message that explains the reason for the exception.</param> <param name="innerException">The exception that is the cause of the current exception, or a null reference (<see langword="Nothing" /> in Visual Basic) if no inner exception is specified.</param> |
+
+##### `S7PlcRx.Tag`
+Source: `Tags/Tag.cs:15`
+
+| Member | Summary |
+|---|---|
+| `public Tag()` | Initializes a new instance of the <see cref="Tag"/> class. |
+| `public Tag(string address, Type type)` | Initializes a new instance of the <see cref="Tag" /> class. <param name="address">The address.</param> <param name="type">The type.</param> |
+| `public Tag(string address, Type type, int arrayLength)` | Initializes a new instance of the <see cref="Tag"/> class. <param name="address">The address.</param> <param name="type">The type.</param> <param name="arrayLength">Length of the array.</param> |
+| `public Tag(string name, string address, Type type)` | Initializes a new instance of the <see cref="Tag" /> class. <param name="name">The name.</param> <param name="address">The address.</param> <param name="type">The type.</param> |
+| `public Tag(string name, string address, Type type, int arrayLength)` | Initializes a new instance of the <see cref="Tag"/> class. <param name="name">The name.</param> <param name="address">The address.</param> <param name="type">The type.</param> <param name="arrayLength">Length of the array.</param> |
+| `public Tag(string name, string address, object value, Type type)` | Initializes a new instance of the <see cref="Tag" /> class. <param name="name">The name.</param> <param name="address">The address.</param> <param name="value">The value.</param> <param name="type">The type.</param> |
+| `public string? Address get; set; }` | Gets or sets the address associated with the entity. |
+| `public string? Name get; set; }` | Gets or sets the name associated with the object. |
+| `public object? Value get; set; }` | Gets or sets the value associated with this instance. |
+| `public object? NewValue get; internal set; }` | Gets the new value associated with the change event. |
+| `public Type Type get; internal set; }` | Gets the runtime type information associated with the current instance. |
+| `public int? ArrayLength get; internal set; }` | Gets the length of the array, if known. |
+| `public bool DoNotPoll get; internal set; }` | Gets a value indicating whether polling operations should be suppressed for this instance. |
+| `public void SetDoNotPoll(bool value) => ...` | Sets a value indicating whether polling operations should be disabled. <param name="value">true to disable polling; otherwise, false.</param> |
+
+##### `S7PlcRx.TagAddressOutOfRangeException`
+Source: `Tags/TagAddressOutOfRangeException.cs:15`
+
+No public instance/static members declared directly on this type.
+
+##### `S7PlcRx.TagExtensions`
+Source: `Tags/TagExtensions.cs:18`
+
+Provides extension methods for managing and interacting with tag items in IRxS7-based PLC systems. These methods enable adding, updating, retrieving, and removing tags, as well as converting tag streams to dictionary representations. <remarks>The TagExtensions class offers a fluent API for working with tags in Siemens S7 PLC communication scenarios. It includes methods for adding tags with type and array support, controlling polling behavior, and transforming tag data streams. All methods are implemented as extension methods to enhance usability and integration with IRxS7 and related types. Thread safety and error handling depend on the underlying IRxS7 and Tag implementations.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static (ITag? tag, IRxS7? plc) AddUpdateTagItem<T>(this IRxS7 @this, string tagName, string address, int? arrayLength = null)` | Adds or updates a tag item of the specified type in the PLC and returns the created tag and the PLC instance. <remarks>If the specified type parameter is a string or an array type and an array length is provided, the tag will be created as an array with the given length. Otherwise, the tag will be created as a single value. This method is an extension method for IRxS7 implementations that support tag management.</remarks> <typeparam name="T">The data type of the tag to add or update. This determines the type of value the tag will hold.</typeparam> <param name="this">The PLC instance to which the tag item will be added or updated.</param> <param name="tagName">The name to assign to the tag item.</param> <param name="address">The address in the PLC where the tag item is located.</param> <param name="arrayLength">The length of the array for the tag item, if the tag represents an array type. Specify null for non-array types.</param> <returns>A tuple containing the created or updated tag as the first element and the PLC instance as the second element. The tag will be null if the PLC instance does not support tag operations.</returns> |
+| `public static (ITag? tag, IRxS7? plc) AddUpdateTagItem(this IRxS7 @this, Type type, string tagName, string address, int? arrayLength = null)` | Adds or updates a tag item in the specified PLC instance and returns the created tag and the PLC reference. <remarks>If the specified type is an array or a string, the array length must be provided. If the PLC instance does not support adding or updating tags, the returned tag will be null.</remarks> <param name="this">The PLC instance to which the tag item will be added or updated.</param> <param name="type">The data type of the tag to add or update. Must not be null.</param> <param name="tagName">The name of the tag to add or update.</param> <param name="address">The address in the PLC where the tag is located.</param> <param name="arrayLength">The length of the array if the tag type is an array or a string; otherwise, null.</param> <returns>A tuple containing the created tag (or null if the operation was not successful) and the PLC reference.</returns> |
+| `public static (ITag? tag, IRxS7? plc) AddUpdateTagItem<T>(this (ITag? _, IRxS7? plc) @this, string tagName, string address, int? arrayLength = null)` | Adds or updates a tag item of the specified type in the PLC and returns the created tag along with the PLC instance. <remarks>If the PLC instance is not of type <see cref="RxS7"/>, no tag is added or updated and the returned tag will be null. When adding a string or array tag, <paramref name="arrayLength"/> must be specified to define the size of the tag.</remarks> <typeparam name="T">The data type of the tag to add or update. This can be a primitive type, string, or array type.</typeparam> <param name="this">A tuple containing the current tag (which may be null) and the PLC instance in which to add or update the tag.</param> <param name="tagName">The name to assign to the tag item.</param> <param name="address">The address in the PLC where the tag is located.</param> <param name="arrayLength">The length of the array if the tag represents an array type. This parameter is required when <typeparamref name="T"/> is a string or an array type; otherwise, it is ignored.</param> <returns>A tuple containing the created or updated tag as <see cref="ITag"/> and the PLC instance as <see cref="IRxS7"/>. If the PLC instance is null, the tag will also be null.</returns> |
+| `public static (ITag? tag, IRxS7? plc) AddUpdateTagItem(this (ITag? _, IRxS7? plc) @this, Type type, string tagName, string address, int? arrayLength = null)` | Adds or updates a tag item in the specified PLC instance using the provided type, tag name, and address. <remarks>If the tag type is a string or an array, the array length must be specified. The method does not modify the PLC instance if it is null or if the type is null.</remarks> <param name="this">A tuple containing the current tag (ignored) and the PLC instance in which to add or update the tag item.</param> <param name="type">The type of the tag to add or update. Must not be null.</param> <param name="tagName">The name of the tag to add or update in the PLC.</param> <param name="address">The address in the PLC where the tag is located.</param> <param name="arrayLength">The length of the array if the tag type is an array or a string. Optional.</param> <returns>A tuple containing the created or updated tag and the PLC instance. The tag is null if the PLC instance or type is null.</returns> |
+| `public static (ITag? tag, IRxS7? plc) SetTagPollIng(this (ITag? tag, IRxS7? plc) @this, bool polling = true)` | Enables or disables polling for the specified tag by setting its polling state. <remarks>If the tag is null, this method has no effect. This method does not modify the PLC instance.</remarks> <param name="this">A tuple containing the tag and PLC instance to update.</param> <param name="polling">true to enable polling for the tag; false to disable polling. The default is true.</param> <returns>A tuple containing the original tag and PLC instance.</returns> |
+| `public static (ITag? tag, IRxS7? plc) GetTag(this IRxS7 @this, string tagName) => ...` | Retrieves the tag with the specified name from the PLC's tag list, along with the associated PLC instance. <remarks>If the specified tag name does not exist in the PLC's tag list, the method returns a tuple with a null tag and the original PLC instance. This method is an extension method for the IRxS7 interface.</remarks> <param name="this">The PLC instance from which to retrieve the tag.</param> <param name="tagName">The name of the tag to retrieve. Cannot be null.</param> <returns>A tuple containing the tag that matches the specified name and the PLC instance. If the tag is not found, the tag element of the tuple is null.</returns> |
+| `public static void RemoveTagItem(this IRxS7 @this, string tagName)` | Removes the tag item with the specified name from the underlying RxS7 instance, if applicable. <remarks>If the underlying object is not an RxS7 instance, this method has no effect.</remarks> <param name="this">The IRxS7 instance from which to remove the tag item.</param> <param name="tagName">The name of the tag item to remove. Cannot be null.</param> |
+| `public static IObservable<IDictionary<string, TValue>> TagToDictionary<TValue>(this IObservable<Tag?> source)` | Projects a sequence of nullable Tag objects into a stream of dictionaries containing the most recent values for each tag name, filtered by the specified value type. <remarks>Each emitted dictionary contains all tag names encountered so far whose values are of type TValue and are not null. The dictionary is updated with each new matching tag in the source sequence. The same dictionary instance is reused and updated for each emission; callers should not modify the returned dictionary.</remarks> <typeparam name="TValue">The type to which tag values are filtered and cast. Only tags whose values are of this type are included in the resulting dictionaries.</typeparam> <param name="source">The observable sequence of nullable Tag objects to process.</param> <returns>An observable sequence of dictionaries mapping tag names to their most recent non-null values of type TValue. Each dictionary reflects the accumulated state up to that point in the source sequence.</returns> |
+| `public static IObservable<(string Tag, TValue Value)> ToTagValue<TValue>(this IObservable<TValue?> source, string tag) => ...` | Projects each non-null value in the source sequence into a tuple containing the specified tag and the value. <remarks>Null values in the source sequence are filtered out. The resulting sequence will not contain any tuples with a null value.</remarks> <typeparam name="TValue">The type of the values in the source sequence.</typeparam> <param name="source">The observable sequence of nullable values to process. Only non-null values are included in the result.</param> <param name="tag">The tag to associate with each value in the resulting sequence. This value is included in each emitted tuple.</param> <returns>An observable sequence of tuples, where each tuple contains the specified tag and a non-null value from the source sequence.</returns> |
+
+##### `S7PlcRx.Tags`
+Source: `Tags/Tags.cs:18`
+
+| Member | Summary |
+|---|---|
+| `public Tags()` | Initializes a new instance of the <see cref="Tags"/> class. |
+| `public object? this[object key, bool isEnd = false] #pragma warning restore RCS1163 // Unused parameter.` |  |
+| `public Tag? this[string name] => ...` | Gets the tag with the specified name, if it exists. <param name="name">The name of the tag to retrieve. The comparison may be case-sensitive depending on the implementation.</param> <returns>The tag associated with the specified name, or null if no tag with that name exists.</returns> |
+| `public Tag? this[Tag? tag] => ...` | Gets the tag from the collection that matches the specified tag's name, if present. <remarks>This indexer performs a lookup based on the name of the provided tag. If the specified tag is null, the result is null.</remarks> <param name="tag">The tag whose name is used to locate the corresponding tag in the collection. Can be null.</param> <returns>The tag from the collection that has the same name as the specified tag, or null if no such tag exists.</returns> |
+| `public new void Add(object key, object value)` | Adds an element with the specified key and value to the collection in a thread-safe manner. <remarks>This method ensures that the add operation is thread-safe. If an element with the same key already exists, an exception is thrown.</remarks> <param name="key">The key of the element to add. Cannot be null.</param> <param name="value">The value of the element to add. Can be null.</param> |
+| `public void Add(object key, Tag tag)` | Adds the specified tag to the collection with the associated key. <remarks>If the collection already contains an element with the same key, an exception may be thrown depending on the underlying implementation. This method is thread-safe.</remarks> <param name="key">The key with which the specified tag is to be associated. Cannot be null.</param> <param name="tag">The tag to add to the collection. Cannot be null.</param> |
+| `public void Add(Tag tag)` | Adds the specified tag to the collection. <param name="tag">The tag to add to the collection. Cannot be null.</param> |
+| `public void Add(object key, Tags tags)` | Adds the specified key and associated tags to the collection. <param name="key">The key with which the specified tags are to be associated. Cannot be null.</param> <param name="tags">The tags to associate with the specified key. Cannot be null.</param> |
+| `public void AddRange(IEnumerable<Tag> tags)` | Adds a collection of tags to the current instance, including only those tags whose values are not null. <param name="tags">The collection of <see cref="Tag"/> objects to add. Only tags with non-null values are added.</param> <exception cref="ArgumentNullException">Thrown if <paramref name="tags"/> is null.</exception> |
+| `public Tags GetTags()` | Retrieves a collection of tags that have non-null values. <returns>A <see cref="Tags"/> collection containing all tags with non-null values. The collection will be empty if no such tags exist.</returns> |
+| `public List<Tag> ToList()` | Returns a list containing all tags in the collection. <remarks>The returned list is a snapshot of the collection at the time of the call. Subsequent modifications to the collection are not reflected in the returned list. This method is thread-safe.</remarks> <returns>A list of <see cref="Tag"/> objects representing the tags in the collection. The list is empty if the collection contains no tags or if an error occurs while retrieving the tags.</returns> |
+
+#### Namespace `S7PlcRx.Advanced`
+
+##### `S7PlcRx.Advanced.AdvancedExtensions`
+Source: `Advanced/AdvancedExtensions.cs:22`
+
+Provides advanced extension methods for efficient batch operations, diagnostics, and performance analysis on PLC (Programmable Logic Controller) instances using the IRxS7 interface. <remarks>These extension methods enable high-performance reading, writing, monitoring, and analysis of PLC variables, supporting scenarios such as batch updates, optimized data access, and system diagnostics. Methods are designed to simplify complex PLC interactions and provide recommendations for optimization. All methods require a valid IRxS7 instance and may throw exceptions if invalid arguments are supplied. Thread safety and performance considerations are addressed where relevant in individual method documentation.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static IObservable<Dictionary<string, T?>> ObserveBatch<T>(this IRxS7 plc, params string[] variables)` | Observes the values of multiple PLC variables as a batch and emits updates as a dictionary when any of the specified variables change. <remarks>The returned observable is hot and shared among all subscribers. If a specified variable is not already being polled, polling is automatically enabled for that variable. The sequence emits a new dictionary only when the set of variable values changes.</remarks> <typeparam name="T">The type of the variable values to observe. Must be compatible with the PLC variable types.</typeparam> <param name="plc">The PLC instance that provides access to the variables to observe. Cannot be null.</param> <param name="variables">The names of the PLC variables to observe. If empty, an empty dictionary is emitted.</param> <returns>An observable sequence that emits a dictionary mapping each specified variable name to its most recent value. The dictionary is updated and emitted whenever any of the observed variables change.</returns> <exception cref="ArgumentNullException">Thrown if the <paramref name="plc"/> parameter is null.</exception> |
+| `public static async Task<Dictionary<string, T?>> ValueBatch<T>(this IRxS7 plc, params string[] variables)` | Asynchronously reads the values of multiple variables from the PLC and returns a dictionary mapping variable names to their values. <remarks>If a variable name does not exist in the PLC or cannot be read, its value in the returned dictionary will be the default value for type T. The order of the returned dictionary corresponds to the order of the requested variable names. This method may perform the reads in parallel for efficiency.</remarks> <typeparam name="T">The type of the variable values to read from the PLC.</typeparam> <param name="plc">The PLC instance from which to read the variable values. Cannot be null.</param> <param name="variables">An array of variable names to read from the PLC. Each name must correspond to a valid variable in the PLC.</param> <returns>A task that represents the asynchronous operation. The task result contains a dictionary mapping each requested variable name to its value of type T, or to the default value of T if the variable could not be read or does not exist. If no variables are specified, returns an empty dictionary.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
+| `public static async Task ValueBatch<T>(this IRxS7 plc, Dictionary<string, T> values)` | Writes a batch of values to the PLC asynchronously using the specified tag-value pairs. <remarks>If the underlying PLC implementation supports batch writing, the method attempts to write all values in a single operation for improved performance. Otherwise, values are written individually in parallel. No action is taken if the dictionary is null or empty.</remarks> <typeparam name="T">The type of the values to write to the PLC.</typeparam> <param name="plc">The PLC interface to which the values will be written.</param> <param name="values">A dictionary containing tag names as keys and the corresponding values to write. Cannot be null or empty.</param> <returns>A task that represents the asynchronous write operation.</returns> |
+| `public static async Task<BatchReadResult<T>> ReadBatchOptimized<T>( this IRxS7 plc, Dictionary<string, string> tagMapping, int timeoutMs = 5000)` | Reads a batch of tags from the PLC in an optimized manner, grouping reads by data block to improve performance. <remarks>If the tagMapping dictionary is null or empty, the method returns a successful result with no values. Tags are grouped by data block to minimize communication overhead. If a tag does not exist in the PLC's tag list, it is added before reading. Each tag read is subject to the specified timeout.</remarks> <typeparam name="T">The type of the values to read from the PLC tags.</typeparam> <param name="plc">The PLC instance that provides access to the tags to be read. Cannot be null.</param> <param name="tagMapping">A dictionary mapping logical tag names to their corresponding PLC addresses. Each key is the tag name, and each value is the PLC address to read.</param> <param name="timeoutMs">The maximum time, in milliseconds, to wait for each tag read operation before timing out. The default is 5000 milliseconds.</param> <returns>A task that represents the asynchronous operation. The task result contains a BatchReadResult{T} with the values read, per-tag success status, and any errors encountered.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
+| `public static async Task<BatchWriteResult> WriteBatchOptimized<T>( this IRxS7 plc, Dictionary<string, T> values, bool verifyWrites = false, bool enableRollback = false)` | Writes a batch of values to the specified PLC in an optimized manner, with optional write verification and rollback support. <remarks>If enableRollback is set to true and any write fails, the method attempts to restore all affected PLC addresses to their original values. Write verification, if enabled, reads back each value after writing to ensure correctness. This method is asynchronous and should be awaited to ensure completion of all write and verification operations.</remarks> <typeparam name="T">The type of the values to write to the PLC.</typeparam> <param name="plc">The PLC instance to which the values will be written. Cannot be null.</param> <param name="values">A dictionary mapping PLC variable addresses to the values to write. Each key represents a PLC address, and each value is the data to write to that address. If the dictionary is null or empty, no write operations are performed.</param> <param name="verifyWrites">true to verify each write by reading back the value after writing; otherwise, false. Verification may increase operation time.</param> <param name="enableRollback">true to enable rollback of all written values to their original state if any write fails; otherwise, false. Rollback is attempted only if an error occurs during the batch write.</param> <returns>A BatchWriteResult object containing the outcome of the batch write operation, including per-address success and error information. If no values are provided, the result indicates overall success.</returns> <exception cref="ArgumentNullException">Thrown if plc is null.</exception> |
+| `public static async Task<ProductionDiagnostics> GetDiagnostics(this IRxS7 plc)` | Asynchronously collects diagnostic information and performance metrics from the specified PLC instance. <remarks>If the PLC is not connected, only basic information is included in the diagnostics. For S7-1500 PLCs, additional CPU information and connection latency are measured. Any errors encountered during diagnostic collection are recorded in the Errors property of the returned ProductionDiagnostics object.</remarks> <param name="plc">The PLC instance from which to retrieve diagnostics. Must implement the IRxS7 interface.</param> <returns>A task that represents the asynchronous operation. The task result contains a ProductionDiagnostics object with collected diagnostic data, tag metrics, and optimization recommendations.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
+| `public static async Task<PerformanceAnalysis> AnalyzePerformance(this IRxS7 plc, TimeSpan monitoringDuration)` | Analyzes tag change performance on the specified PLC over a given monitoring duration and returns a summary of tag change frequencies and recommendations. <remarks>This method subscribes to all tag changes on the PLC and tracks the frequency of changes for each tag during the specified monitoring period. The analysis includes total tag changes, per-tag change counts, and suggestions for optimizing performance based on observed activity. The method is thread-safe and does not block the calling thread.</remarks> <param name="plc">The PLC instance to monitor for tag changes. Cannot be null.</param> <param name="monitoringDuration">The length of time to observe tag changes. Must be a positive time span.</param> <returns>A task that represents the asynchronous operation. The task result contains a PerformanceAnalysis object with tag change statistics and performance recommendations for the monitored period.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
+| `public static HighPerformanceTagGroup<T> CreateTagGroup<T>(this IRxS7 plc, string groupName, params string[] tagNames) => ...` | Creates a new high-performance tag group for batch reading or writing of multiple tags from the specified PLC connection. <remarks>Use this method to efficiently manage and operate on multiple tags as a single group, which can improve performance for batch operations.</remarks> <typeparam name="T">The data type of the tag values in the group.</typeparam> <param name="plc">The PLC connection used to access the tags. Cannot be null.</param> <param name="groupName">The name assigned to the tag group. Used to identify the group within the PLC context.</param> <param name="tagNames">An array of tag names to include in the group. Each name must correspond to a valid tag in the PLC.</param> <returns>A new instance of HighPerformanceTagGroup{T} containing the specified tags, associated with the given PLC connection.</returns> |
+
+##### `S7PlcRx.Advanced.AsyncExtensions`
+Source: `Advanced/AsyncExtensions.cs:18`
+
+Provides additional async-first helpers for reading, writing, and observing PLC values without changing the base <see cref="IRxS7"/> API surface. <remarks>These helpers layer <see cref="ValueTask"/> and async-observable patterns over the existing PLC API. Where possible, they complete synchronously from cached tag values or the existing multi-variable read/write paths to reduce avoidable allocations.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static ValueTask<T?> ReadValueAsync<T>(this IRxS7 plc, string? variable, CancellationToken cancellationToken = default)` | Reads a PLC value using a <see cref="ValueTask{TResult}"/>, returning synchronously when a compatible cached tag value is already available. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variable">The tag name to read.</param> <param name="cancellationToken">The cancellation token for the read operation.</param> <returns>A <see cref="ValueTask{TResult}"/> that resolves to the current PLC value.</returns> |
+| `public static ValueTask<Dictionary<string, T?>> ReadValuesAsync<T>(this IRxS7 plc, params string[] variables) => ...` | Reads multiple PLC values using a <see cref="ValueTask{TResult}"/>, preferring cached values and the optimized multi-variable read path where available. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to read.</param> <returns>A <see cref="ValueTask{TResult}"/> that resolves to a dictionary of tag values keyed by tag name.</returns> |
+| `public static ValueTask<Dictionary<string, T?>> ReadValuesAsync<T>(this IRxS7 plc, IReadOnlyList<string> variables, CancellationToken cancellationToken = default)` | Reads multiple PLC values using a <see cref="ValueTask{TResult}"/>, honoring cancellation for deferred reads. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to read.</param> <param name="cancellationToken">The cancellation token for deferred reads.</param> <returns>A <see cref="ValueTask{TResult}"/> that resolves to a dictionary of tag values keyed by tag name.</returns> |
+| `public static ValueTask WriteValuesAsync<T>(this IRxS7 plc, IReadOnlyDictionary<string, T> values, CancellationToken cancellationToken = default)` | Writes multiple PLC values using a <see cref="ValueTask"/>, preferring the optimized multi-variable write path where available. <typeparam name="T">The PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="values">The tag values to write.</param> <param name="cancellationToken">The cancellation token.</param> <returns>A completed <see cref="ValueTask"/> when the writes have been issued.</returns> |
+| `public static IObservableAsync<T?> ObserveValueAsync<T>(this IRxS7 plc, string? variable)` | Exposes a PLC variable as an async observable sequence. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variable">The tag name to observe.</param> <returns>An <see cref="IObservableAsync{T}"/> that emits tag value updates asynchronously.</returns> |
+| `public static IObservableAsync<Dictionary<string, T?>> ObserveValuesAsync<T>(this IRxS7 plc, params string[] variables)` | Exposes a batch PLC observation as an async observable sequence. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to observe.</param> <returns>An <see cref="IObservableAsync{T}"/> that emits dictionaries of tag values asynchronously.</returns> |
+
+##### `S7PlcRx.Advanced.DictionaryEqualityComparer<TKey, TValue>`
+Source: `Advanced/DictionaryEqualityComparer.cs:15`
+
+Provides an equality comparer for dictionaries that determines equality based on their key-value pairs. <remarks>This comparer considers two dictionaries equal if they contain the same number of key-value pairs and each key in one dictionary exists in the other with an equal value, as determined by the default equality comparer for the value type. The order of key-value pairs does not affect equality. This comparer can be used to compare dictionaries in collections such as hash sets or as keys in other dictionaries.</remarks> <typeparam name="TKey">The type of keys in the dictionaries. Must be non-nullable.</typeparam> <typeparam name="TValue">The type of values in the dictionaries.</typeparam>
+
+No public instance/static members declared directly on this type.
+
+#### Namespace `S7PlcRx.BatchOperations`
+
+##### `S7PlcRx.BatchOperations.BatchOperationResult`
+Source: `BatchOperations/BatchOperationResult.cs:14`
+
+Represents the result of executing a batch operation, including summary statistics and details for each operation. <remarks>Use this class to access aggregate information such as the number of successful and failed operations, processing times, and detailed results for each operation in the batch. The class provides both summary properties and collections for per-operation and error details.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public DateTime StartTime get; set; }` | Gets or sets the operation start time. |
+| `public DateTime EndTime get; set; }` | Gets or sets the operation end time. |
+| `public int OperationCount get; set; }` | Gets or sets the number of operations in the batch. |
+| `public int SuccessfulOperations get; set; }` | Gets or sets the number of successful operations. |
+| `public int FailedOperations get; set; }` | Gets or sets the number of failed operations. |
+| `public TimeSpan ProcessingTime => ...` | Gets the total processing time. |
+| `public double AverageTimePerOperation => ...` | Gets the average time per operation. |
+| `public List<OperationDetail> OperationDetails get; } = [];` | Gets operation details. |
+| `public List<string> ErrorDetails get; } = [];` | Gets error details for failed operations. |
+
+##### `S7PlcRx.BatchOperations.BatchReadResult<T>`
+Source: `BatchOperations/BatchReadResult.cs:17`
+
+Represents the result of a batch read operation, including the values read, per-tag success status, error messages, and overall success information. <remarks>Use this class to access the outcome of a batch read, including which tags succeeded, which failed, and any associated error messages. The dictionaries provide per-tag details, while the overall success and count properties offer summary information. This class is typically used in scenarios where multiple items are read in a single operation and individual results must be tracked.</remarks> <typeparam name="T">The type of the values returned for each tag in the batch read operation.</typeparam>
+
+| Member | Summary |
+|---|---|
+| `public Dictionary<string, T> Values get; } = [];` | Gets the successfully read values. |
+| `public Dictionary<string, bool> Success get; } = [];` | Gets the success status for each tag. |
+| `public Dictionary<string, string> Errors get; } = [];` | Gets error messages for failed reads. |
+| `public bool OverallSuccess get; set; }` | Gets or sets a value indicating whether gets whether all reads were successful. |
+| `public int SuccessCount => ...` | Gets the count of successful reads. |
+| `public int ErrorCount => ...` | Gets the count of failed reads. |
+
+##### `S7PlcRx.BatchOperations.BatchWriteResult`
+Source: `BatchOperations/BatchWriteResult.cs:15`
+
+Represents the result of a batch write operation, including per-item success status, error messages, and overall outcome. <remarks>Use this class to inspect which items in a batch write succeeded or failed, retrieve error details for failed items, and determine whether the entire batch was successful or if a rollback was performed. The dictionaries map item identifiers (such as tag names) to their respective statuses and error messages.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public Dictionary<string, bool> Success get; } = [];` | Gets the success status for each tag. |
+| `public Dictionary<string, string> Errors get; } = [];` | Gets error messages for failed writes. |
+| `public bool OverallSuccess get; set; }` | Gets or sets a value indicating whether gets whether all writes were successful. |
+| `public bool RollbackPerformed get; set; }` | Gets or sets a value indicating whether gets whether rollback was performed. |
+| `public int SuccessCount => ...` | Gets the count of successful writes. |
+| `public int ErrorCount => ...` | Gets the count of failed writes. |
+
+#### Namespace `S7PlcRx.Binding`
+
+##### `S7PlcRx.Binding.S7TagDefinition`
+Source: `Binding/S7TagDefinition.cs:9`
+
+Describes a generated PLC tag/property binding.
+
+| Member | Summary |
+|---|---|
+| `public S7TagDefinition(string name, string address, Type valueType, int pollIntervalMs, S7TagDirection direction, int arrayLength = 1)` | Initializes a new instance of the <see cref="S7TagDefinition"/> class. <param name="name">The property and PLC tag name.</param> <param name="address">The S7 DB address.</param> <param name="valueType">The .NET value type.</param> <param name="pollIntervalMs">The read polling interval in milliseconds.</param> <param name="direction">The tag access direction.</param> <param name="arrayLength">The array/string element length.</param> |
+| `public string Name get; }` | Gets the property and PLC tag name. |
+| `public string Address get; }` | Gets the S7 DB address. |
+| `public Type ValueType get; }` | Gets the .NET value type. |
+| `public int PollIntervalMs get; }` | Gets the read polling interval in milliseconds. |
+| `public S7TagDirection Direction get; }` | Gets the tag access direction. |
+| `public int ArrayLength get; }` | Gets the array/string element length. |
+| `public bool CanRead => ...` | Gets a value indicating whether this tag should be read on polling intervals. |
+| `public bool CanWrite => ...` | Gets a value indicating whether this tag can write property changes to the PLC. |
+
+##### `S7PlcRx.Binding.S7TagDirection`
+Source: `Binding/S7TagDirection.cs:9`
+
+Defines the PLC access direction for a generated tag binding.
+
+Enum values: `ReadWrite`, `ReadOnly`, `WriteOnly`.
+
+##### `S7PlcRx.Binding.S7TagRuntimeBinding`
+Source: `Binding/S7TagRuntimeBinding.cs:15`
+
+Runtime engine used by generated tag bindings to poll and write PLC DB values in byte-array batches.
+
+| Member | Summary |
+|---|---|
+| `public static S7TagRuntimeBinding Bind(IRxS7 plc, IReadOnlyList<S7TagDefinition> definitions, Action<string, object?> applyRead) => ...` | Creates and starts a runtime binding for generated PLC tag definitions. <param name="plc">The PLC instance.</param> <param name="definitions">The tag definitions emitted by the source generator.</param> <param name="applyRead">A generated callback that assigns PLC values to backing fields without re-writing them.</param> <returns>A disposable runtime binding.</returns> |
+| `public void Write(string name, object? value)` | Queues a generated property change for a grouped byte-array write. <param name="name">The generated tag/property name.</param> <param name="value">The new property value.</param> |
+| `public void Dispose()` | Releases timers and pending write state. |
+
+#### Namespace `S7PlcRx.Cache`
+
+##### `S7PlcRx.Cache.CacheStatistics`
+Source: `Cache/CacheStatistics.cs:13`
+
+Provides statistical information about the state and performance of a cache, including entry counts, hit rates, and entry timestamps. <remarks>Use this class to monitor cache usage patterns and effectiveness. The statistics can help identify cache performance issues or guide tuning decisions. All values represent a snapshot at the time the object is created or updated; they do not update automatically.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public int TotalEntries get; set; }` | Gets or sets the total number of cached entries. |
+| `public long TotalHits get; set; }` | Gets or sets the total number of cache hits. |
+| `public double HitRate get; set; }` | Gets or sets the cache hit rate (0.0 to 1.0). |
+| `public DateTime OldestEntry get; set; }` | Gets or sets the timestamp of the oldest cache entry. |
+| `public DateTime NewestEntry get; set; }` | Gets or sets the timestamp of the newest cache entry. |
+| `public int CachedValueCount get; internal set; }` | Gets the cached value count. <value> The cached value count. </value> |
+| `public int PendingRequestCount get; internal set; }` | Gets the pending request count. <value> The pending request count. </value> |
+| `public double CacheHitRatio get; internal set; }` | Gets the cache hit ratio. <value> The cache hit ratio. </value> |
+
+##### `S7PlcRx.Cache.CachedTagValue`
+Source: `Cache/CachedTagValue.cs:12`
+
+Represents a cached value along with metadata about its storage and usage. <remarks>This class is typically used to store a value retrieved from a data source, along with the time it was cached and the number of times it has been accessed. It is intended for use in caching scenarios where tracking cache usage and freshness is important.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public object? Value get; set; }` | Gets or sets the cached value. |
+| `public DateTime Timestamp get; set; }` | Gets or sets when the value was cached. |
+| `public long HitCount get; set; }` | Gets or sets the number of cache hits. |
+
+#### Namespace `S7PlcRx.Core`
+
+##### `S7PlcRx.Core.ConnectionPool`
+Source: `Core/ConnectionPool.cs:17`
+
+Manages a pool of PLC connections, providing load-balanced access and connection reuse according to the specified configuration. <remarks>The ConnectionPool enables efficient management of multiple PLC connections by reusing and balancing requests across available connections. It supports configurable pool size and connection reuse strategies. This class is thread-safe for concurrent access. Call Dispose to release all connections when the pool is no longer needed.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public ConnectionPool(ConnectionPoolConfig config) => ...` | Initializes a new instance of the <see cref="ConnectionPool"/> class. <param name="config">The pool configuration.</param> |
+| `public ConnectionPool( IEnumerable<PlcConnectionConfig> connectionConfigs, ConnectionPoolConfig poolConfig)` | Initializes a new instance of the <see cref="ConnectionPool"/> class. <param name="connectionConfigs">The connection configurations.</param> <param name="poolConfig">The pool configuration.</param> |
+| `public int MaxConnections => ...` | Gets the maximum number of connections in the pool. |
+| `public int ActiveConnections => ...` | Gets the number of active connections. |
+| `public IRxS7 GetConnection` | Gets a connection from the pool using load balancing. <returns>An available PLC connection.</returns> |
+| `public IEnumerable<IRxS7> GetAllConnections() => ...` | Gets all connections in the pool. <returns>All connections.</returns> |
+| `public void Dispose()` | Disposes all connections in the pool. |
+
+##### `S7PlcRx.Core.ConnectionPoolConfig`
+Source: `Core/ConnectionPoolConfig.cs:12`
+
+Represents the configuration settings for a connection pool, including limits, timeouts, and behavior options. <remarks>Use this class to specify parameters that control the size, performance, and health monitoring of a connection pool. Adjusting these settings can help optimize resource usage and connection reliability for applications that manage multiple concurrent connections.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public int MaxPoolSize get; set; } = 10;` | Gets or sets the maximum pool size. |
+| `public int MaxConnections get; set; } = 10;` | Gets or sets the maximum number of connections in the pool. |
+| `public TimeSpan ConnectionTimeout get; set; } = TimeSpan.FromSeconds(30);` | Gets or sets the connection timeout. |
+| `public bool EnableLoadBalancing get; set; } = true;` | Gets or sets a value indicating whether to enable load balancing. |
+| `public bool EnableConnectionReuse get; set; } = true;` | Gets or sets a value indicating whether to enable connection reuse. |
+| `public TimeSpan HealthCheckInterval get; set; } = TimeSpan.FromMinutes(1);` | Gets or sets the health check interval. |
+
+##### `S7PlcRx.Core.DataBlockInfo`
+Source: `Core/DataBlockInfo.cs:14`
+
+Represents metadata and configuration information for a data block, including its identifier, size, tag details, access frequency, and optimization settings. <remarks>Use this class to describe the characteristics of a data block, such as its block number, size in bytes, and associated tag names. The properties provide information useful for managing, analyzing, or optimizing data storage and access patterns. Instances of this class are typically used in scenarios where data blocks are processed, monitored, or configured for batch operations.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public int BlockNumber get; set; }` | Gets or sets the data block number. |
+| `public int SizeBytes get; set; }` | Gets or sets the total size in bytes. |
+| `public int TagCount get; set; }` | Gets or sets the number of tags in this block. |
+| `public double AccessFrequency get; set; }` | Gets or sets the access frequency. |
+| `public bool IsBatchOptimized get; set; }` | Gets or sets a value indicating whether gets or sets whether the block is optimized for batch operations. |
+| `public List<string> TagNames get; } = [];` | Gets the tags in this data block. |
+
+##### `S7PlcRx.Core.OperationDetail`
+Source: `Core/OperationDetail.cs:9`
+
+Represents the details of an operation, including its type, status, duration, and related metadata.
+
+| Member | Summary |
+|---|---|
+| `public string TagName get; set; } = string.Empty;` | Gets or sets the tag name. |
+| `public string OperationType get; set; } = string.Empty;` | Gets or sets the operation type. |
+| `public bool Success get; set; }` | Gets or sets a value indicating whether gets or sets whether the operation succeeded. |
+| `public TimeSpan Duration get; set; }` | Gets or sets the operation duration. |
+| `public string? ErrorMessage get; set; }` | Gets or sets any error message. |
+| `public int DataBlockNumber get; set; }` | Gets or sets the data block number. |
+
+##### `S7PlcRx.Core.RequestPriority`
+Source: `Core/RequestPriority.cs:9`
+
+Request priority levels for batch processing.
+
+Enum values: `Low`, `Normal`, `High`, `Critical`.
+
+#### Namespace `S7PlcRx.Enterprise`
+
+##### `S7PlcRx.Enterprise.EnterpriseExtensions`
+Source: `Enterprise/EnterpriseExtensions.cs:19`
+
+Provides extension methods for enhanced PLC connectivity, symbolic addressing, high-availability management, and connection pooling in enterprise automation scenarios. <remarks>The EnterpriseExtensions class offers advanced features for working with PLCs, including loading and caching symbol tables for symbolic access, reading and writing values by symbol name, creating high-availability connections with automatic failover, and managing connection pools for high-throughput applications. These methods are designed to simplify integration with industrial automation systems and improve reliability and scalability in production environments.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static async Task<SymbolTable> LoadSymbolTable( this IRxS7 plc, string symbolTableData, SymbolTableFormat format = SymbolTableFormat.Csv)` | Loads and caches a symbol table for symbolic addressing support. Enables reading/writing using symbolic names instead of absolute addresses. <param name="plc">The PLC instance.</param> <param name="symbolTableData">Symbol table data (CSV format supported).</param> <param name="format">The format of the symbol table data.</param> <returns>The loaded symbol table.</returns> |
+| `public static async Task<T?> ReadSymbol<T>(this IRxS7 plc, string symbolName)` | Asynchronously reads the value of the specified symbol from the PLC and returns it as the specified type. <typeparam name="T">The type to which the symbol's value is converted and returned.</typeparam> <param name="plc">The PLC connection used to access the symbol table and read the symbol value. Cannot be null.</param> <param name="symbolName">The name of the symbol to read from the PLC. Must correspond to a symbol present in the PLC's symbol table.</param> <returns>A task that represents the asynchronous read operation. The task result contains the value of the symbol as type <typeparamref name="T"/>, or <see langword="null"/> if the symbol's value is null.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> <exception cref="ArgumentException">Thrown if a symbol with the specified <paramref name="symbolName"/> does not exist in the PLC's symbol table.</exception> |
+| `public static void WriteSymbol<T>(this IRxS7 plc, string symbolName, T value)` | Writes a value to the specified PLC symbol by name. <typeparam name="T">The type of the value to write to the symbol.</typeparam> <param name="plc">The PLC instance to which the symbol value will be written. Cannot be null.</param> <param name="symbolName">The name of the symbol in the PLC to write the value to. Must correspond to a valid symbol in the PLC's symbol table.</param> <param name="value">The value to write to the specified symbol.</param> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="symbolName"/> does not correspond to a symbol in the PLC's symbol table.</exception> |
+| `public static HighAvailabilityPlcManager CreateHighAvailabilityConnection( IRxS7 primaryPlc, IList<IRxS7> backupPlcs, TimeSpan? healthCheckInterval = null)` | Creates a high-availability connection manager that coordinates failover between a primary PLC and one or more backup PLCs. <remarks>The returned manager automatically monitors the health of the primary and backup PLCs and handles failover as needed. The order of backupPlcs determines the failover priority.</remarks> <param name="primaryPlc">The primary PLC instance to be used for initial communication and operations. Cannot be null.</param> <param name="backupPlcs">A list of backup PLC instances to be used for failover if the primary PLC becomes unavailable. Cannot be null or empty.</param> <param name="healthCheckInterval">The interval at which the health of the PLCs is checked. If null, a default interval is used.</param> <returns>A HighAvailabilityPlcManager instance that manages high-availability communication across the specified PLCs.</returns> <exception cref="ArgumentNullException">Thrown if primaryPlc or backupPlcs is null.</exception> |
+| `public static ConnectionPool CreateConnectionPool( IEnumerable<PlcConnectionConfig> connectionConfigs, ConnectionPoolConfig poolConfig)` | Creates a new connection pool using the specified PLC connection configurations and pool settings. <param name="connectionConfigs">A collection of PLC connection configurations to include in the pool. Must contain at least one configuration.</param> <param name="poolConfig">The configuration settings to apply to the connection pool. Cannot be null.</param> <returns>A new instance of <see cref="ConnectionPool"/> initialized with the provided connection configurations and pool settings.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="connectionConfigs"/> or <paramref name="poolConfig"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="connectionConfigs"/> does not contain at least one configuration.</exception> |
+
+##### `S7PlcRx.Enterprise.HighAvailabilityPlcManager`
+Source: `Enterprise/HighAvailabilityPlcManager.cs:17`
+
+Provides high-availability management for a set of PLC (Programmable Logic Controller) connections, automatically handling failover to backup PLCs in case of connection loss. <remarks>The HighAvailabilityPlcManager monitors the health of the primary PLC and automatically switches to a backup PLC if the primary becomes unavailable. It exposes an observable stream of failover events for monitoring and allows manual triggering of failover. This class is thread-safe for typical usage scenarios. Dispose the manager when it is no longer needed to release resources.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public HighAvailabilityPlcManager( IRxS7 primaryPlc, IList<IRxS7> backupPlcs, TimeSpan? healthCheckInterval = null)` | Initializes a new instance of the <see cref="HighAvailabilityPlcManager"/> class with a primary PLC, a list of backup PLCs,. and an optional health check interval. <remarks>The primary PLC is always treated as the first PLC in the managed list, regardless of its position in the provided backupPlcs collection. Health checks are performed at the specified interval to monitor PLC availability and facilitate failover if necessary.</remarks> <param name="primaryPlc">The primary PLC to be managed. Cannot be null.</param> <param name="backupPlcs">A list of backup PLCs to use for failover. The primary PLC will be inserted as the first element in this list.</param> <param name="healthCheckInterval">The interval at which health checks are performed on the PLCs. If null, a default interval of 30 seconds is used.</param> <exception cref="ArgumentNullException">Thrown if primaryPlc is null.</exception> |
+| `public IRxS7 ActivePLC get; private set; }` | Gets the currently active PLC connection. |
+| `public IObservable<PlcFailoverEvent> FailoverEvents => ...` | Gets observable stream of failover events. |
+| `public async Task<bool> TriggerFailover() => ...` | Manually triggers a failover to the next available backup. <returns>A value indicating whether failover was successful.</returns> |
+| `public void Dispose()` | Disposes the high-availability manager. |
+
+##### `S7PlcRx.Enterprise.PlcConnectionConfig`
+Source: `Enterprise/PlcConnectionConfig.cs:14`
+
+Represents the configuration settings required to establish a connection to a programmable logic controller (PLC). <remarks>Use this class to specify connection parameters such as PLC type, network address, rack, slot, and an optional connection name when initializing or managing PLC connections. This configuration is typically used by PLC communication libraries to open and maintain a session with the target device.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public CpuType PLCType get; set; }` | Gets or sets the PLC type. |
+| `public string IPAddress get; set; } = string.Empty;` | Gets or sets the IP address. |
+| `public short Rack get; set; }` | Gets or sets the rack number. |
+| `public short Slot get; set; }` | Gets or sets the slot number. |
+| `public string ConnectionName get; set; } = string.Empty;` | Gets or sets the connection name. |
+
+##### `S7PlcRx.Enterprise.PlcFailoverEvent`
+Source: `Enterprise/PlcFailoverEvent.cs:12`
+
+Represents an event that occurs when a failover between programmable logic controllers (PLCs) takes place. <remarks>This class encapsulates information about a PLC failover event, including the time of occurrence, the reason for the failover, and the identifiers of the PLCs involved. Instances of this class are typically used for logging, monitoring, or auditing failover activities within PLC-based systems.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public DateTime Timestamp get; set; }` | Gets or sets the timestamp of the failover. |
+| `public string Reason get; set; } = string.Empty;` | Gets or sets the reason for failover. |
+| `public string OldPlc get; set; } = string.Empty;` | Gets or sets the old PLC identifier. |
+| `public string NewPlc get; set; } = string.Empty;` | Gets or sets the new PLC identifier. |
+
+##### `S7PlcRx.Enterprise.SecurityContext`
+Source: `Enterprise/SecurityContext.cs:14`
+
+Represents the security context for a session, including encryption settings, session timing, and certificate information. <remarks>The SecurityContext class encapsulates all security-related parameters required to manage and validate a secure session. It provides properties for encryption keys, session validity, and certificate details, allowing consumers to configure and query the security state of a session. This class is sealed and cannot be inherited.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public string PLCKey get; set; } = string.Empty;` | Gets or sets the PLC key identifier. |
+| `public string EncryptionKey get; set; } = string.Empty;` | Gets or sets the encryption key. |
+| `public DateTime SessionStartTime get; set; }` | Gets or sets the session start time. |
+| `public TimeSpan SessionTimeout get; set; }` | Gets or sets the session timeout. |
+| `public bool IsEnabled get; set; }` | Gets or sets a value indicating whether security is enabled. |
+| `public bool IsSessionValid => ...` | Gets a value indicating whether the session is still valid. |
+| `public bool EnableEncryption get; internal set; }` | Gets a value indicating whether [enable encryption]. <value> <c>true</c> if [enable encryption]; otherwise, <c>false</c>. </value> |
+| `public string? CertificatePath get; internal set; }` | Gets the certificate path. <value> The certificate path. </value> |
+| `public string? CertificatePassword get; internal set; }` | Gets the certificate password. <value> The certificate password. </value> |
+
+##### `S7PlcRx.Enterprise.Symbol`
+Source: `Enterprise/Symbol.cs:13`
+
+Represents a programmable logic controller (PLC) symbol, including its name, address, data type, length, and description. <remarks>Use the Symbol class to define and manage metadata for PLC variables, such as their symbolic name, address, and data type. This class is typically used in applications that interact with PLCs for automation or monitoring purposes.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public string Name get; set; } = string.Empty;` | Gets or sets the symbol name. |
+| `public string Address get; set; } = string.Empty;` | Gets or sets the PLC address. |
+| `public string DataType get; set; } = string.Empty;` | Gets or sets the data type. |
+| `public int Length get; set; } = 1;` | Gets or sets the length for array types. |
+| `public string Description get; set; } = string.Empty;` | Gets or sets the description. |
+
+##### `S7PlcRx.Enterprise.SymbolTable`
+Source: `Enterprise/SymbolTable.cs:9`
+
+Represents a read-only table of named symbols and the time at which it was loaded.
+
+| Member | Summary |
+|---|---|
+| `public Dictionary<string, Symbol> Symbols get; } = [];` | Gets the collection of symbols indexed by name. |
+| `public DateTime LoadedAt get; } = DateTime.UtcNow;` | Gets the timestamp when the symbol table was loaded. |
+
+##### `S7PlcRx.Enterprise.SymbolTableFormat`
+Source: `Enterprise/SymbolTableFormat.cs:9`
+
+Specifies the supported formats for serializing or deserializing a symbol table.
+
+Enum values: `Csv`, `Json`, `Xml`.
+
+#### Namespace `S7PlcRx.Enums`
+
+##### `S7PlcRx.Enums.CpuType`
+Source: `Enums/CpuType.cs:13`
+
+Specifies the supported CPU types for Siemens programmable logic controllers (PLCs). <remarks>Use this enumeration to indicate the model of CPU when configuring or communicating with Siemens PLC devices. The available values correspond to common Siemens PLC families, such as LOGO!, S7-200, S7-300, S7-400, S7-1200, and S7-1500. Selecting the correct CPU type ensures compatibility with device-specific protocols and features.</remarks>
+
+Enum values: `Logo0BA8`, `S7200`, `S7300`, `S7400`, `S71200`, `S71500`.
+
+##### `S7PlcRx.Enums.ErrorCode`
+Source: `Enums/ErrorCode.cs:12`
+
+Specifies error codes that indicate the result of an operation or the type of error encountered. <remarks>Use this enumeration to identify specific error conditions when handling operation results. The values represent distinct error types, such as connection failures, invalid data formats, or communication issues. The meaning of each code is defined by the context in which it is used.</remarks>
+
+Enum values: `NoError`, `WrongCPUType`, `ConnectionError`, `IPAddressNotAvailable`, `WrongVarFormat`, `WrongNumberReceivedBytes`, `SendData`, `ReadData`, `WriteData`.
+
+##### `S7PlcRx.Enums.S7StringType`
+Source: `Enums/S7StringType.cs:12`
+
+Specifies the string encoding type used for S7 PLC string variables. <remarks>Use this enumeration to indicate whether a string variable should be interpreted as an ASCII (S7String) or Unicode (S7WString) string when communicating with Siemens S7 PLCs. The encoding type determines how string data is read from or written to the PLC.</remarks>
+
+Enum values: `S7String`, `S7WString`.
+
+#### Namespace `S7PlcRx.Optimization`
+
+##### `S7PlcRx.Optimization.OptimizationExtensions`
+Source: `Optimization/OptimizationExtensions.cs:18`
+
+Provides extension methods for IRxS7 to enable optimized tag monitoring, intelligent value caching, and cache management for PLC data access. <remarks>These extensions enhance performance and usability when interacting with PLC tags by offering adaptive polling, caching strategies, and cache statistics. All methods require a valid IRxS7 instance and are designed to be thread-safe. Use these methods to reduce unnecessary network traffic, improve responsiveness, and monitor tag changes efficiently.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static IObservable<SmartTagChange<T>> MonitorTagSmart<T>( this IRxS7 plc, string tagName, double changeThreshold = 0.0, int debounceMs = 100)` | Observes changes to a specified PLC tag and emits significant value changes as a stream of smart change events. <remarks>The returned observable emits a new event only when the tag value changes by at least the specified threshold and after the debounce interval has elapsed. This method uses a publish/subscribe mechanism to share the observable sequence among multiple subscribers.</remarks> <typeparam name="T">The type of the tag value to monitor.</typeparam> <param name="plc">The PLC instance that provides access to the tag to be monitored. Cannot be null.</param> <param name="tagName">The name of the tag to observe for changes. Cannot be null or empty.</param> <param name="changeThreshold">The minimum change required between consecutive tag values to consider the change significant. Use 0.0 to report all changes.</param> <param name="debounceMs">The minimum interval, in milliseconds, between emitted change events. Used to debounce rapid changes.</param> <returns>An observable sequence of smart tag change events containing details about each significant change detected in the tag value.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="tagName"/> is null or empty.</exception> |
+| `public static async Task<T?> ValueCached<T>( this IRxS7 plc, string tagName, TimeSpan? cacheTimeout = null)` | Asynchronously retrieves the value of the specified PLC tag, using a cached value if available and not expired. <remarks>If a cached value for the specified tag exists and has not expired, it is returned immediately. Otherwise, the method reads a fresh value from the PLC and updates the cache. This method is thread-safe.</remarks> <typeparam name="T">The type of the value to retrieve from the PLC tag.</typeparam> <param name="plc">The PLC interface used to access the tag value. Cannot be null.</param> <param name="tagName">The name of the PLC tag to read. Cannot be null or empty.</param> <param name="cacheTimeout">The maximum duration for which a cached value is considered valid. If null, a default of one second is used.</param> <returns>A task that represents the asynchronous operation. The task result contains the value of the specified tag, or the cached value if it is still valid. Returns null if the tag value cannot be retrieved.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="tagName"/> is null or empty.</exception> |
+| `public static void ClearCache(this IRxS7 plc, string? tagName = null)` | Clears cached values for the specified PLC instance, optionally restricting the operation to a single tag. <remarks>This method is thread-safe. Clearing the cache may affect subsequent read operations, which will retrieve fresh values from the PLC rather than cached results.</remarks> <param name="plc">The PLC instance whose cache entries will be cleared. Cannot be null.</param> <param name="tagName">The name of the tag to clear from the cache. If null or empty, all cache entries for the specified PLC are cleared.</param> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
+| `public static CacheStatistics GetCacheStatistics(this IRxS7 plc)` | Retrieves cache usage statistics for the specified PLC instance, including entry count, hit count, hit rate, and entry timestamps. <remarks>This method provides insight into the cache performance and usage for a particular PLC. The statistics can be used to monitor cache effectiveness or diagnose caching issues. The method is thread-safe.</remarks> <param name="plc">The PLC instance for which to obtain cache statistics. Cannot be null.</param> <returns>A CacheStatistics object containing aggregated cache metrics for the specified PLC. If no cache entries exist for the PLC, the statistics will reflect zero entries and hits.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
+
+##### `S7PlcRx.Optimization.OptimizationRequestPriority`
+Source: `Optimization/OptimizationRequestPriority.cs:11`
+
+Specifies the priority level for an optimization request. <remarks>Use this enumeration to indicate the relative importance of an optimization request. Higher priority values may be processed before lower ones, depending on the scheduling or queuing logic of the system.</remarks>
+
+Enum values: `Low`, `Normal`, `High`, `Critical`.
+
+##### `S7PlcRx.Optimization.ReadOptimizationConfig`
+Source: `Optimization/ReadOptimizationConfig.cs:13`
+
+Provides configuration options for optimizing read operations, including parallelism, delays, concurrency limits, and timeouts within data block groups. <remarks>Use this class to fine-tune the performance characteristics of read operations in scenarios where data is organized into block groups. Adjusting these settings can help balance throughput, latency, and resource usage based on application requirements.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public bool EnableParallelReads get; set; } = true;` | Gets or sets a value indicating whether gets or sets whether to enable parallel reads within data block groups. |
+| `public int InterGroupDelayMs get; set; }` | Gets or sets the delay between data block groups in milliseconds. |
+| `public int MaxConcurrentReads get; set; } = 10;` | Gets or sets the maximum number of concurrent reads. |
+| `public int ReadTimeoutMs get; set; } = 5000;` | Gets or sets the read timeout in milliseconds. |
+
+##### `S7PlcRx.Optimization.SmartTagChange<T>`
+Source: `Optimization/SmartTagChange.cs:16`
+
+Represents a change to a smart tag, including its name, previous and current values, the time of change, the amount of change for numeric types, and associated metadata. <remarks>Use this class to track changes to smart tags in applications that require auditing, history, or notification of tag value updates. The <see cref="ChangeAmount"/> property is intended for numeric types; for non-numeric types, its value may be ignored. The <see cref="Metadata"/> dictionary can be used to store additional context or information relevant to the change.</remarks> <typeparam name="T">The type of the value associated with the smart tag. This can be any type representing the tag's value before and after the change.</typeparam>
+
+| Member | Summary |
+|---|---|
+| `public string TagName get; set; } = string.Empty;` | Gets or sets the tag name. |
+| `public T? PreviousValue get; set; }` | Gets or sets the previous value. |
+| `public T? CurrentValue get; set; }` | Gets or sets the current value. |
+| `public DateTimeOffset ChangeTime get; set; }` | Gets or sets the change timestamp. |
+| `public double ChangeAmount get; set; }` | Gets or sets the amount of change for numeric types. |
+| `public Dictionary<string, object> Metadata get; set; } = new();` | Gets or sets additional metadata about the change. |
+
+##### `S7PlcRx.Optimization.WriteOptimizationConfig`
+Source: `Optimization/WriteOptimizationConfig.cs:13`
+
+Provides configuration options for optimizing write operations, including parallelism, verification, timing, and concurrency settings. <remarks>Use this class to customize the behavior of write operations, such as enabling parallel writes, specifying verification requirements, and controlling delays and timeouts. Adjusting these settings can help balance performance and reliability based on application needs.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public bool EnableParallelWrites get; set; }` | Gets or sets a value indicating whether gets or sets whether to enable parallel writes within data block groups. |
+| `public bool VerifyWrites get; set; }` | Gets or sets a value indicating whether gets or sets whether to verify writes by reading back. |
+| `public int InterGroupDelayMs get; set; } = 50;` | Gets or sets the delay between data block groups in milliseconds. |
+| `public int MaxConcurrentWrites get; set; } = 5;` | Gets or sets the maximum number of concurrent writes. |
+| `public int WriteTimeoutMs get; set; } = 5000;` | Gets or sets the write timeout in milliseconds. |
+
+##### `S7PlcRx.Optimization.WriteOptimizationResult`
+Source: `Optimization/WriteOptimizationResult.cs:14`
+
+Represents the result of a write optimization operation, including timing information, per-write outcomes, and overall error details. <remarks>Use this class to access detailed results of a write optimization process, such as the start and end times, lists of successful and failed writes, and aggregate metrics like total duration and success rate. The dictionaries provide per-write information, with keys typically representing write identifiers. This type is immutable except for properties explicitly marked as settable.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public DateTime StartTime get; set; }` | Gets or sets the operation start time. |
+| `public DateTime EndTime get; set; }` | Gets or sets the operation end time. |
+| `public Dictionary<string, TimeSpan> SuccessfulWrites get; } = [];` | Gets successful writes with their durations. |
+| `public Dictionary<string, string> FailedWrites get; } = [];` | Gets failed writes with error messages. |
+| `public string? OverallError get; set; }` | Gets or sets any overall error message. |
+| `public TimeSpan TotalDuration => ...` | Gets the total operation duration. |
+| `public double SuccessRate => ...` | Gets the success rate. |
+
+#### Namespace `S7PlcRx.Performance`
+
+##### `S7PlcRx.Performance.BenchmarkConfig`
+Source: `Performance/BenchmarkConfig.cs:12`
+
+Represents the configuration settings for benchmark tests, including parameters for latency, throughput, and reliability measurements. <remarks>Use this class to specify the number and duration of various benchmark tests when running performance evaluations. All properties are configurable to tailor the benchmarking process to specific requirements.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public int LatencyTestCount get; set; } = 10;` | Gets or sets the number of latency tests to perform. |
+| `public TimeSpan ThroughputTestDuration get; set; } = TimeSpan.FromSeconds(10);` | Gets or sets the duration for throughput testing. |
+| `public int ReliabilityTestCount get; set; } = 20;` | Gets or sets the number of reliability tests to perform. |
+
+##### `S7PlcRx.Performance.BenchmarkResult`
+Source: `Performance/BenchmarkResult.cs:15`
+
+Represents the results of a performance benchmark, including timing, latency, throughput, reliability, and any errors encountered during execution. <remarks>Use this class to access detailed metrics and diagnostic information from a completed benchmark run. The properties provide summary statistics such as average, minimum, and maximum latency, as well as overall reliability and score. Errors encountered during benchmarking are available in the <see cref="Errors"/> collection for troubleshooting. This type is immutable except for its settable properties; thread safety is not guaranteed if modified concurrently.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public DateTime StartTime get; set; }` | Gets or sets the benchmark start time. |
+| `public DateTime EndTime get; set; }` | Gets or sets the benchmark end time. |
+| `public string PLCIdentifier get; set; } = string.Empty;` | Gets or sets the PLC identifier. |
+| `public double AverageLatencyMs get; set; }` | Gets or sets the average latency in milliseconds. |
+| `public double MinLatencyMs get; set; }` | Gets or sets the minimum latency in milliseconds. |
+| `public double MaxLatencyMs get; set; }` | Gets or sets the maximum latency in milliseconds. |
+| `public double OperationsPerSecond get; set; }` | Gets or sets the operations per second. |
+| `public double ReliabilityRate get; set; }` | Gets or sets the reliability rate (0.0 to 1.0). |
+| `public double OverallScore get; set; }` | Gets or sets the overall benchmark score (0 to 100). |
+| `public List<string> Errors get; } = [];` | Gets any errors encountered during benchmarking. |
+| `public TimeSpan TotalDuration => ...` | Gets the total benchmark duration. |
+
+##### `S7PlcRx.Performance.HighPerformanceTagGroup<T>`
+Source: `Performance/HighPerformanceTagGroup.cs:18`
+
+Provides high-performance batch operations for reading, writing, and observing a group of PLC tags as a single unit. <remarks>This class is designed to optimize communication with a PLC by grouping related tags and minimizing individual polling. It supports efficient batch reads and writes, and exposes an observable stream for monitoring group state changes. Instances of this class are not thread-safe; external synchronization may be required if accessed concurrently.</remarks> <typeparam name="T">The type of value associated with each PLC tag in the group.</typeparam>
+
+| Member | Summary |
+|---|---|
+| `public HighPerformanceTagGroup(IRxS7 plc, string groupName, string[] tagNames)` | Initializes a new instance of the <see cref="HighPerformanceTagGroup{T}"/> class, associating a set of tag names with a specified. PLC for optimized group operations. <remarks>Tag names starting with "DB" that are not already present in the PLC's tag list will be added with individual polling disabled to improve performance when accessing the group.</remarks> <param name="plc">The PLC connection used to manage and access the specified tags.</param> <param name="groupName">The name assigned to this tag group. Cannot be null or whitespace.</param> <param name="tagNames">An array of tag names to include in the group. Cannot be null or empty.</param> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="groupName"/> is null, whitespace, or if <paramref name="tagNames"/> is null or empty.</exception> |
+| `public string GroupName get; }` | Gets the name of the group associated with this instance. |
+| `public IReadOnlyDictionary<string, T?> CurrentValues => ...` | Gets a read-only dictionary containing the current values associated with each key. |
+| `public IObservable<Dictionary<string, T?>> ObserveGroup()` | Observes changes to the group of tags and provides a stream of their current values. <remarks>Individual polling is enabled for each tag in the group to ensure timely updates. The returned observable emits only when the values of the tags change, and subscribers receive the most recent state of all tags in the group. The sequence is shared among all subscribers and remains active as long as there is at least one subscription.</remarks> <returns>An observable sequence that emits a dictionary containing the latest values for each tag in the group. Each dictionary maps tag names to their corresponding values of type T. The sequence emits a new dictionary whenever any tag value changes.</returns> |
+| `public async Task<Dictionary<string, T?>> ReadAll() => ...` | Asynchronously reads the values of all configured PLC tags and returns a dictionary mapping tag names to their corresponding values. <remarks>The returned dictionary includes an entry for each tag in the configured set, regardless of whether the value was successfully read. This method is thread-safe and can be awaited. The order of entries in the dictionary is not guaranteed.</remarks> <returns>A dictionary containing the tag names as keys and their associated values of type <typeparamref name="T"/> as values. If a tag value cannot be read, its value will be <see langword="null"/>.</returns> |
+| `public async Task WriteAll(Dictionary<string, T> values)` | Writes all specified values to the PLC in a single batch operation. <remarks>Entries in the dictionary with tag names not recognized by the PLC are ignored. This method performs the write operation asynchronously and does not block the calling thread.</remarks> <param name="values">A dictionary containing tag names as keys and their corresponding values to be written. Only entries with tag names recognized by the PLC will be processed.</param> <returns>A task that represents the asynchronous write operation.</returns> |
+| `public void Dispose()` | Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources. |
+
+##### `S7PlcRx.Performance.PerformanceAnalysis`
+Source: `Performance/PerformanceAnalysis.cs:13`
+
+Represents the results and metrics of a performance analysis, including time intervals, tag change statistics, and optimization recommendations. <remarks>Use this class to encapsulate data collected during a performance monitoring session, such as the frequency of tag changes and suggested improvements. The properties provide access to both raw metrics and calculated values, enabling further reporting or decision-making based on the analysis.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public DateTime StartTime get; set; }` | Gets or sets the start time of the analysis. |
+| `public DateTime EndTime get; set; }` | Gets or sets the end time of the analysis. |
+| `public TimeSpan MonitoringDuration get; set; }` | Gets or sets the monitoring duration. |
+| `public Dictionary<string, int> TagChangeFrequencies get; set; } = [];` | Gets or sets the tag change frequencies. |
+| `public int TotalTagChanges get; set; }` | Gets or sets the total tag changes observed. |
+| `public double AverageChangesPerTag get; set; }` | Gets or sets the average changes per tag. |
+| `public List<string> Recommendations get; set; } = [];` | Gets or sets the optimization recommendations. |
+
+##### `S7PlcRx.Performance.PerformanceExtensions`
+Source: `Performance/PerformanceExtensions.cs:19`
+
+Provides extension methods for IRxS7 PLC instances to enable advanced performance monitoring, optimized read and write operations, and benchmarking capabilities. <remarks>The methods in this class facilitate efficient interaction with PLCs by offering features such as real-time performance metrics, automatic grouping and batching of read/write operations, and comprehensive benchmarking. These extensions are designed to improve throughput, reliability, and observability when working with industrial automation systems. All methods require a valid IRxS7 instance and may throw exceptions if invalid arguments are supplied. Thread safety is ensured for performance data collection and metrics aggregation.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static IObservable<PerformanceMetrics> MonitorPerformance( this IRxS7 plc, TimeSpan? monitoringInterval = null)` | Monitors the performance of the specified PLC and provides periodic updates as an observable sequence of performance metrics. <remarks>The returned observable begins emitting metrics immediately and continues at the specified interval. Metrics include connection status, tag counts, operation rates, and error rates. The observable is hot and shared among subscribers; unsubscribing from all observers will stop monitoring until a new subscription is made.</remarks> <param name="plc">The PLC instance to monitor. Cannot be null.</param> <param name="monitoringInterval">The interval at which performance metrics are sampled. If null, defaults to 30 seconds.</param> <returns>An observable sequence of <see cref="PerformanceMetrics"/> objects containing performance data for the PLC, emitted at each monitoring interval.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
+| `public static async Task<Dictionary<string, T?>> ReadOptimized<T>( this IRxS7 plc, IEnumerable<string> tagNames, Optimization.ReadOptimizationConfig? optimizationConfig = null)` | Reads the specified tags from the PLC using optimized grouping and optional parallelization, returning a dictionary of tag names and their corresponding values. <remarks>Tags are grouped by data block for efficient reading. When parallel reads are enabled in the optimization configuration, tag groups are read concurrently to improve performance. The method records performance metrics and errors for diagnostic purposes. If an error occurs while reading a tag, the operation is aborted and an exception is thrown.</remarks> <typeparam name="T">The type of the value to read for each tag.</typeparam> <param name="plc">The PLC instance from which to read tag values. Cannot be null.</param> <param name="tagNames">A collection of tag names to read from the PLC. Cannot be null. If empty, an empty dictionary is returned.</param> <param name="optimizationConfig">An optional configuration that controls read optimization behavior, such as enabling parallel reads and setting inter-group delays. If null, default optimization settings are used.</param> <returns>A dictionary mapping each requested tag name to its read value. If a tag cannot be read, an exception is thrown and the dictionary may be incomplete.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="tagNames"/> is null.</exception> <exception cref="InvalidOperationException">Thrown if reading a tag fails due to a PLC communication error or invalid tag name.</exception> |
+| `public static async Task<Optimization.WriteOptimizationResult> WriteOptimized<T>( this IRxS7 plc, Dictionary<string, T> values, Optimization.WriteOptimizationConfig? optimizationConfig = null)` | Writes multiple values to the PLC in an optimized manner, grouping operations and optionally verifying writes for accuracy. <remarks>Writes are grouped by data block for performance optimization. If parallel writes are enabled in the configuration, write operations within each group are performed concurrently. When write verification is enabled, each value is read back after writing to ensure accuracy. Delays between groups can be configured to control write pacing. The method is thread-safe and intended for batch write scenarios to improve throughput and reliability.</remarks> <typeparam name="T">The type of the values to be written to the PLC.</typeparam> <param name="plc">The PLC interface to which the values will be written. Cannot be null.</param> <param name="values">A dictionary containing tag names and their corresponding values to write. Cannot be null.</param> <param name="optimizationConfig">An optional configuration object that controls optimization behavior, such as enabling parallel writes, write verification, and inter-group delays. If null, default optimization settings are used.</param> <returns>A task that represents the asynchronous operation. The result contains details about successful and failed writes, timing information, and any overall errors encountered during the operation.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="values"/> is null.</exception> <exception cref="InvalidOperationException">Thrown if write verification is enabled and a written value does not match the value read back from the PLC.</exception> |
+| `public static async Task<BenchmarkResult> RunBenchmark( this IRxS7 plc, BenchmarkConfig? benchmarkConfig = null)` | Runs a set of benchmark tests on the specified PLC, measuring latency, throughput, and reliability. <remarks>The returned <see cref="BenchmarkResult"/> includes timing information, test scores, and any errors encountered during benchmarking. The method performs multiple tests and aggregates results to provide an overall score. This method does not throw on benchmark failures; errors are recorded in the result.</remarks> <param name="plc">The PLC instance to benchmark. Cannot be null.</param> <param name="benchmarkConfig">An optional configuration object specifying benchmark parameters. If null, default settings are used.</param> <returns>A task that represents the asynchronous operation. The result contains detailed benchmark metrics and scores for the PLC.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
+| `public static PerformanceStatistics GetPerformanceStatistics(this IRxS7 plc)` | Retrieves aggregated performance statistics for the specified PLC connection, including operation counts, error rates, response times, and connection metrics. <remarks>The returned statistics reflect metrics collected since the application started or since the PLC connection was first established. This method is thread-safe and can be called concurrently from multiple threads.</remarks> <param name="plc">The PLC connection for which to obtain performance statistics. Cannot be null.</param> <returns>A PerformanceStatistics object containing metrics such as total operations, error rate, average response time, connection uptime, and reconnection count for the specified PLC.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> is null.</exception> |
+
+##### `S7PlcRx.Performance.PerformanceMetrics`
+Source: `Performance/PerformanceMetrics.cs:13`
+
+Represents a set of performance metrics for a programmable logic controller (PLC) at a specific point in time. <remarks>This class provides properties for tracking key operational statistics of a PLC, including connection status, tag activity, performance rates, and error metrics. It is typically used to monitor and analyze PLC performance in industrial automation scenarios. All properties are read-write, allowing metrics to be set or updated as needed.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public string PLCIdentifier get; set; } = string.Empty;` | Gets or sets the PLC identifier. |
+| `public DateTime Timestamp get; set; }` | Gets or sets the timestamp of these metrics. |
+| `public bool IsConnected get; set; }` | Gets or sets a value indicating whether gets or sets whether the PLC is connected. |
+| `public int TagCount get; set; }` | Gets or sets the total number of tags. |
+| `public int ActiveTagCount get; set; }` | Gets or sets the number of active tags. |
+| `public double OperationsPerSecond get; set; }` | Gets or sets the operations per second. |
+| `public double AverageResponseTime get; set; }` | Gets or sets the average response time in milliseconds. |
+| `public double ErrorRate get; set; }` | Gets or sets the error rate (0.0 to 1.0). |
+| `public TimeSpan ConnectionUptime get; set; }` | Gets or sets the connection uptime. |
+| `public int ReconnectionCount get; set; }` | Gets or sets the number of reconnections. |
+
+##### `S7PlcRx.Performance.PerformanceStatistics`
+Source: `Performance/PerformanceStatistics.cs:14`
+
+Represents a set of performance statistics for a programmable logic controller (PLC) connection, including operation counts, error metrics, response times, and connection status information. <remarks>Use this class to track and analyze the operational performance and reliability of a PLC connection over time. The statistics provided can assist in monitoring system health, diagnosing issues, and optimizing performance. All properties are read-write, allowing for aggregation and updating of statistics as needed. This class is not thread-safe; synchronize access if used concurrently.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public string PLCIdentifier get; set; } = string.Empty;` | Gets or sets the PLC identifier. |
+| `public long TotalOperations get; set; }` | Gets or sets the total number of operations. |
+| `public long TotalErrors get; set; }` | Gets or sets the total number of errors. |
+| `public double AverageResponseTime get; set; }` | Gets or sets the average response time in milliseconds. |
+| `public double OperationsPerSecond get; set; }` | Gets or sets the operations per second. |
+| `public double ErrorRate get; set; }` | Gets or sets the error rate (0.0 to 1.0). |
+| `public TimeSpan ConnectionUptime get; set; }` | Gets or sets the connection uptime. |
+| `public int ReconnectionCount get; set; }` | Gets or sets the number of reconnections. |
+| `public DateTime LastUpdated get; set; }` | Gets or sets when these statistics were last updated. |
+
+##### `S7PlcRx.Performance.TagPerformanceMetrics`
+Source: `Performance/TagPerformanceMetrics.cs:12`
+
+Represents performance metrics for a specific tag, including operation counts, timing statistics, and success rates. <remarks>Use this class to track and analyze the performance of tag-related operations, such as reads and writes, over time. The metrics provided can help identify bottlenecks, monitor reliability, and optimize system performance. All properties are intended to be updated as new operation data becomes available.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public string TagName get; set; } = string.Empty;` | Gets or sets the tag name. |
+| `public long ReadOperations get; set; }` | Gets or sets the total number of read operations. |
+| `public long WriteOperations get; set; }` | Gets or sets the total number of write operations. |
+| `public double AverageReadTimeMs get; set; }` | Gets or sets the average read time in milliseconds. |
+| `public double AverageWriteTimeMs get; set; }` | Gets or sets the average write time in milliseconds. |
+| `public long FailedOperations get; set; }` | Gets or sets the number of failed operations. |
+| `public double SuccessRate get; set; }` | Gets or sets the success rate (0.0 to 1.0). |
+| `public DateTime LastOperationTime get; set; }` | Gets or sets the last operation timestamp. |
+
+#### Namespace `S7PlcRx.PlcTypes`
+
+##### `S7PlcRx.PlcTypes.Bit`
+Source: `PlcTypes/Bit.cs:11`
+
+Contains the conversion methods to convert Bit from S7 plc to C#.
+
+| Member | Summary |
+|---|---|
+| `public static bool FromByte(byte v, byte bitAdr) => ...` | Determines whether the specified bit in a byte value is set. <remarks>If bitAdr is outside the range 0 to 7, the result may not be meaningful. This method does not validate the bit position.</remarks> <param name="v">The byte value to examine.</param> <param name="bitAdr">The zero-based position of the bit to check. Must be in the range 0 to 7.</param> <returns>true if the bit at the specified position is set; otherwise, false.</returns> |
+| `public static bool FromSpan(ReadOnlySpan<byte> bytes, int byteIndex, int bitIndex)` | Determines whether the specified bit is set in a byte within a read-only span of bytes. <param name="bytes">A read-only span of bytes from which the target byte is selected.</param> <param name="byteIndex">The zero-based index of the byte within <paramref name="bytes"/> to examine. Must be less than the length of <paramref name="bytes"/>.</param> <param name="bitIndex">The zero-based index of the bit within the selected byte to check. Must be in the range 0 to 7.</param> <returns>true if the specified bit is set; otherwise, false.</returns> <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="byteIndex"/> is greater than or equal to the length of <paramref name="bytes"/>, or if <paramref name="bitIndex"/> is less than 0 or greater than 7.</exception> |
+| `public static BitArray ToBitArray(byte[] bytes) => ...` | Converts the specified byte array to a BitArray, where each bit in the array represents a bit in the input bytes. <param name="bytes">The byte array to convert. Each byte is interpreted in order, with the least significant bit first in each byte.</param> <returns>A BitArray containing the bits from the input byte array. If the input array is null or empty, returns an empty BitArray.</returns> |
+| `public static BitArray ToBitArray(ReadOnlySpan<byte> bytes) => ...` | Creates a new BitArray representing the bits contained in the specified read-only span of bytes. <param name="bytes">A read-only span of bytes whose bits will be copied into the resulting BitArray. Each byte is interpreted in little-endian order, with the least significant bit first.</param> <returns>A BitArray containing the bits from the input span. The length of the BitArray will be equal to the total number of bits in the input.</returns> |
+| `public static BitArray ToBitArray(byte[] bytes, int? length) => ...` | Converts the specified byte array to a BitArray, optionally limiting the number of bits included. <param name="bytes">The array of bytes to convert to a BitArray. Cannot be null.</param> <param name="length">The optional number of bits to include in the BitArray. If specified, only the first length bits are included; otherwise, all bits from the byte array are used. Must be non-negative and not greater than the total number of bits in the array.</param> <returns>A BitArray containing the bits from the specified byte array, limited to the specified length if provided.</returns> |
+| `public static BitArray ToBitArray(ReadOnlySpan<byte> bytes, int? length)` | Converts a span of bytes to a BitArray containing the specified number of bits. <remarks>The returned BitArray contains bits in the same order as they appear in the input bytes, starting from the least significant bit of the first byte. This method is compatible with .NET Standard 2.0 by converting the span to an array before constructing the BitArray.</remarks> <param name="bytes">The span of bytes to convert to a BitArray. The span must not be empty and must contain enough data to represent the requested number of bits.</param> <param name="length">The number of bits to include in the resulting BitArray. Must not be null and must not exceed the total number of bits available in the input bytes.</param> <returns>A BitArray containing the first length bits from the input bytes.</returns> <exception cref="ArgumentNullException">Thrown if length is null.</exception> <exception cref="ArgumentException">Thrown if bytes is empty or if length is greater than the total number of bits available in bytes.</exception> |
+| `public static void SetBit(Span<byte> bytes, int byteIndex, int bitIndex, bool value)` | Sets the value of a specific bit within a byte in the provided span. <param name="bytes">A span of bytes in which the bit will be set or cleared.</param> <param name="byteIndex">The zero-based index of the byte within <paramref name="bytes"/> whose bit will be modified. Must be less than the length of <paramref name="bytes"/>.</param> <param name="bitIndex">The zero-based index of the bit to modify within the specified byte. Must be in the range 0 to 7.</param> <param name="value">The value to assign to the specified bit. If <see langword="true"/>, the bit is set; if <see langword="false"/>, the bit is cleared.</param> <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="byteIndex"/> is greater than or equal to the length of <paramref name="bytes"/>, or when <paramref name="bitIndex"/> is less than 0 or greater than 7.</exception> |
+| `public static bool[] GetBits(ReadOnlySpan<byte> bytes, ReadOnlySpan<(int byteIndex, int bitIndex)> bitPositions)` | Extracts the values of specified bits from a sequence of bytes. <remarks>If a specified bit position refers to an index outside the bounds of the input span, an exception may be thrown.</remarks> <param name="bytes">The span of bytes from which bits will be read.</param> <param name="bitPositions">A span of tuples specifying the positions of bits to extract. Each tuple contains the zero-based index of the byte and the zero-based index of the bit within that byte.</param> <returns>An array of Boolean values indicating the state of each requested bit. Each element is <see langword="true"/> if the corresponding bit is set; otherwise, <see langword="false"/>.</returns> |
+| `public static void SetBits(Span<byte> bytes, ReadOnlySpan<(int byteIndex, int bitIndex, bool value)> bitUpdates)` | Sets the specified bits in the provided byte span according to the given updates. <remarks>Each tuple in <paramref name="bitUpdates"/> must reference a valid byte and bit index within <paramref name="bytes"/>. Modifying bits outside the bounds of <paramref name="bytes"/> may result in undefined behavior.</remarks> <param name="bytes">The span of bytes in which bits will be set or cleared. Each update modifies a bit within this span.</param> <param name="bitUpdates">A read-only span of tuples specifying the byte index, bit index, and value to set for each bit. Each tuple indicates which bit to update and whether to set it to <see langword="true"/> or <see langword="false"/>.</param> |
+
+##### `S7PlcRx.PlcTypes.Boolean`
+Source: `PlcTypes/Boolean.cs:13`
+
+Provides static methods for manipulating individual bits within a byte value. <remarks>This class includes utility methods for reading, setting, and clearing specific bits in a byte. All bit indices are zero-based, ranging from 0 (least significant bit) to 7 (most significant bit). These methods are useful for low-level operations such as flag management, bitmasking, or protocol handling where direct bit manipulation is required.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static bool GetValue(byte value, int bit) => ...` | Determines whether the specified bit is set in the given byte value. <param name="value">The byte value to examine for the specified bit.</param> <param name="bit">The zero-based position of the bit to check. Must be in the range 0 to 7.</param> <returns>true if the bit at the specified position is set; otherwise, false.</returns> |
+| `public static byte SetBit(byte value, int bit)` | Sets the value of a bit to 1 (true), given the address of the bit. Returns a copy of the value with the bit set. <param name="value">The input value to modify.</param> <param name="bit">The index (zero based) of the bit to set.</param> <returns>The modified value with the bit at index set.</returns> |
+| `public static void SetBit(ref byte value, int bit) => ...` | Sets the value of a bit to 1 (true), given the address of the bit. <param name="value">The value to modify.</param> <param name="bit">The index (zero based) of the bit to set.</param> |
+| `public static byte ClearBit(byte value, int bit)` | Resets the value of a bit to 0 (false), given the address of the bit. Returns a copy of the value with the bit cleared. <param name="value">The input value to modify.</param> <param name="bit">The index (zero based) of the bit to clear.</param> <returns>The modified value with the bit at index cleared.</returns> |
+| `public static void ClearBit(ref byte value, int bit) => ...` | Resets the value of a bit to 0 (false), given the address of the bit. <param name="value">The input value to modify.</param> <param name="bit">The index (zero based) of the bit to clear.</param> |
+
+##### `S7PlcRx.PlcTypes.Byte`
+Source: `PlcTypes/Byte.cs:13`
+
+Provides utility methods for converting and manipulating byte values and byte arrays. <remarks>This static class includes methods for converting between single byte values and arrays or spans, as well as writing byte data to spans. All members are static and designed for efficient, low-level byte operations. Methods in this class do not perform validation beyond basic length checks and do not handle multi-byte conversions or encoding.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static byte[] ToByteArray(byte value) => ...` | Converts the specified byte value to a single-element byte array. <param name="value">The byte value to include in the returned array.</param> <returns>A byte array containing the specified value as its only element.</returns> |
+| `public static void ToSpan(byte value, Span<byte> destination)` | Writes the specified byte value into the first position of the provided destination span. <param name="value">The byte value to write to the destination span.</param> <param name="destination">The span of bytes that will receive the value. Must have a length of at least 1.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> has a length less than 1.</exception> |
+| `public static byte FromByteArray(byte[] bytes) => ...` | Creates a byte value from the specified byte array. <remarks>If the array contains more than one element, only the first element is used. If the array is empty, an exception may be thrown.</remarks> <param name="bytes">The array of bytes to convert. Must contain at least one element.</param> <returns>A byte value created from the first element of the specified array.</returns> |
+| `public static byte FromSpan(ReadOnlySpan<byte> bytes)` | Returns the first byte from the specified read-only span. <param name="bytes">A read-only span of bytes from which to retrieve the first byte. Must contain at least one byte.</param> <returns>The first byte in the <paramref name="bytes"/> span.</returns> <exception cref="ArgumentException">Thrown when <paramref name="bytes"/> does not contain at least one byte.</exception> |
+| `public static void ToSpan(ReadOnlySpan<byte> values, Span<byte> destination)` | Copies the contents of the specified read-only byte span to the destination span. <param name="values">The read-only span containing the bytes to copy.</param> <param name="destination">The span that receives the copied bytes. Must be at least as large as <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is smaller than <paramref name="values"/>.</exception> |
+
+##### `S7PlcRx.PlcTypes.ByteArray`
+Source: `PlcTypes/ByteArray.cs:14`
+
+Provides a dynamically sized buffer for accumulating bytes, with efficient memory management using array pooling. <remarks>The buffer automatically grows as data is added. The internal array is rented from the shared array pool and returned when disposed. This class is not thread-safe.</remarks> <param name="size">The initial capacity of the internal buffer, in bytes. Must be greater than zero.</param>
+
+| Member | Summary |
+|---|---|
+| `public ByteArray() : this(32)` | Initializes a new instance of the <see cref="ByteArray"/> class with a default capacity of 32 bytes. <remarks>This constructor is useful when the required initial capacity is not known in advance. The internal buffer will automatically expand as needed when additional bytes are added.</remarks> |
+| `public ReadOnlySpan<byte> Span => ...` | Gets the current data as a span. <value>The current data as a span.</value> |
+| `public ReadOnlyMemory<byte> Memory => ...` | Gets the current data as memory. <value>The current data as memory.</value> |
+| `public byte[] Array => ...` | Gets the array. Use Span property for better performance when possible. <value>The array.</value> |
+| `public int Length => ...` | Gets the current position (length of data). |
+| `public void Add(byte item)` | Adds a byte value to the end of the buffer. <param name="item">The byte value to add to the buffer.</param> |
+| `public void Add(ReadOnlySpan<byte> items)` | Adds the specified sequence of bytes to the buffer. <remarks>The buffer is automatically resized if necessary to accommodate the new items. The method does not throw an exception if the span is empty; in that case, the buffer remains unchanged.</remarks> <param name="items">A read-only span containing the bytes to add. If empty, no action is taken.</param> |
+| `public void Add(byte[] items) => ...` | Adds the specified array of bytes to the collection. <param name="items">An array of bytes to add. Cannot be null.</param> |
+| `public void Add(ByteArray byteArray)` | Adds the contents of the specified <see cref="ByteArray"/> to the collection. <param name="byteArray">The <see cref="ByteArray"/> instance whose contents will be added. Cannot be null.</param> |
+| `public void Clear() => ...` | Resets the current position to the beginning, effectively clearing any progress or state tracked by the instance. |
+| `public bool TryCopyTo(Span<byte> destination)` | Attempts to copy the written bytes to the specified destination buffer. <remarks>No data is copied if the destination buffer is too small. The method does not modify the destination buffer if it returns false.</remarks> <param name="destination">The buffer to which the written bytes will be copied. Must have a length greater than or equal to the number of bytes written.</param> <returns>true if the copy operation succeeds; otherwise, false.</returns> |
+| `public void Dispose()` | Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources. |
+
+##### `S7PlcRx.PlcTypes.Class`
+Source: `PlcTypes/Class.cs:19`
+
+Provides static methods for serializing and deserializing class and struct instances to and from byte arrays, as well as calculating the size of a class in bytes for serialization purposes. <remarks>This class is intended for scenarios where objects need to be converted to a byte representation, such as communication with PLCs or other systems requiring structured binary formats. All methods operate statically and require the caller to supply instances and byte arrays as needed. Properties within serialized classes must be accessible and, for string fields, decorated with the appropriate S7StringAttribute. Methods may throw exceptions if required attributes are missing or if input values are invalid. Thread safety is not guaranteed; callers should ensure appropriate synchronization if accessing shared objects.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static double GetClassSize(object instance, double numBytes = 0.0, bool isInnerProperty = false)` | Calculates the total size, in bytes, of the specified object's accessible properties, including arrays and nested properties as applicable. <remarks>This method inspects the public properties of the object's type to determine the total size. Array properties must have a non-null value and a length greater than zero. The calculation accounts for S7-Struct alignment by rounding up to the next even byte count unless calculating for an inner property.</remarks> <param name="instance">The object instance whose class size is to be calculated. Cannot be null.</param> <param name="numBytes">The initial byte count to start the calculation from. Typically set to 0.0 for a new calculation.</param> <param name="isInnerProperty">Indicates whether the calculation is for an inner property. If <see langword="false"/>, the result is rounded up to the next even byte count to match S7-Struct alignment requirements.</param> <returns>The total size, in bytes, of the object's accessible properties. The value is rounded up to the next even number if <paramref name="isInnerProperty"/> is <see langword="false"/>.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="instance"/> is null.</exception> <exception cref="ArgumentException">Thrown if an array property on <paramref name="instance"/> has a null value.</exception> <exception cref="Exception">Thrown if an array property on <paramref name="instance"/> has a length less than or equal to zero.</exception> |
+| `public static double FromBytes(object sourceClass, byte[] bytes, double numBytes = 0, bool isInnerClass = false)` | Populates the properties of the specified object instance from the provided byte array, deserializing each property value according to its type. <remarks>Properties that are arrays are deserialized element by element. The method updates numBytes to reflect the number of bytes read. If bytes is shorter than required for all properties, only the available bytes are used.</remarks> <param name="sourceClass">The object instance whose properties will be set from the byte array. Must not be null.</param> <param name="bytes">The byte array containing serialized property values to be assigned to the object. If null, no properties are set and the method returns the value of numBytes.</param> <param name="numBytes">The starting offset, in bytes, within the byte array from which to begin deserialization. This value is incremented as properties are read.</param> <param name="isInnerClass">Indicates whether the object instance represents an inner class. This may affect how properties are deserialized.</param> <returns>The total number of bytes consumed from the byte array during deserialization.</returns> <exception cref="ArgumentNullException">Thrown if sourceClass is null.</exception> <exception cref="ArgumentException">Thrown if a property on sourceClass that is expected to be an array is not initialized.</exception> |
+| `public static double ToBytes(object sourceClass, byte[] bytes, double numBytes = 0.0)` | Serializes the accessible properties of the specified source object into the provided byte array, starting at the given offset. <remarks>If a property of the source object is an array, its elements are serialized sequentially into the byte array. Serialization stops if the end of the byte array is reached before all properties are written.</remarks> <param name="sourceClass">The object whose properties will be serialized into the byte array. Cannot be null. All accessible properties must have non-null values.</param> <param name="bytes">The byte array that receives the serialized property values. Cannot be null.</param> <param name="numBytes">The starting offset, in bytes, within the array at which serialization begins. If not specified, serialization starts at the beginning of the array.</param> <returns>The total number of bytes written to the array after serialization is complete.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="sourceClass"/> or <paramref name="bytes"/> is null.</exception> <exception cref="ArgumentException">Thrown if any accessible property of <paramref name="sourceClass"/> is null.</exception> |
+
+##### `S7PlcRx.PlcTypes.Counter`
+Source: `PlcTypes/Counter.cs:15`
+
+Provides static methods for converting between S7 Counter byte representations and <see cref="ushort"/> values. <remarks>The <see cref="Counter"/> class supports parsing and serializing S7 Counter values, which are commonly used in Siemens S7 PLC communication protocols. All methods use big-endian byte order, with the high byte first, to match the S7 Counter format. This class is thread-safe as it contains only static methods and does not maintain any internal state.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static ushort FromByteArray(byte[] bytes) => ...` | Converts a byte array to a 16-bit unsigned integer. <param name="bytes">The byte array containing the bytes to convert. Must contain at least two bytes representing the value in the expected byte order.</param> <returns>A 16-bit unsigned integer represented by the first two bytes of the array.</returns> |
+| `public static ushort FromSpan(ReadOnlySpan<byte> bytes)` | Converts the first two bytes of the specified read-only span to a 16-bit unsigned integer, interpreting the bytes in little-endian order. <param name="bytes">A read-only span of bytes containing at least two elements. The first two bytes are used to construct the 16-bit unsigned integer.</param> <returns>A 16-bit unsigned integer formed from the first two bytes of the span, with the first byte as the least significant and the second as the most significant.</returns> <exception cref="ArgumentException">Thrown when <paramref name="bytes"/> contains fewer than two bytes.</exception> |
+| `public static ushort FromByteArray(byte[] bytes, int start) => ...` | Converts a sequence of bytes from the specified array, starting at the given index, to a 16-bit unsigned integer. <param name="bytes">The byte array containing the data to convert. Cannot be null.</param> <param name="start">The zero-based index in the array at which to begin reading bytes. Must be within the bounds of the array.</param> <returns>A 16-bit unsigned integer represented by the bytes at the specified position in the array.</returns> |
+| `public static ushort FromBytes(byte loVal, byte hiVal) => ...` | Creates a 16-bit unsigned integer from two bytes, using the specified low and high byte values. <remarks>The returned value is constructed by placing <paramref name="hiVal"/> in the high-order position and <paramref name="loVal"/> in the low-order position. This is commonly used when converting from little-endian byte representations.</remarks> <param name="loVal">The low-order byte of the resulting 16-bit unsigned integer.</param> <param name="hiVal">The high-order byte of the resulting 16-bit unsigned integer.</param> <returns>A 16-bit unsigned integer composed from the specified low and high bytes.</returns> |
+| `public static ushort[] ToArray(byte[] bytes) => ...` | Converts a byte array to an array of 16-bit unsigned integers. <remarks>Each pair of bytes in the input array is interpreted as a single 16-bit unsigned integer. The conversion uses the default byte order of the platform.</remarks> <param name="bytes">The byte array to convert. The length must be a multiple of 2.</param> <returns>An array of <see cref="ushort"/> values representing the converted data from the input byte array.</returns> |
+| `public static ushort[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of 16-bit unsigned integers. <remarks>Each pair of bytes in <paramref name="bytes"/> is interpreted as a single 16-bit unsigned integer. If the length of <paramref name="bytes"/> is not a multiple of 2, any remaining bytes are ignored.</remarks> <param name="bytes">A read-only span of bytes containing the data to convert. The length must be a multiple of 2.</param> <returns>An array of <see cref="ushort"/> values parsed from the specified byte span. The array length is half the length of <paramref name="bytes"/>.</returns> |
+| `public static byte[] ToByteArray(ushort value)` | Converts the specified 16-bit unsigned integer to a byte array in little-endian order. <param name="value">The 16-bit unsigned integer to convert to a byte array.</param> <returns>A two-element byte array containing the little-endian representation of the specified value.</returns> |
+| `public static void ToSpan(ushort value, Span<byte> destination)` | Writes the specified 16-bit unsigned integer value to the provided span in big-endian byte order. <remarks>This method encodes the value in big-endian format, with the most significant byte first. This is consistent with the representation used by S7 types.</remarks> <param name="value">The 16-bit unsigned integer to write to the destination span.</param> <param name="destination">The span of bytes that receives the big-endian representation of the value. Must have a length of at least 2 bytes.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is less than 2 bytes in length.</exception> |
+| `public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)` | Copies the contents of a span of 16-bit unsigned integers into a span of bytes, encoding each value as two bytes in little-endian order. <remarks>Each <see cref="ushort"/> value in <paramref name="values"/> is encoded as two bytes in little-endian format and written sequentially to <paramref name="destination"/>. The method does not allocate additional memory.</remarks> <param name="values">The read-only span of 16-bit unsigned integers to copy from.</param> <param name="destination">The span of bytes to copy the encoded values into. Must be at least twice the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to hold the encoded bytes.</exception> |
+| `public static byte[] ToByteArray(ushort[] value)` | Converts an array of 16-bit unsigned integers to a byte array. <param name="value">An array of <see cref="ushort"/> values to convert. Cannot be <see langword="null"/>.</param> <returns>A byte array representing the binary data of the input <see cref="ushort"/> array.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="value"/> is <see langword="null"/>.</exception> |
+
+##### `S7PlcRx.PlcTypes.DInt`
+Source: `PlcTypes/DInt.cs:17`
+
+Provides static methods for converting between Siemens S7 DInt (32-bit signed integer) representations and .NET int values. <remarks>This class supports conversion between S7 DInt values, which use big-endian byte order, and .NET int values. Methods are provided for reading and writing single or multiple DInt values from and to byte arrays and spans. All methods assume S7 DInt format and handle endianness as required. This class is intended for internal use when working with S7 PLC data structures.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static int CDWord(long value)` | Converts a 64-bit signed integer to a 32-bit signed integer, applying a custom transformation for values greater than <see cref="int.MaxValue"/>. <remarks>If <paramref name="value"/> is greater than <see cref="int.MaxValue"/>, the method applies a specific transformation before casting to <see cref="int"/>. This is not a standard cast and may produce negative results for large input values.</remarks> <param name="value">The 64-bit signed integer value to convert.</param> <returns>A 32-bit signed integer representing the converted value. For values greater than <see cref="int.MaxValue"/>, a custom transformation is applied before conversion.</returns> |
+| `public static int FromByteArray(byte[] bytes) => ...` | Creates an integer value from the specified byte array. <param name="bytes">The byte array containing the bytes to convert to an integer. The array must contain at least the number of bytes required to represent an integer.</param> <returns>An integer value represented by the specified byte array.</returns> |
+| `public static int FromByteArray(byte[] bytes, int start) => ...` | Creates an integer value from a byte array starting at the specified index. <param name="bytes">The byte array containing the data to convert.</param> <param name="start">The zero-based index in the array at which to begin reading bytes.</param> <returns>The integer value represented by the bytes starting at the specified index.</returns> |
+| `public static int FromSpan(ReadOnlySpan<byte> bytes)` | Creates a 32-bit signed integer from the first four bytes of the specified read-only byte span, interpreting the bytes as big-endian. <remarks>This method interprets the byte order as big-endian, regardless of the system's endianness. Additional bytes in the span beyond the first four are ignored.</remarks> <param name="bytes">A read-only span of bytes containing at least four bytes to convert to a 32-bit signed integer. The first four bytes are used for the conversion.</param> <returns>A 32-bit signed integer represented by the first four bytes of the span, interpreted as big-endian.</returns> <exception cref="ArgumentException">Thrown when the length of <paramref name="bytes"/> is less than 4.</exception> |
+| `public static int FromBytes(byte v1, byte v2, byte v3, byte v4) => ...` | Creates a 32-bit signed integer from four bytes, using little-endian byte order. <remarks>The bytes are combined such that v1 is the least significant byte and v4 is the most significant byte. This method is useful for reconstructing an integer from a byte array, such as when reading binary data from a stream.</remarks> <param name="v1">The least significant byte of the resulting integer.</param> <param name="v2">The second byte of the resulting integer.</param> <param name="v3">The third byte of the resulting integer.</param> <param name="v4">The most significant byte of the resulting integer.</param> <returns>A 32-bit signed integer composed from the specified bytes in little-endian order.</returns> |
+| `public static int[] ToArray(byte[] bytes) => ...` | Converts a byte array to an array of 32-bit integers. <param name="bytes">The byte array to convert. The length must be a multiple of 4.</param> <returns>An array of 32-bit integers representing the converted values from the input byte array.</returns> |
+| `public static int[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of 32-bit integers. <remarks>Each group of four consecutive bytes in the input span is interpreted as a single 32-bit integer. The conversion uses the byte order expected by the FromSpan method. If the length of the span is not a multiple of 4, any remaining bytes are ignored.</remarks> <param name="bytes">The input span containing the bytes to convert. The length must be a multiple of 4.</param> <returns>An array of 32-bit integers parsed from the input byte span.</returns> |
+| `public static byte[] ToByteArray(int value)` | Converts the specified 32-bit signed integer to a byte array in little-endian order. <remarks>The returned array represents the integer in little-endian format, with the least significant byte at index 0. This method is useful for serialization or interoperability with systems that require byte-level representations of integers.</remarks> <param name="value">The 32-bit signed integer to convert to a byte array.</param> <returns>A 4-element byte array containing the little-endian representation of the specified integer.</returns> |
+| `public static void ToSpan(int value, Span<byte> destination)` | Writes the specified 32-bit integer value to the provided span in big-endian byte order. <remarks>This method writes the integer in big-endian format, regardless of the system's native endianness. The first four bytes of the destination span will be overwritten.</remarks> <param name="value">The 32-bit integer value to write to the span.</param> <param name="destination">The span of bytes that will receive the big-endian representation of the value. Must be at least 4 bytes in length.</param> <exception cref="ArgumentException">Thrown if destination is less than 4 bytes in length.</exception> |
+| `public static void ToSpan(ReadOnlySpan<int> values, Span<byte> destination)` | Writes the binary representation of each 32-bit integer in the specified read-only span to the provided destination span of bytes. <param name="values">A read-only span of 32-bit integers to convert to their binary representation.</param> <param name="destination">A span of bytes that receives the binary data. Must be at least four times the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown if <paramref name="destination"/> is not large enough to contain the binary representations of all values.</exception> |
+| `public static byte[] ToByteArray(int[] value)` | Converts an array of 32-bit integers to its equivalent byte array representation. <param name="value">An array of 32-bit integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input integer array. The length of the returned array is four times the length of the input array.</returns> |
+
+##### `S7PlcRx.PlcTypes.DWord`
+Source: `PlcTypes/DWord.cs:16`
+
+Provides utility methods for converting between S7 DWord (4-byte) representations and unsigned 32-bit integers (uint). <remarks>All conversions assume S7 DWord format, which uses big-endian byte order. These methods are intended for working with Siemens S7 PLC data or other protocols that represent 32-bit unsigned integers in big-endian format. Methods throw exceptions if provided buffers are too small to contain a DWord value.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static uint FromByteArray(byte[] bytes) => ...` | Creates a 32-bit unsigned integer from a byte array. <param name="bytes">The byte array containing the bytes to convert. Must contain at least four bytes starting at the beginning of the array.</param> <returns>A 32-bit unsigned integer represented by the first four bytes of the array.</returns> |
+| `public static uint FromByteArray(byte[] bytes, int start) => ...` | Converts a sequence of bytes from the specified array, starting at the given index, to a 32-bit unsigned integer. <param name="bytes">The array containing the bytes to convert.</param> <param name="start">The zero-based index in the array at which to begin reading bytes.</param> <returns>A 32-bit unsigned integer representing the converted value from the specified byte sequence.</returns> |
+| `public static uint FromSpan(ReadOnlySpan<byte> bytes)` | Creates a 32-bit unsigned integer from the first four bytes of the specified read-only byte span, interpreting the bytes as big-endian. <remarks>This method interprets the input bytes using big-endian byte order, regardless of the system's endianness. If the span contains more than four bytes, only the first four are used.</remarks> <param name="bytes">A read-only span of bytes containing at least four bytes to convert to a 32-bit unsigned integer. The first four bytes are used in the conversion.</param> <returns>A 32-bit unsigned integer represented by the first four bytes of the span, interpreted as big-endian.</returns> <exception cref="ArgumentException">Thrown when the length of <paramref name="bytes"/> is less than 4.</exception> |
+| `public static uint FromBytes(byte v1, byte v2, byte v3, byte v4) => ...` | Creates a 32-bit unsigned integer from four individual bytes, using little-endian byte order. <remarks>The bytes are combined such that v1 is the lowest-order byte and v4 is the highest-order byte. This method is useful for reconstructing a UInt32 value from a sequence of bytes, such as when reading binary data from a stream.</remarks> <param name="v1">The least significant byte of the resulting 32-bit unsigned integer.</param> <param name="v2">The second byte, which becomes the second least significant byte of the resulting value.</param> <param name="v3">The third byte, which becomes the third least significant byte of the resulting value.</param> <param name="v4">The most significant byte of the resulting 32-bit unsigned integer.</param> <returns>A 32-bit unsigned integer composed from the specified bytes in little-endian order.</returns> |
+| `public static uint[] ToArray(byte[] bytes) => ...` | Converts the specified byte array to an array of 32-bit unsigned integers. <remarks>The conversion uses the default byte order of the system architecture. If the length of the input array is not a multiple of 4, an exception may be thrown.</remarks> <param name="bytes">The byte array to convert. The length must be a multiple of 4.</param> <returns>An array of 32-bit unsigned integers representing the converted values from the input byte array.</returns> |
+| `public static uint[] ToArray(ReadOnlySpan<byte> bytes)` | Converts the specified read-only span of bytes to an array of 32-bit unsigned integers. <remarks>Each group of four consecutive bytes in the input span is interpreted as a single 32-bit unsigned integer. The conversion uses the byte order expected by the FromSpan method. If the length of the span is not a multiple of 4, any remaining bytes are ignored.</remarks> <param name="bytes">The read-only span of bytes to convert. The length must be a multiple of 4.</param> <returns>An array of 32-bit unsigned integers representing the converted values from the input byte span.</returns> |
+| `public static byte[] ToByteArray(uint value)` | Converts the specified 32-bit unsigned integer to a byte array in little-endian order. <param name="value">The 32-bit unsigned integer to convert to a byte array.</param> <returns>A 4-element byte array containing the bytes of the specified value in little-endian order.</returns> |
+| `public static void ToSpan(uint value, Span<byte> destination)` | Writes the specified 32-bit unsigned integer value to the provided span in big-endian byte order. <remarks>This method writes the value in big-endian format, regardless of the system's native endianness. The first byte in the span will contain the most significant byte of the value.</remarks> <param name="value">The 32-bit unsigned integer value to write to the span.</param> <param name="destination">The span of bytes that receives the big-endian representation of the value. Must be at least 4 bytes in length.</param> <exception cref="ArgumentException">Thrown if the length of destination is less than 4 bytes.</exception> |
+| `public static void ToSpan(ReadOnlySpan<uint> values, Span<byte> destination)` | Converts each 32-bit unsigned integer in the specified read-only span to its byte representation and writes the result to the provided destination span. <param name="values">A read-only span of 32-bit unsigned integers to convert to bytes.</param> <param name="destination">A span of bytes that receives the byte representations of the input values. Must be at least four times the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the byte representations of all elements in <paramref name="values"/>.</exception> |
+| `public static byte[] ToByteArray(uint[] value)` | Converts the specified array of 32-bit unsigned integers to a byte array. <param name="value">An array of 32-bit unsigned integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values. The length of the returned array is four times the length of the input array.</returns> |
+
+##### `S7PlcRx.PlcTypes.DateTime`
+Source: `PlcTypes/DateTime.cs:11`
+
+Contains the methods to convert between <see cref="T:System.DateTime"/> and S7 representation of datetime values.
+
+| Member | Summary |
+|---|---|
+| `public static readonly System.DateTime SpecMinimumDateTime = new(1990, 1, 1);` | The minimum <see cref="T:System.DateTime"/> value supported by the specification. |
+| `public static readonly System.DateTime SpecMaximumDateTime = new(2089, 12, 31, 23, 59, 59, 999);` | The maximum <see cref="T:System.DateTime"/> value supported by the specification. |
+| `public static System.DateTime FromByteArray(byte[] bytes) => ...` | Parses a <see cref="T:System.DateTime"/> value from bytes. <param name="bytes">Input bytes read from PLC.</param> <returns>A <see cref="T:System.DateTime"/> object representing the value read from PLC.</returns> |
+| `public static System.DateTime FromSpan(ReadOnlySpan<byte> bytes)` | Parses a <see cref="T:System.DateTime"/> value from a span. <param name="bytes">Input bytes span read from PLC.</param> <returns>A <see cref="T:System.DateTime"/> object representing the value read from PLC.</returns> |
+| `public static System.DateTime[] ToArray(byte[] bytes) => ...` | Parses an array of <see cref="T:System.DateTime"/> values from bytes. <param name="bytes">Input bytes read from PLC.</param> <returns>An array of <see cref="T:System.DateTime"/> objects representing the values read from PLC.</returns> |
+| `public static System.DateTime[] ToArray(ReadOnlySpan<byte> bytes)` | Parses an array of <see cref="T:System.DateTime"/> values from a span. <param name="bytes">Input bytes span read from PLC.</param> <returns>An array of <see cref="T:System.DateTime"/> objects representing the values read from PLC.</returns> |
+| `public static byte[] ToByteArray(System.DateTime dateTime)` | Converts a <see cref="T:System.DateTime"/> value to a byte array. <param name="dateTime">The DateTime value to convert.</param> <returns>A byte array containing the S7 date time representation of <paramref name="dateTime"/>.</returns> |
+| `public static void ToSpan(System.DateTime dateTime, Span<byte> destination)` | Converts a <see cref="T:System.DateTime"/> value to a span. <param name="dateTime">The DateTime value to convert.</param> <param name="destination">The destination span.</param> |
+| `public static byte[] ToByteArray(System.DateTime[] dateTimes)` | Converts an array of <see cref="T:System.DateTime"/> values to a byte array. <param name="dateTimes">The DateTime values to convert.</param> <returns>A byte array containing the S7 date time representations of <paramref name="dateTimes"/>.</returns> |
+| `public static void ToSpan(ReadOnlySpan<System.DateTime> dateTimes, Span<byte> destination)` | Converts multiple DateTime values to the specified span. <param name="dateTimes">The DateTime values.</param> <param name="destination">The destination span.</param> |
+
+##### `S7PlcRx.PlcTypes.DateTimeLong`
+Source: `PlcTypes/DateTimeLong.cs:11`
+
+Contains the methods to convert between <see cref="T:System.DateTime" /> and S7 representation of DateTimeLong (DTL) values.
+
+| Member | Summary |
+|---|---|
+| `public const int TypeLengthInBytes = 12;` | The type length in bytes. |
+| `public static readonly System.DateTime SpecMinimumDateTime = new(1970, 1, 1);` | The minimum <see cref="T:System.DateTime" /> value supported by the specification. |
+| `public static readonly System.DateTime SpecMaximumDateTime = new(2262, 4, 11, 23, 47, 16, 854);` | The maximum <see cref="T:System.DateTime" /> value supported by the specification. |
+| `public static System.DateTime FromByteArray(byte[] bytes) => ...` | Parses a <see cref="T:System.DateTime" /> value from bytes. <param name="bytes">Input bytes read from PLC.</param> <returns>A <see cref="T:System.DateTime" /> object representing the value read from PLC.</returns> |
+| `public static System.DateTime FromSpan(ReadOnlySpan<byte> bytes)` | Parses a <see cref="T:System.DateTime" /> value from a span. <param name="bytes">Input bytes span read from PLC.</param> <returns>A <see cref="T:System.DateTime" /> object representing the value read from PLC.</returns> |
+| `public static System.DateTime[] ToArray(byte[] bytes) => ...` | Parses an array of <see cref="T:System.DateTime" /> values from bytes. <param name="bytes">Input bytes read from PLC.</param> <returns>An array of <see cref="T:System.DateTime" /> objects representing the values read from PLC.</returns> |
+| `public static System.DateTime[] ToArray(ReadOnlySpan<byte> bytes)` | Parses an array of <see cref="T:System.DateTime" /> values from a span. <param name="bytes">Input bytes span read from PLC.</param> <returns>An array of <see cref="T:System.DateTime" /> objects representing the values read from PLC.</returns> |
+| `public static byte[] ToByteArray(System.DateTime dateTime)` | Converts a <see cref="T:System.DateTime" /> value to a byte array. <param name="dateTime">The DateTime value to convert.</param> <returns>A byte array containing the S7 DateTimeLong representation of <paramref name="dateTime" />.</returns> |
+| `public static void ToSpan(System.DateTime dateTime, Span<byte> destination)` | Converts a <see cref="T:System.DateTime" /> value to a span. <param name="dateTime">The DateTime value to convert.</param> <param name="destination">The destination span.</param> |
+| `public static byte[] ToByteArray(System.DateTime[] dateTimes)` | Converts an array of <see cref="T:System.DateTime" /> values to a byte array. <param name="dateTimes">The DateTime values to convert.</param> <returns>A byte array containing the S7 DateTimeLong representations of <paramref name="dateTimes" />.</returns> |
+| `public static void ToSpan(ReadOnlySpan<System.DateTime> dateTimes, Span<byte> destination)` | Converts multiple DateTime values to the specified span. <param name="dateTimes">The DateTime values.</param> <param name="destination">The destination span.</param> |
+
+##### `S7PlcRx.PlcTypes.Int`
+Source: `PlcTypes/Int.cs:16`
+
+Provides static methods for converting between S7 Int (16-bit signed integer) representations and .NET types, including byte arrays and spans. <remarks>This class is intended for working with Siemens S7 PLC data formats, which use big-endian byte order for 16-bit signed integers. All methods assume S7 Int format unless otherwise specified. The class is internal and not intended for direct use outside of the containing assembly.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static short CWord(int value)` | Converts a 32-bit signed integer to a 16-bit signed integer, applying a custom transformation for values greater than 32,767. <remarks>If the input value is greater than 32,767, a specific transformation is applied before conversion. This method does not throw an exception for values outside the range of a 16-bit signed integer; instead, it applies the custom logic to produce a result within the range.</remarks> <param name="value">The 32-bit signed integer to convert.</param> <returns>A 16-bit signed integer representing the converted value.</returns> |
+| `public static short FromByteArray(byte[] bytes) => ...` | Converts a byte array to a 16-bit signed integer. <param name="bytes">The byte array containing the bytes to convert. Must contain at least two bytes starting at index zero.</param> <returns>A 16-bit signed integer represented by the first two bytes of the array.</returns> |
+| `public static short FromByteArray(byte[] bytes, int start) => ...` | Converts a sequence of bytes from the specified array, starting at the given index, to a 16-bit signed integer. <param name="bytes">The byte array containing the data to convert.</param> <param name="start">The zero-based index in the array at which to begin reading the bytes.</param> <returns>A 16-bit signed integer represented by the two bytes starting at the specified index in the array.</returns> |
+| `public static short FromSpan(ReadOnlySpan<byte> bytes)` | Creates a 16-bit signed integer from the first two bytes of the specified read-only byte span, interpreting the bytes as big-endian. <remarks>This method interprets the input bytes using big-endian byte order, regardless of the system's endianness. This is commonly used for protocols or file formats that specify big-endian encoding.</remarks> <param name="bytes">A read-only span of bytes containing at least two bytes. The first two bytes are used to construct the 16-bit signed integer.</param> <returns>A 16-bit signed integer represented by the first two bytes of the span, interpreted as big-endian.</returns> <exception cref="ArgumentException">Thrown when the length of <paramref name="bytes"/> is less than 2.</exception> |
+| `public static short FromBytes(byte loVal, byte hiVal) => ...` | Creates a 16-bit signed integer from two bytes, using the specified low and high byte values. <remarks>The bytes are combined in little-endian order, with loVal as the least significant byte and hiVal as the most significant byte.</remarks> <param name="loVal">The low-order byte of the 16-bit value.</param> <param name="hiVal">The high-order byte of the 16-bit value.</param> <returns>A 16-bit signed integer formed by combining the specified low and high bytes.</returns> |
+| `public static short[] ToArray(byte[] bytes) => ...` | Converts the specified byte array to an array of 16-bit signed integers. <remarks>The conversion interprets each consecutive pair of bytes as a single 16-bit signed integer. The byte order used for conversion is platform-dependent. If the length of the input array is not a multiple of 2, an exception may be thrown.</remarks> <param name="bytes">The byte array to convert. The length must be a multiple of 2.</param> <returns>An array of 16-bit signed integers representing the converted values from the input byte array.</returns> |
+| `public static short[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of 16-bit signed integers. <remarks>Each pair of bytes in the input span is interpreted as a single 16-bit signed integer. The conversion uses the byte order expected by the FromSpan method. If the length of the span is not a multiple of 2, any remaining bytes are ignored.</remarks> <param name="bytes">The read-only span of bytes to convert. The length must be a multiple of 2.</param> <returns>An array of 16-bit signed integers representing the converted values from the input span.</returns> |
+| `public static byte[] ToByteArray(short value)` | Converts the specified 16-bit signed integer to a byte array. <param name="value">The 16-bit signed integer to convert.</param> <returns>A byte array containing the two bytes that represent the specified value.</returns> |
+| `public static void ToSpan(short value, Span<byte> destination)` | Writes the specified 16-bit signed integer value to the provided span in big-endian byte order. <remarks>This method writes the value in big-endian format, regardless of the system's native endianness. The caller is responsible for ensuring that the destination span has sufficient space.</remarks> <param name="value">The 16-bit signed integer value to write to the span.</param> <param name="destination">The span of bytes that receives the big-endian representation of the value. Must be at least 2 bytes in length.</param> <exception cref="ArgumentException">Thrown if the length of destination is less than 2 bytes.</exception> |
+| `public static void ToSpan(ReadOnlySpan<short> values, Span<byte> destination)` | Writes the contents of a span of 16-bit signed integers to a span of bytes in little-endian order. <param name="values">The source span containing the 16-bit signed integer values to write.</param> <param name="destination">The destination span where the bytes will be written. Must be at least twice the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown if <paramref name="destination"/> is not large enough to contain the converted bytes.</exception> |
+| `public static byte[] ToByteArray(short[] value)` | Converts an array of 16-bit signed integers to a byte array. <param name="value">An array of 16-bit signed integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values.</returns> |
+
+##### `S7PlcRx.PlcTypes.LReal`
+Source: `PlcTypes/LReal.cs:17`
+
+Provides static methods for converting between S7 LReal (64-bit floating point) representations and .NET double values. <remarks>The methods in this class handle conversion between S7 LReal format (used in Siemens S7 PLCs) and .NET double values, including proper handling of endianness. All methods are static and intended for internal use when working with S7 protocol data. This class is not thread-safe, but all members are stateless and safe for concurrent use.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static double FromByteArray(byte[] bytes) => ...` | Converts a byte array to a double-precision floating-point number. <param name="bytes">The byte array containing the binary representation of a double-precision floating-point value. Must be at least 8 bytes in length.</param> <returns>A double-precision floating-point number represented by the specified byte array.</returns> |
+| `public static double FromByteArray(byte[] bytes, int start) => ...` | Converts a sequence of bytes from the specified array, starting at the given index, to a double-precision floating-point number. <param name="bytes">The byte array containing the value to convert.</param> <param name="start">The zero-based index in the array at which to begin reading the bytes.</param> <returns>A double-precision floating-point number represented by the specified bytes.</returns> |
+| `public static double FromSpan(ReadOnlySpan<byte> bytes)` | Converts the first 8 bytes of a read-only byte span to a double-precision floating-point value, interpreting the bytes as big-endian format. <remarks>This method interprets the input bytes as a big-endian IEEE 754 double-precision value, regardless of the system's endianness. If the span contains more than 8 bytes, only the first 8 bytes are used.</remarks> <param name="bytes">A read-only span of bytes containing at least 8 bytes representing a double-precision floating-point value in big-endian order.</param> <returns>A double-precision floating-point value represented by the first 8 bytes of the span.</returns> <exception cref="ArgumentException">Thrown when the length of <paramref name="bytes"/> is less than 8.</exception> |
+| `public static double FromDWord(int value) => ...` | Converts a 32-bit signed integer in DWord format to its equivalent double-precision floating-point value. <param name="value">The 32-bit signed integer value in DWord format to convert.</param> <returns>A double-precision floating-point value that represents the specified DWord.</returns> |
+| `public static double FromDWord(uint value) => ...` | Converts the specified 32-bit unsigned integer to its double-precision floating-point representation. <param name="value">The 32-bit unsigned integer value to convert.</param> <returns>A double-precision floating-point number that represents the specified 32-bit unsigned integer.</returns> |
+| `public static double[] ToArray(byte[] bytes) => ...` | Converts a byte array to an array of double-precision floating-point values. <remarks>The method interprets each consecutive group of 8 bytes in the input array as a double-precision floating-point value, using the system's endianness. If the length of the input array is not a multiple of 8, an exception may be thrown.</remarks> <param name="bytes">The byte array to convert. The length must be a multiple of the size of a double (8 bytes).</param> <returns>An array of double values created from the input byte array.</returns> |
+| `public static double[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of double-precision floating-point values. <remarks>The method interprets each consecutive group of 8 bytes in the span as a double-precision floating-point value. The conversion uses the system's endianness. Any remaining bytes that do not form a complete double are ignored.</remarks> <param name="bytes">A read-only span of bytes representing the binary data to convert. The length must be a multiple of 8, as each double value is represented by 8 bytes.</param> <returns>An array of double values parsed from the specified byte span. The length of the array is equal to the number of complete double values in the input.</returns> |
+| `public static byte[] ToByteArray(double value)` | Converts the specified double-precision floating-point value to its equivalent 8-byte array representation. <param name="value">The double-precision floating-point number to convert.</param> <returns>A byte array containing the 8-byte binary representation of the specified value.</returns> |
+| `public static void ToSpan(double value, Span<byte> destination)` | Writes the specified double-precision floating-point value to the provided span in big-endian byte order. <remarks>This method writes the value in big-endian format, which is commonly used in certain binary protocols such as Siemens S7. If the current platform is little-endian, the bytes are reversed to ensure correct ordering.</remarks> <param name="value">The double-precision floating-point value to write to the span.</param> <param name="destination">The span of bytes that will receive the 8-byte big-endian representation of the value. Must be at least 8 bytes in length.</param> <exception cref="ArgumentException">Thrown if the length of destination is less than 8 bytes.</exception> |
+| `public static void ToSpan(ReadOnlySpan<double> values, Span<byte> destination)` | Writes each double-precision floating-point value from the specified read-only span to the specified destination span as a sequence of bytes. <param name="values">The read-only span of double values to convert to their byte representations.</param> <param name="destination">The span of bytes that receives the byte representations of the values. Must be at least values.Length × 8 bytes in length.</param> <exception cref="ArgumentException">Thrown when the length of destination is less than values.Length × 8 bytes.</exception> |
+| `public static byte[] ToByteArray(double[] value)` | Converts an array of double-precision floating-point numbers to a byte array representation. <param name="value">The array of double values to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input double array. The array will be empty if the input array is empty.</returns> |
+
+##### `S7PlcRx.PlcTypes.Real`
+Source: `PlcTypes/Real.cs:16`
+
+Provides static methods for converting between Siemens S7 Real (4-byte IEEE 754 floating-point) representations and .NET float values. <remarks>The methods in this class handle endianness according to the S7 protocol, which uses big-endian byte order. Use these methods to serialize and deserialize float values when communicating with Siemens S7 PLCs or working with S7 Real data formats. All methods are static and intended for internal use.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static float FromByteArray(byte[] bytes) => ...` | Converts a byte array to a single-precision floating-point value. <param name="bytes">The byte array containing the bytes to convert. Must contain at least four bytes representing a 32-bit floating-point value in the expected format.</param> <returns>A single-precision floating-point value represented by the specified byte array.</returns> |
+| `public static float FromSpan(ReadOnlySpan<byte> bytes)` | Converts a 4-byte big-endian span to a single-precision floating-point value. <remarks>This method interprets the input bytes as a big-endian IEEE 754 single-precision floating-point value, regardless of the system's endianness. Use this method when reading floating-point values from protocols or file formats that use big-endian byte order, such as Siemens S7 PLCs.</remarks> <param name="bytes">A read-only span of 4 bytes representing a single-precision floating-point value in big-endian byte order.</param> <returns>A single-precision floating-point value represented by the specified big-endian byte span.</returns> <exception cref="ArgumentException">Thrown when the length of <paramref name="bytes"/> is not 4.</exception> |
+| `public static byte[] ToByteArray(float value)` | Converts the specified single-precision floating-point value to its equivalent byte array representation. <remarks>The byte order of the returned array is platform-dependent. To ensure consistent results across different systems, consider specifying endianness explicitly if required.</remarks> <param name="value">The single-precision floating-point value to convert.</param> <returns>A 4-byte array containing the binary representation of <paramref name="value"/>.</returns> |
+| `public static void ToSpan(float value, Span<byte> destination)` | Writes the 4-byte big-endian representation of the specified single-precision floating-point value into the provided span. <remarks>The value is written in big-endian byte order, regardless of the system's endianness. This is commonly required for protocols or file formats that specify big-endian encoding.</remarks> <param name="value">The single-precision floating-point value to write to the span.</param> <param name="destination">The span of bytes that receives the 4-byte big-endian representation of the value. Must be at least 4 bytes in length.</param> <exception cref="ArgumentException">Thrown if the length of destination is less than 4 bytes.</exception> |
+| `public static byte[] ToByteArray(float[] value)` | Converts an array of single-precision floating-point values to a byte array. <param name="value">The array of <see cref="float"/> values to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values.</returns> |
+| `public static void ToSpan(ReadOnlySpan<float> values, Span<byte> destination)` | Converts a span of single-precision floating-point values to their byte representations and writes them to the specified destination span. <param name="values">The span of single-precision floating-point values to convert.</param> <param name="destination">The destination span to which the byte representations of the values are written. Must be at least four times the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the byte representations of all values.</exception> |
+| `public static float[] ToArray(byte[] bytes) => ...` | Converts a byte array to an array of single-precision floating-point values. <remarks>The method interprets each group of four bytes in the input array as a single-precision floating-point value, using the default endianness of the system. If the length of <paramref name="bytes"/> is not a multiple of 4, an exception may be thrown.</remarks> <param name="bytes">The byte array containing the binary representation of the floating-point values. The length must be a multiple of 4.</param> <returns>An array of <see cref="float"/> values converted from the specified byte array.</returns> |
+| `public static float[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of 32-bit floating-point values. <remarks>The method interprets each consecutive group of 4 bytes in the input span as a single-precision floating-point value. The byte order and format must match the expected representation for floats on the current platform.</remarks> <param name="bytes">The read-only span of bytes to convert. The length must be a multiple of 4, as each float consists of 4 bytes.</param> <returns>An array of 32-bit floating-point values parsed from the input byte span.</returns> |
+
+##### `S7PlcRx.PlcTypes.S7String`
+Source: `PlcTypes/S7String.cs:15`
+
+Provides methods for encoding and decoding S7 string values to and from byte arrays using the S7 protocol format. <remarks>This static class supports conversion between .NET strings and the S7 string format used in Siemens PLCs, which includes a 2-byte header indicating the reserved and actual string lengths. The encoding used for string conversion can be configured via the StringEncoding property. All methods are thread-safe.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static Encoding StringEncoding` | Gets or sets the Encoding used when serializing and deserializing S7String (Encoding.ASCII by default). <value> The string encoding. </value> <exception cref="System.ArgumentNullException">StringEncoding.</exception> <exception cref="ArgumentNullException">StringEncoding must not be null.</exception> |
+| `public static string FromByteArray(byte[] bytes) => ...` | Converts S7 bytes to a string. <param name="bytes">The bytes.</param> <returns>A string.</returns> <exception cref="S7PlcRx.PlcException"> Malformed S7 String / too short or Malformed S7 String / length larger than capacity or Failed to parse {VarType.S7String} from data. Following fields were read: size: '{size}', actual length: '{length}', total number of bytes (including header): '{bytes.Length}'. </exception> |
+| `public static string FromSpan(ReadOnlySpan<byte> bytes)` | Converts S7 bytes from span to a string. <param name="bytes">The bytes span.</param> <returns>A string.</returns> <exception cref="S7PlcRx.PlcException"> Malformed S7 String / too short or Malformed S7 String / length larger than capacity or Failed to parse {VarType.S7String} from data. Following fields were read: size: '{size}', actual length: '{length}', total number of bytes (including header): '{bytes.Length}'. </exception> |
+| `public static byte[] ToByteArray(string? value, int reservedLength)` | Converts a <see cref="T:string"/> to S7 string with 2-byte header. <param name="value">The string to convert to byte array.</param> <param name="reservedLength">The length (in characters) allocated in PLC for the string.</param> <returns>A <see cref="T:byte[]" /> containing the string header and string value with a maximum length of <paramref name="reservedLength"/> + 2.</returns> |
+| `public static int ToSpan(string? value, int reservedLength, Span<byte> destination)` | Converts a string to S7 string format in the specified span. <param name="value">The string to convert.</param> <param name="reservedLength">The length allocated in PLC for the string.</param> <param name="destination">The destination span.</param> <returns>The number of bytes written.</returns> <exception cref="ArgumentNullException">value.</exception> <exception cref="ArgumentException"> The maximum string length supported is 254. or Destination span is too small. </exception> |
+| `public static bool TryToSpan(string? value, int reservedLength, Span<byte> destination, out int bytesWritten)` | Tries to convert a string to S7 string format in the specified span. <param name="value">The string to convert.</param> <param name="reservedLength">The length allocated in PLC for the string.</param> <param name="destination">The destination span.</param> <param name="bytesWritten">The number of bytes written.</param> <returns>True if successful, false if the destination is too small.</returns> |
+| `public static int GetByteLength(int reservedLength) => ...` | Gets the total byte length for an S7 string with the specified reserved length. <param name="reservedLength">The reserved length for the string.</param> <returns>The total byte length including header.</returns> |
+
+##### `S7PlcRx.PlcTypes.S7StringAttribute`
+Source: `PlcTypes/S7StringAttribute.cs:16`
+
+| Member | Summary |
+|---|---|
+| `public S7StringAttribute(S7StringType type, int reservedLength)` | Initializes a new instance of the <see cref="S7StringAttribute"/> class with the specified string type and reserved length. <param name="type">The type of S7 string to use. Must be a defined value of the S7StringType enumeration.</param> <param name="reservedLength">The reserved length for the string. Specifies the maximum number of characters the string can hold.</param> <exception cref="ArgumentException">Thrown if the specified type is not a valid value of the S7StringType enumeration.</exception> |
+| `public S7StringType Type get; }` | Gets the type of the S7 string represented by this instance. |
+| `public int ReservedLength get; }` | Gets the number of characters reserved for the value. |
+| `public int ReservedLengthInBytes => ...` | Gets the total number of bytes reserved for the string, including any protocol-specific header or length fields. <remarks>The reserved length in bytes depends on the string type. For S7String, the value includes 2 bytes for header information; for S7WString, it includes 4 bytes for header information and accounts for UTF-16 encoding. This value is typically used to allocate buffers or validate data boundaries when working with S7 string types.</remarks> |
+
+##### `S7PlcRx.PlcTypes.S7WString`
+Source: `PlcTypes/S7WString.cs:15`
+
+Provides static methods for converting between S7 WString byte arrays and .NET strings. <remarks>The S7WString class supports encoding and decoding of S7 WString values, which are commonly used in Siemens S7 PLCs. All methods are static and thread-safe. The S7 WString format includes a 4-byte header specifying the reserved and actual string lengths, followed by the UTF-16 encoded string data.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static string FromByteArray(byte[] bytes)` | Converts a byte array containing an S7 WString value to its corresponding .NET string representation. <remarks>The input array must follow the S7 WString format, where the first two bytes specify the maximum capacity, the next two bytes specify the actual string length, and the remaining bytes contain the UTF-16 encoded string data in big-endian order.</remarks> <param name="bytes">The byte array containing the S7 WString data, including the 4-byte header. Must not be null and must have a length of at least 4 bytes.</param> <returns>A string representing the decoded S7 WString value from the specified byte array.</returns> <exception cref="PlcException">Thrown if the input array is null, too short, contains malformed S7 WString data, or if decoding fails.</exception> |
+| `public static byte[] ToByteArray(string? value, int reservedLength)` | Converts the specified string to a big-endian Unicode byte array with a reserved length prefix. <remarks>The returned byte array begins with a 4-byte header: the first two bytes represent the reserved length, and the next two bytes represent the actual string length, both in big-endian order. The string is encoded using big-endian Unicode (UTF-16BE).</remarks> <param name="value">The string to convert to a byte array. Cannot be null.</param> <param name="reservedLength">The number of characters to reserve in the output buffer. Must be less than or equal to 16,382 and greater than or equal to the length of <paramref name="value"/>.</param> <returns>A byte array containing a 4-byte header followed by the big-endian Unicode bytes of the string, padded to the reserved length if necessary.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="value"/> is null.</exception> <exception cref="ArgumentException">Thrown if <paramref name="reservedLength"/> is greater than 16,382, or if the length of <paramref name="value"/> exceeds <paramref name="reservedLength"/>.</exception> |
+
+##### `S7PlcRx.PlcTypes.String`
+Source: `PlcTypes/String.cs:14`
+
+Provides utility methods for converting between strings and byte arrays using ASCII encoding. <remarks>All methods in this class use ASCII encoding for conversions. These methods are intended for scenarios where data is known to be ASCII-compatible. Non-ASCII characters will be replaced with '?' during encoding and decoding. The class is internal and intended for use within the assembly.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static string FromByteArray(byte[] bytes) => ...` | Decodes a UTF-8 encoded byte array into a string. <param name="bytes">The byte array containing the UTF-8 encoded text to decode. Cannot be null.</param> <returns>A string representation of the decoded UTF-8 text. Returns an empty string if the array is empty.</returns> |
+| `public static string FromSpan(ReadOnlySpan<byte> bytes)` | Converts the specified read-only span of ASCII-encoded bytes to its equivalent string representation. <param name="bytes">A read-only span containing the bytes to decode as an ASCII string.</param> <returns>A string that represents the decoded ASCII characters. Returns an empty string if <paramref name="bytes"/> is empty.</returns> |
+| `public static string FromByteArray(byte[] bytes, int start, int length)` | Converts a specified range of bytes from a byte array to a string. <param name="bytes">The byte array containing the data to convert.</param> <param name="start">The zero-based index in the array at which to begin conversion.</param> <param name="length">The number of bytes to convert starting from <paramref name="start"/>.</param> <returns>A string representation of the specified range of bytes, or an empty string if the range exceeds the bounds of the array.</returns> |
+| `public static byte[] ToByteArray(string? value)` | Converts the specified string to a byte array using ASCII encoding. <remarks>Characters in the input string that are not representable in ASCII are replaced with a question mark ("?") in the resulting byte array.</remarks> <param name="value">The string to convert to a byte array. If null or empty, an empty array is returned.</param> <returns>A byte array containing the ASCII-encoded bytes of the input string, or an empty array if the input is null or empty.</returns> |
+| `public static int ToSpan(string? value, Span<byte> destination)` | Encodes the specified string as ASCII bytes and writes the result to the provided destination span. <remarks>Characters in the input string that cannot be represented in ASCII are replaced with a question mark ('?').</remarks> <param name="value">The string to encode as ASCII. If null or empty, no bytes are written.</param> <param name="destination">The span to which the encoded ASCII bytes are written. Must be large enough to hold the encoded bytes.</param> <returns>The number of bytes written to the destination span. Returns 0 if the input string is null or empty.</returns> <exception cref="ArgumentException">Thrown if the destination span is not large enough to contain the encoded bytes.</exception> |
+| `public static bool TryToSpan(string? value, Span<byte> destination, out int bytesWritten)` | Attempts to encode the specified string as ASCII bytes and write the result to the provided destination buffer. <remarks>If the input string is null or empty, no bytes are written and the method returns true. The method returns false if the destination buffer is not large enough to hold the encoded bytes.</remarks> <param name="value">The string to encode as ASCII. Can be null or empty.</param> <param name="destination">The buffer that receives the ASCII-encoded bytes of the string.</param> <param name="bytesWritten">When this method returns, contains the number of bytes written to the destination buffer. Set to 0 if the input string is null or empty.</param> <returns>true if the string was successfully encoded and written to the destination buffer; otherwise, false.</returns> |
+
+##### `S7PlcRx.PlcTypes.Struct`
+Source: `PlcTypes/Struct.cs:17`
+
+Provides utility methods for working with struct types, including calculating their size in bytes and converting between structs and byte arrays. <remarks>The methods in this class are primarily intended for scenarios where struct data needs to be serialized to or deserialized from byte arrays, such as communication with PLCs or binary protocols. The struct types used with these methods should have public fields and, for string fields, must be decorated with the S7StringAttribute to specify their encoding and length. All methods are static and thread-safe.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static int GetStructSize(Type structType)` | Calculates the total size, in bytes, required to store an instance of the specified struct type, based on its fields and their types. <remarks>This method inspects the public fields of the provided struct type and calculates the size according to the field types, including handling of custom attributes such as S7StringAttribute for string fields. The calculation may not account for all platform-specific alignment or padding rules.</remarks> <param name="structType">The type of the struct for which to calculate the size. Must not be null.</param> <returns>The total size, in bytes, needed to represent an instance of the specified struct type.</returns> <exception cref="ArgumentNullException">Thrown if structType is null.</exception> <exception cref="ArgumentException">Thrown if a string field in the struct does not have the required S7StringAttribute.</exception> |
+| `public static object? FromBytes(Type structType, byte[] bytes)` | Deserializes a byte array into an instance of the specified structure type. <remarks>The method supports deserialization of structures containing fields of supported primitive types, strings with S7StringAttribute, and nested structures. All fields must be public. The structure's layout and field order must match the serialized byte format.</remarks> <param name="structType">The type of the structure to deserialize the byte array into. Must be a type with a parameterless constructor and supported field types.</param> <param name="bytes">The byte array containing the serialized data for the structure. The length must match the expected size of the structure.</param> <returns>An object representing the deserialized structure, or null if the byte array is null or does not match the expected size.</returns> <exception cref="ArgumentException">Thrown if an instance of the specified type cannot be created, or if a string field is missing the required S7StringAttribute, or if an invalid string type is specified for the S7StringAttribute.</exception> |
+| `public static byte[] ToBytes(object structValue)` | Converts the specified structure object to its byte array representation. <remarks>Supported field types include Boolean, Byte, Int16, UInt16, Int32, UInt32, Single, Double, String (with S7StringAttribute), and TimeSpan. All fields of the structure must be of these types for successful conversion.</remarks> <param name="structValue">The structure object to convert to a byte array. Must not be null. The object's fields must be of supported types.</param> <returns>A byte array containing the serialized representation of the structure. Returns an empty array if <paramref name="structValue"/> is null.</returns> <exception cref="ArgumentException">Thrown if a field value cannot be converted to its corresponding type, or if a string field is missing the required S7StringAttribute, or if an invalid string type is specified in the S7StringAttribute.</exception> |
+
+##### `S7PlcRx.PlcTypes.TimeSpan`
+Source: `PlcTypes/TimeSpan.cs:16`
+
+Provides methods and constants for converting between S7 PLC time representations and .NET <see cref="T:System.TimeSpan"/> values. <remarks>This class supports parsing and serializing <see cref="T:System.TimeSpan"/> values to and from the S7 PLC binary format, where time spans are represented as 4-byte signed integers in milliseconds. All methods assume the S7 time format and enforce the valid range defined by <see cref="F:SpecMinimumTimeSpan"/> and <see cref="F:SpecMaximumTimeSpan"/>. The class is static and cannot be instantiated.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public const int TypeLengthInBytes = 4;` | Represents the size, in bytes, of the type. |
+| `public static readonly System.TimeSpan SpecMinimumTimeSpan = System.TimeSpan.FromMilliseconds(int.MinValue);` | Represents the minimum allowable value for a specification time span, defined as the number of milliseconds equal to <see cref="int.MinValue"/>. |
+| `public static readonly System.TimeSpan SpecMaximumTimeSpan = System.TimeSpan.FromMilliseconds(int.MaxValue);` | Represents the maximum allowable time span for specification purposes, set to the largest value expressible in milliseconds as an integer. <remarks>This value is useful when an upper bound for a time interval is required, such as in timeout or delay scenarios where the maximum supported duration is needed. The value is equivalent to TimeSpan.FromMilliseconds(int.MaxValue).</remarks> |
+| `public static System.TimeSpan FromByteArray(byte[] bytes) => ...` | Creates a TimeSpan structure from its binary representation in a byte array. <remarks>The byte array must contain a valid binary representation of a TimeSpan as produced by the corresponding serialization method. Supplying an array that is too short or incorrectly formatted may result in an exception.</remarks> <param name="bytes">A byte array containing the binary representation of a TimeSpan. The array must be at least 8 bytes in length and encoded in the expected format.</param> <returns>A TimeSpan value represented by the specified byte array.</returns> |
+| `public static System.TimeSpan FromSpan(ReadOnlySpan<byte> bytes)` | Creates a TimeSpan from a read-only span of bytes representing a 32-bit integer value in milliseconds. <param name="bytes">A read-only span of bytes containing the 32-bit integer value, in little-endian format, representing the number of milliseconds for the TimeSpan. Must be at least 4 bytes in length.</param> <returns>A TimeSpan that represents the time interval specified by the 32-bit integer value, in milliseconds, contained in the input span.</returns> <exception cref="ArgumentOutOfRangeException">Thrown when the length of bytes is less than 4.</exception> |
+| `public static System.TimeSpan[] ToArray(byte[] bytes) => ...` | Converts a byte array to an array of <see cref="System.TimeSpan"/> values. <remarks>The method interprets the input byte array as a sequence of <see cref="System.TimeSpan"/> values in their binary format. The caller is responsible for ensuring that the byte array was created using a compatible serialization method and that its length is valid.</remarks> <param name="bytes">The byte array containing the binary representation of one or more <see cref="System.TimeSpan"/> values. The array length must be a multiple of the size of a <see cref="System.TimeSpan"/> structure.</param> <returns>An array of <see cref="System.TimeSpan"/> values deserialized from the specified byte array.</returns> |
+| `public static System.TimeSpan[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes into an array of TimeSpan values, interpreting each group of bytes as a duration in milliseconds. <remarks>Each consecutive group of 8 bytes in the input is interpreted as a 64-bit signed integer in the platform's endianness, representing a duration in milliseconds. The method does not perform validation on the range of the resulting TimeSpan values.</remarks> <param name="bytes">A read-only span of bytes representing one or more 64-bit signed integer values, each corresponding to a duration in milliseconds.</param> <returns>An array of TimeSpan values created from the input bytes. Each element represents a duration corresponding to one 64-bit integer value in the input.</returns> <exception cref="ArgumentOutOfRangeException">Thrown when the length of bytes is not a multiple of the size of a 64-bit signed integer.</exception> |
+| `public static byte[] ToByteArray(System.TimeSpan timeSpan)` | Converts the specified <see cref="System.TimeSpan"/> value to its binary representation as a byte array. <param name="timeSpan">The <see cref="System.TimeSpan"/> value to convert to a byte array.</param> <returns>A byte array containing the binary representation of the specified <see cref="System.TimeSpan"/> value.</returns> |
+| `public static void ToSpan(System.TimeSpan timeSpan, Span<byte> destination)` | Encodes the specified <see cref="System.TimeSpan"/> value into its S7 time representation and writes the result to the provided byte span. <remarks>The S7 time representation encodes a time interval as a 4-byte value in milliseconds. Only time spans within the supported S7 range can be encoded.</remarks> <param name="timeSpan">The time interval to encode. Must be within the supported S7 time range.</param> <param name="destination">The span of bytes to which the encoded S7 time value will be written. Must be at least 4 bytes in length.</param> <exception cref="ArgumentException">Thrown if <paramref name="destination"/> is less than 4 bytes in length.</exception> <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeSpan"/> is less than the minimum or greater than the maximum value supported by the S7 time representation.</exception> |
+| `public static byte[] ToByteArray(System.TimeSpan[] timeSpans)` | Converts an array of <see cref="System.TimeSpan"/> values to a byte array representation. <param name="timeSpans">An array of <see cref="System.TimeSpan"/> values to convert. Cannot be null.</param> <returns>A byte array containing the serialized representation of the input <see cref="System.TimeSpan"/> values. The length of the array is proportional to the number of elements in <paramref name="timeSpans"/>.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="timeSpans"/> is null.</exception> |
+| `public static void ToSpan(ReadOnlySpan<System.TimeSpan> timeSpans, Span<byte> destination)` | Converts a sequence of <see cref="System.TimeSpan"/> values to their binary representation and writes the result to the specified destination span. <param name="timeSpans">The read-only span containing the <see cref="System.TimeSpan"/> values to convert.</param> <param name="destination">The span of bytes that receives the binary representation of the <paramref name="timeSpans"/> values. Must be large enough to hold all converted values.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the binary representation of all <paramref name="timeSpans"/> values.</exception> |
+
+##### `S7PlcRx.PlcTypes.Timer`
+Source: `PlcTypes/Timer.cs:14`
+
+Provides static methods for converting between S7 Timer byte representations and .NET numeric types. <remarks>This class is intended for working with Siemens S7 PLC timer values, enabling conversion to and from the S7-specific byte format and standard .NET types such as double and ushort. All members are static and the class cannot be instantiated.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static double FromByteArray(byte[] bytes) => ...` | Converts a byte array to a double-precision floating-point number. <param name="bytes">The byte array containing the bytes to convert. Must represent a valid double value in the expected byte order.</param> <returns>A double-precision floating-point number represented by the specified byte array.</returns> |
+| `public static double FromSpan(ReadOnlySpan<byte> bytes) => ...` | Converts a read-only span of bytes to a double-precision floating-point number. <remarks>The conversion uses the platform's endianness. Ensure that the byte order in the span matches the expected endianness for correct results.</remarks> <param name="bytes">A read-only span of bytes containing the binary representation of the double value. The span must contain at least 8 bytes, starting at the beginning of the span.</param> <returns>A double-precision floating-point number represented by the first 8 bytes of the span.</returns> |
+| `public static double FromByteArray(byte[] bytes, int start) => ...` | Converts a sequence of bytes from the specified array, starting at the given index, to a double-precision floating-point number. <param name="bytes">The byte array containing the value to convert.</param> <param name="start">The zero-based index in the array at which to begin reading the bytes.</param> <returns>A double-precision floating-point number represented by the eight bytes starting at the specified index in the array.</returns> |
+| `public static double FromByteArray(ReadOnlySpan<byte> bytes, int start)` | Converts a sequence of bytes starting at the specified position to a double-precision floating-point value using a custom binary encoding. <remarks>The method expects a custom binary format for the encoded value. The interpretation of the bytes and the resulting value may not correspond to standard IEEE 754 encoding. Ensure that the input data matches the expected format.</remarks> <param name="bytes">A read-only span of bytes containing the encoded value.</param> <param name="start">The zero-based index in the span at which to begin reading the 2-byte encoded value.</param> <returns>A double-precision floating-point value decoded from the specified bytes.</returns> <exception cref="ArgumentException">Thrown if the span does not contain at least 2 bytes starting from the specified position.</exception> |
+| `public static double[] ToArray(byte[] bytes) => ...` | Converts a byte array to an array of double-precision floating-point values. <remarks>The method interprets each consecutive group of 8 bytes in the input array as a double-precision floating-point value, using the system's endianness. If the length of the input array is not a multiple of 8, an exception may be thrown.</remarks> <param name="bytes">The byte array to convert. The length must be a multiple of the size of a double (8 bytes).</param> <returns>An array of double values created from the input byte array.</returns> |
+| `public static double[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of double-precision floating-point values. <remarks>The method interprets each consecutive pair of bytes in the input span as a double value. The length of the input span must be evenly divisible by 2; otherwise, any remaining bytes are ignored.</remarks> <param name="bytes">The read-only span of bytes to convert. The length must be a multiple of 2, with each pair of bytes representing a double value.</param> <returns>An array of double values parsed from the specified byte span.</returns> |
+| `public static byte[] ToByteArray(ushort value)` | Converts the specified 16-bit unsigned integer to a byte array. <param name="value">The 16-bit unsigned integer to convert to a byte array.</param> <returns>A byte array containing the two bytes of the specified value in platform endianness.</returns> |
+| `public static void ToSpan(ushort value, Span<byte> destination)` | Writes the specified 16-bit unsigned integer value to the provided span as two bytes in big-endian order. <remarks>The value is written in big-endian byte order, with the most significant byte first. The method does not allocate memory and writes directly to the provided span.</remarks> <param name="value">The 16-bit unsigned integer value to write to the span.</param> <param name="destination">The span of bytes that will receive the two-byte representation of the value. Must be at least 2 bytes in length.</param> <exception cref="ArgumentException">Thrown if the length of destination is less than 2.</exception> |
+| `public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)` | Converts a sequence of 16-bit unsigned integers to their byte representations and writes the result to the specified destination span. <param name="values">The read-only span of 16-bit unsigned integers to convert.</param> <param name="destination">The span of bytes that receives the converted values. Must be at least twice the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the converted bytes.</exception> |
+| `public static byte[] ToByteArray(ushort[] value)` | Converts an array of 16-bit unsigned integers to a byte array. <param name="value">The array of 16-bit unsigned integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values.</returns> |
+
+##### `S7PlcRx.PlcTypes.Word`
+Source: `PlcTypes/Word.cs:16`
+
+Provides utility methods for converting between 16-bit unsigned integers (words) and their byte array or span representations, using big-endian (high byte first) byte order. <remarks>All methods in this class assume that words are represented in big-endian format, where the first byte is the high-order byte and the second byte is the low-order byte. These methods are intended for scenarios where explicit control over byte order is required, such as binary serialization, communication protocols, or file I/O. The class is static and cannot be instantiated.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static ushort FromByteArray(byte[] bytes) => ...` | Creates a 16-bit unsigned integer from a byte array. <param name="bytes">The byte array containing the bytes to convert. Must contain at least two elements.</param> <returns>A 16-bit unsigned integer represented by the first two bytes of the array.</returns> |
+| `public static ushort FromSpan(ReadOnlySpan<byte> bytes) => ...` | Creates a 16-bit unsigned integer from a span containing two bytes in little-endian order. <remarks>This method interprets the first two bytes of the span as a little-endian encoded unsigned 16-bit integer. The caller must ensure that the span contains at least two bytes to avoid an exception.</remarks> <param name="bytes">A read-only span of bytes that provides the two bytes to convert. The span must have a length of at least 2, with the least significant byte at index 0 and the most significant byte at index 1.</param> <returns>A 16-bit unsigned integer represented by the two bytes in the specified span.</returns> |
+| `public static ushort FromByteArray(byte[] bytes, int start) => ...` | Creates a 16-bit unsigned integer from a byte array starting at the specified index. <param name="bytes">The byte array containing the data to convert.</param> <param name="start">The zero-based index in the array at which to begin reading the value.</param> <returns>A 16-bit unsigned integer formed from the specified bytes.</returns> |
+| `public static ushort FromBytes(byte loVal, byte hiVal) => ...` | Creates a 16-bit unsigned integer from two bytes, using the specified low and high byte values. <remarks>The resulting value is calculated as (hiVal * 256) + loVal, with loVal as the least significant byte and hiVal as the most significant byte. This method assumes a little-endian byte order.</remarks> <param name="loVal">The low-order byte of the resulting 16-bit unsigned integer.</param> <param name="hiVal">The high-order byte of the resulting 16-bit unsigned integer.</param> <returns>A 16-bit unsigned integer composed from the specified low and high bytes.</returns> |
+| `public static ushort[] ToArray(byte[] bytes) => ...` | Converts a byte array to an array of 16-bit unsigned integers. <remarks>The conversion interprets each pair of bytes in the input array as a single 16-bit unsigned integer. If the length of the input array is not a multiple of 2, an exception may be thrown.</remarks> <param name="bytes">The byte array to convert. The length must be a multiple of 2.</param> <returns>An array of 16-bit unsigned integers representing the converted values from the input byte array.</returns> |
+| `public static ushort[] ToArray(ReadOnlySpan<byte> bytes)` | Converts a read-only span of bytes to an array of 16-bit unsigned integers. <remarks>Each pair of bytes in the input span is interpreted as a single 16-bit unsigned integer. The conversion uses the byte order expected by the FromSpan method. If the length of the input span is not a multiple of 2, any remaining bytes are ignored.</remarks> <param name="bytes">The input span containing the bytes to convert. The length must be a multiple of 2.</param> <returns>An array of 16-bit unsigned integers parsed from the input bytes. The length of the array is half the length of the input span.</returns> |
+| `public static byte[] ToByteArray(ushort value)` | Converts the specified 16-bit unsigned integer to a byte array. <param name="value">The 16-bit unsigned integer to convert.</param> <returns>A byte array containing the bytes of the specified value in little-endian order.</returns> |
+| `public static void ToSpan(ushort value, Span<byte> destination)` | Writes the specified 16-bit unsigned integer to the provided span in big-endian byte order. <remarks>The method writes the most significant byte of value to destination[0] and the least significant byte to destination[1].</remarks> <param name="value">The 16-bit unsigned integer value to write to the span.</param> <param name="destination">The span of bytes that receives the big-endian representation of the value. Must be at least 2 bytes in length.</param> <exception cref="ArgumentException">Thrown if destination is less than 2 bytes in length.</exception> |
+| `public static void ToByteArray(ushort value, Array destination, int start)` | Copies the byte representation of the specified 16-bit unsigned integer into the given array starting at the specified index. <param name="value">The 16-bit unsigned integer to convert to bytes.</param> <param name="destination">The array that will receive the bytes representing the value. Must have sufficient space to accommodate two bytes starting at the specified index.</param> <param name="start">The zero-based index in the destination array at which to begin copying the bytes.</param> |
+| `public static byte[] ToByteArray(ushort[] value)` | Converts an array of 16-bit unsigned integers to a byte array. <param name="value">The array of 16-bit unsigned integers to convert. Cannot be null.</param> <returns>A byte array containing the binary representation of the input values.</returns> |
+| `public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)` | Converts a sequence of 16-bit unsigned integers to their byte representation and writes the result to the specified destination span. <param name="values">The sequence of 16-bit unsigned integers to convert.</param> <param name="destination">The span of bytes that receives the converted values. Must be at least twice the length of <paramref name="values"/>.</param> <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the converted bytes.</exception> |
+
+#### Namespace `S7PlcRx.Production`
+
+##### `S7PlcRx.Production.CircuitBreaker`
+Source: `Production/CircuitBreaker.cs:17`
+
+Provides a thread-safe implementation of the circuit breaker pattern to prevent repeated execution of failing operations and to allow recovery after a specified timeout. <remarks>The circuit breaker monitors consecutive operation failures and transitions between Closed, Open, and HalfOpen states based on the provided configuration. When the failure threshold is reached, the circuit breaker enters the Open state and blocks further operations until the timeout elapses. After the timeout, it transitions to HalfOpen to test if operations can succeed before fully closing again. This class is thread-safe and intended for use in scenarios where repeated failures should be prevented from overwhelming a system or external dependency.</remarks> <param name="config">The configuration settings that control circuit breaker thresholds, retry behavior, and timeouts.</param>
+
+| Member | Summary |
+|---|---|
+| `public CircuitBreakerState State get; private set; } = CircuitBreakerState.Closed;` | Gets the current state of the circuit breaker. <remarks>The state indicates whether the circuit breaker is allowing operations to proceed (Closed), temporarily blocking operations due to failures (Open), or testing if operations can resume (HalfOpen).</remarks> |
+| `public long TotalOperations get; private set; }` | Gets the total number of operations that have been performed. |
+| `public long SuccessfulOperations get; private set; }` | Gets the total number of operations that have completed successfully. |
+| `public long FailedOperations get; private set; }` | Gets the total number of operations that have failed. |
+| `public double SuccessRate => ...` | Gets the percentage of operations that completed successfully. |
+| `public async Task<T> ExecuteAsync<T>(Func<Task<T>> operation)` | Executes the specified asynchronous operation within the circuit breaker, applying retry and failure handling policies as configured. <remarks>If the circuit breaker is open due to previous failures, the operation will be blocked until the configured timeout has elapsed. Upon successful execution, the circuit breaker state is reset. This method is thread-safe.</remarks> <typeparam name="T">The type of the result returned by the asynchronous operation.</typeparam> <param name="operation">A function that represents the asynchronous operation to execute. Cannot be null.</param> <returns>A task that represents the asynchronous execution of the operation. The task result contains the value returned by the operation if it completes successfully.</returns> <exception cref="ArgumentNullException">Thrown if the operation parameter is null.</exception> <exception cref="InvalidOperationException">Thrown if the circuit breaker is open and the timeout period has not elapsed, preventing the operation from being executed.</exception> |
+
+##### `S7PlcRx.Production.CircuitBreakerState`
+Source: `Production/CircuitBreakerState.cs:12`
+
+Specifies the operational state of a circuit breaker used to control the flow of operations in response to failures. <remarks>Use this enumeration to determine or set the current state of a circuit breaker implementation. The state controls whether operations are allowed, blocked, or tested for recovery. Typical usage involves transitioning between these states based on error rates or recovery attempts.</remarks>
+
+Enum values: `Closed`, `Open`, `HalfOpen`.
+
+##### `S7PlcRx.Production.ProductionDiagnostics`
+Source: `Production/ProductionDiagnostics.cs:16`
+
+Represents diagnostic information collected from a production programmable logic controller (PLC) connection, including connection details, performance metrics, and recommendations. <remarks>This class is typically used to capture and analyze the state of a PLC connection and its associated metrics at a specific point in time. It aggregates connection parameters, diagnostic results, and any errors or optimization suggestions identified during the diagnostic process. All properties are intended to be set and read by consumers managing or monitoring PLC diagnostics.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public CpuType PLCType get; set; }` | Gets or sets the PLC type. |
+| `public string IPAddress get; set; } = string.Empty;` | Gets or sets the IP address. |
+| `public short Rack get; set; }` | Gets or sets the rack number. |
+| `public short Slot get; set; }` | Gets or sets the slot number. |
+| `public bool IsConnected get; set; }` | Gets or sets a value indicating whether gets or sets the connection status. |
+| `public DateTime DiagnosticTime get; set; }` | Gets or sets when diagnostics were collected. |
+| `public double ConnectionLatencyMs get; set; }` | Gets or sets the connection latency in milliseconds. |
+| `public string[] CPUInformation get; set; } = [];` | Gets or sets the CPU information. |
+| `public ProductionTagMetrics TagMetrics get; set; } = new ProductionTagMetrics();` | Gets or sets the tag metrics. |
+| `public List<string> Recommendations get; set; } = [];` | Gets or sets the optimization recommendations. |
+| `public List<string> Errors get; set; } = [];` | Gets or sets any errors encountered during diagnostics. |
+
+##### `S7PlcRx.Production.ProductionErrorConfig`
+Source: `Production/ProductionErrorConfig.cs:12`
+
+Represents the configuration settings for error handling and retry logic in a production environment. <remarks>This class provides options to control retry attempts, delay strategies, and circuit breaker behavior for handling transient errors. It is typically used to configure error resilience policies in applications that interact with external systems or services.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public int MaxRetryAttempts get; set; } = 3;` | Gets or sets the maximum retry attempts. |
+| `public int BaseRetryDelayMs get; set; } = 1000;` | Gets or sets the base retry delay in milliseconds. |
+| `public bool UseExponentialBackoff get; set; } = true;` | Gets or sets a value indicating whether gets or sets whether to use exponential backoff. |
+| `public int CircuitBreakerThreshold get; set; } = 5;` | Gets or sets the circuit breaker failure threshold. |
+| `public TimeSpan CircuitBreakerTimeout get; set; } = TimeSpan.FromMinutes(1);` | Gets or sets the circuit breaker timeout. |
+
+##### `S7PlcRx.Production.ProductionErrorHandler`
+Source: `Production/ProductionErrorHandler.cs:16`
+
+Provides error handling for production environments by executing operations with circuit breaker protection and configurable error handling policies. <remarks>This class is intended for use in production scenarios where robust error handling and resilience are required. It wraps operations in a circuit breaker to prevent repeated failures and applies the error handling strategies specified in the provided configuration. Instances of this class are thread-safe and can be reused across multiple operations.</remarks> <param name="config">The configuration settings that define error handling behavior, including circuit breaker thresholds and retry policies. Cannot be null.</param>
+
+| Member | Summary |
+|---|---|
+| `public async Task<T> ExecuteAsync<T>(Func<Task<T>> operation) => ...` | Executes an operation with comprehensive error handling. <typeparam name="T">The return type.</typeparam> <param name="operation">The operation to execute.</param> <returns>The result of the operation.</returns> |
+
+##### `S7PlcRx.Production.ProductionExtensions`
+Source: `Production/ProductionExtensions.cs:18`
+
+Provides extension methods for enabling production-grade error handling, retry logic, and system validation on PLC instances using the circuit breaker pattern. <remarks>These extension methods are intended to enhance the reliability and readiness of PLC-based systems in production environments. They offer mechanisms for robust error handling, configurable retry strategies, and comprehensive validation routines to assess system health and readiness for production deployment. All methods require a valid IRxS7 PLC instance and may utilize user-supplied or default configuration objects. Thread safety is ensured for shared resources such as circuit breakers.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public static ProductionErrorHandler EnableProductionErrorHandling( this IRxS7 plc, ProductionErrorConfig config)` | Enables production error handling for the specified PLC using the provided configuration. <param name="plc">The PLC instance to enable production error handling for. Cannot be null.</param> <param name="config">The configuration settings to use for production error handling. Cannot be null.</param> <returns>A new instance of <see cref="ProductionErrorHandler"/> configured for the specified PLC.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="config"/> is null.</exception> |
+| `public static async Task<T> ExecuteWithErrorHandling<T>( this IRxS7 plc, Func<Task<T>> operation, ProductionErrorConfig? config = null)` | Executes the specified asynchronous PLC operation with error handling and circuit breaker protection. <remarks>This method ensures that the provided operation is executed with error handling policies defined by the specified or default configuration. It uses a circuit breaker to prevent repeated execution of failing operations, which can help protect the PLC and improve system resilience.</remarks> <typeparam name="T">The type of the result returned by the operation.</typeparam> <param name="plc">The PLC instance on which to perform the operation. Cannot be null.</param> <param name="operation">A function that represents the asynchronous operation to execute. Cannot be null.</param> <param name="config">An optional configuration object that specifies error handling and circuit breaker behavior. If null, a default configuration is used.</param> <returns>A task that represents the asynchronous operation. The task result contains the value returned by the operation.</returns> <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="operation"/> is null.</exception> |
+| `public static async Task<SystemValidationResult> ValidateProductionReadiness( this IRxS7 plc, ProductionValidationConfig? validationConfig = null)` | Performs a comprehensive validation of the specified PLC to determine its readiness for production deployment. <remarks>The validation process includes checks for connectivity, performance, and reliability. The method aggregates results and determines production readiness based on the provided or default configuration. The returned result includes timestamps, scores, and any critical errors encountered during validation.</remarks> <param name="plc">The PLC instance to validate for production readiness. Cannot be null.</param> <param name="validationConfig">An optional configuration object that specifies validation parameters and thresholds. If null, default validation settings are used.</param> <returns>A task that represents the asynchronous operation. The task result contains a SystemValidationResult object with detailed validation outcomes, including overall readiness, scores, and any detected issues.</returns> <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception> |
+
+##### `S7PlcRx.Production.ProductionMetrics`
+Source: `Production/ProductionMetrics.cs:13`
+
+Represents a set of metrics related to the monitoring and connectivity status of a PLC (Programmable Logic Controller) over a specified period. <remarks>This class is typically used to capture and report operational statistics for a PLC, such as connection times, uptime percentage, and tag counts. All properties are mutable, allowing for incremental updates as new data is collected.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public string PLCIdentifier get; set; } = string.Empty;` | Gets or sets the PLC identifier. |
+| `public DateTime StartTime get; set; }` | Gets or sets when monitoring started. |
+| `public DateTime LastUpdateTime get; set; }` | Gets or sets the last update time. |
+| `public bool IsConnected get; set; }` | Gets or sets a value indicating whether gets or sets whether the PLC is currently connected. |
+| `public TimeSpan ConnectedTime get; set; }` | Gets or sets the total connected time. |
+| `public TimeSpan DisconnectedTime get; set; }` | Gets or sets the total disconnected time. |
+| `public double UptimePercentage get; set; }` | Gets or sets the uptime percentage. |
+| `public int ActiveTagCount get; set; }` | Gets or sets the number of active tags. |
+| `public int TotalTagCount get; set; }` | Gets or sets the total number of tags. |
+
+##### `S7PlcRx.Production.ProductionTagMetrics`
+Source: `Production/ProductionTagMetrics.cs:12`
+
+Represents aggregated metrics related to production tags, including counts and distribution information. <remarks>Use this class to track and analyze the status and distribution of tags within a production environment. The metrics provided can assist in monitoring tag activity and identifying trends or anomalies in tag usage.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public int TotalTags get; set; }` | Gets or sets the total number of tags. |
+| `public int ActiveTags get; set; }` | Gets or sets the number of active tags. |
+| `public int InactiveTags get; set; }` | Gets or sets the number of inactive tags. |
+| `public Dictionary<string, int> DataBlockDistribution get; set; } = [];` | Gets or sets the distribution of tags by data block. |
+
+##### `S7PlcRx.Production.ProductionValidationConfig`
+Source: `Production/ProductionValidationConfig.cs:12`
+
+Represents configuration settings for validating production system performance and reliability. <remarks>Use this class to specify thresholds and criteria for production validation checks, such as acceptable response times, reliability rates, and minimum production scores. These settings can be adjusted to match the requirements of different production environments.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public TimeSpan MaxAcceptableResponseTime get; set; } = TimeSpan.FromMilliseconds(500);` | Gets or sets the maximum acceptable response time. |
+| `public double MinimumReliabilityRate get; set; } = 0.95;` | Gets or sets the minimum reliability rate (0.0 to 1.0). |
+| `public int ReliabilityTestCount get; set; } = 10;` | Gets or sets the number of operations to test for reliability. |
+| `public double MinimumProductionScore get; set; } = 80.0;` | Gets or sets the minimum production score (0 to 100). |
+
+##### `S7PlcRx.Production.SystemValidationResult`
+Source: `Production/SystemValidationResult.cs:13`
+
+Represents the result of a system validation process, including timing, test results, and production readiness status. <remarks>Use this class to capture and inspect the outcome of a system validation run, such as for a PLC or similar automated system. It provides details about the validation period, individual test results, critical errors, and an overall score indicating system readiness for production.</remarks>
+
+| Member | Summary |
+|---|---|
+| `public DateTime ValidationStartTime get; set; }` | Gets or sets the validation start time. |
+| `public DateTime ValidationEndTime get; set; }` | Gets or sets the validation end time. |
+| `public string PLCIdentifier get; set; } = string.Empty;` | Gets or sets the PLC identifier. |
+| `public bool IsProductionReady get; set; }` | Gets or sets a value indicating whether the system is production ready. |
+| `public double OverallScore get; set; }` | Gets or sets the overall validation score (0-100). |
+| `public List<ValidationTest> ValidationTests get; } = [];` | Gets the individual validation tests. |
+| `public List<string> CriticalErrors get; } = [];` | Gets critical errors that prevent production use. |
+| `public TimeSpan TotalValidationTime => ...` | Gets the total validation time. |
+
+##### `S7PlcRx.Production.ValidationTest`
+Source: `Production/ValidationTest.cs:9`
+
+Represents the result and metadata of a validation test, including timing, outcome, and related details.
+
+| Member | Summary |
+|---|---|
+| `public string TestName get; set; } = string.Empty;` | Gets or sets the test name. |
+| `public DateTime StartTime get; set; }` | Gets or sets the test start time. |
+| `public DateTime EndTime get; set; }` | Gets or sets the test end time. |
+| `public bool Success get; set; }` | Gets or sets a value indicating whether gets or sets whether the test was successful. |
+| `public string? ErrorMessage get; set; }` | Gets or sets any error message. |
+| `public List<string> Details get; } = [];` | Gets additional test details. |
+| `public TimeSpan Duration => ...` | Gets the test duration. |
+
+#### Namespace `S7PlcRx.SourceGeneration`
+
+##### `S7PlcRx.SourceGeneration.S7PlcBindingAttribute`
+Source: `S7TagBindingSourceGenerator.cs:273`
+
+No public instance/static members declared directly on this type.
+
+##### `S7PlcRx.SourceGeneration.S7TagAttribute`
+Source: `S7TagBindingSourceGenerator.cs:278`
+
+| Member | Summary |
+|---|---|
+| `public S7TagAttribute(string address)` |  |
+| `public string Address get; }` |  |
+| `public int PollIntervalMs get; set; } = 100;` |  |
+| `public S7TagDirection Direction get; set; }` |  |
+| `public int ArrayLength get; set; } = 1;` |  |
+
+##### `S7PlcRx.SourceGeneration.S7TagDirection`
+Source: `S7TagBindingSourceGenerator.cs:294`
+
+Enum values: `ReadWrite`, `ReadOnly`, `WriteOnly`.
+
+#### Namespace `S7PlcRx.SourceGenerators`
+
+##### `S7PlcRx.SourceGenerators.S7TagBindingSourceGenerator`
+Source: `S7TagBindingSourceGenerator.cs:17`
+
+| Member | Summary |
+|---|---|
+| `public void Initialize(IncrementalGeneratorInitializationContext context)` | <inheritdoc /> |
+
+</details>
+
+
+## Build and test
+
+```bash
+dotnet build src/S7PlcRx/S7PlcRx.csproj
+dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj --framework net8.0
+```
+
+From WSL when only Windows .NET is installed:
+
+```bash
+'/mnt/c/Program Files/dotnet/dotnet.exe' build src/S7PlcRx/S7PlcRx.csproj
+'/mnt/c/Program Files/dotnet/dotnet.exe' test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj --framework net8.0
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+## Support
+
+- Issues: <https://github.com/ChrisPulman/S7PlcRx/issues>
+- NuGet: <https://www.nuget.org/packages/S7PlcRx>

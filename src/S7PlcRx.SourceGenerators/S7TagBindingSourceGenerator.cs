@@ -1,0 +1,348 @@
+// Copyright (c) Chris Pulman. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using System.Collections.Immutable;
+using System.Globalization;
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
+
+namespace S7PlcRx.SourceGenerators;
+
+/// <summary>
+/// Generates strongly typed PLC property binding hooks from S7 tag attributes.
+/// </summary>
+[Generator(LanguageNames.CSharp)]
+public sealed class S7TagBindingSourceGenerator : IIncrementalGenerator
+{
+    private const string BindingAttributeName = "S7PlcRx.SourceGeneration.S7PlcBindingAttribute";
+    private const string TagAttributeName = "S7PlcRx.SourceGeneration.S7TagAttribute";
+
+    /// <inheritdoc />
+    public void Initialize(IncrementalGeneratorInitializationContext context)
+    {
+        context.RegisterPostInitializationOutput(static ctx => ctx.AddSource("S7PlcRx.S7TagAttributes.g.cs", SourceText.From(AttributeSource, Encoding.UTF8)));
+
+        var candidates = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) => node is ClassDeclarationSyntax classDeclaration && classDeclaration.AttributeLists.Count > 0,
+                static (ctx, _) => GetBindingClass(ctx))
+            .Where(static item => item != null);
+
+        context.RegisterSourceOutput(candidates.Collect(), static (ctx, items) => Execute(ctx, items!));
+    }
+
+    private static BindingClass? GetBindingClass(GeneratorSyntaxContext context)
+    {
+        var classSyntax = (ClassDeclarationSyntax)context.Node;
+        if (context.SemanticModel.GetDeclaredSymbol(classSyntax) is not INamedTypeSymbol classSymbol)
+        {
+            return null;
+        }
+
+        if (!classSymbol.GetAttributes().Any(static attr => IsAttribute(attr, BindingAttributeName)))
+        {
+            return null;
+        }
+
+        var properties = new List<BindingProperty>();
+        foreach (var member in classSyntax.Members.OfType<PropertyDeclarationSyntax>())
+        {
+            if (context.SemanticModel.GetDeclaredSymbol(member) is not IPropertySymbol propertySymbol)
+            {
+                continue;
+            }
+
+            var attribute = propertySymbol.GetAttributes().FirstOrDefault(static attr => IsAttribute(attr, TagAttributeName));
+            if (attribute == null)
+            {
+                continue;
+            }
+
+            if (!member.Modifiers.Any(static token => token.ValueText == "partial"))
+            {
+                continue;
+            }
+
+            properties.Add(CreateProperty(propertySymbol, attribute));
+        }
+
+        if (properties.Count == 0)
+        {
+            return null;
+        }
+
+        var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace ? null : classSymbol.ContainingNamespace.ToDisplayString();
+        return new BindingClass(namespaceName, classSymbol.Name, classSymbol.DeclaredAccessibility, properties);
+    }
+
+    private static BindingProperty CreateProperty(IPropertySymbol property, AttributeData attribute)
+    {
+        var address = attribute.ConstructorArguments.Length > 0 ? attribute.ConstructorArguments[0].Value?.ToString() ?? string.Empty : string.Empty;
+        var pollIntervalMs = 100;
+        var direction = "ReadWrite";
+        var arrayLength = 1;
+
+        foreach (var argument in attribute.NamedArguments)
+        {
+            switch (argument.Key)
+            {
+                case "PollIntervalMs":
+                    pollIntervalMs = Convert.ToInt32(argument.Value.Value, CultureInfo.InvariantCulture);
+                    break;
+                case "Direction":
+                    direction = argument.Value.Value?.ToString() switch
+                    {
+                        "1" => "ReadOnly",
+                        "2" => "WriteOnly",
+                        _ => "ReadWrite",
+                    };
+                    break;
+                case "ArrayLength":
+                    arrayLength = Convert.ToInt32(argument.Value.Value, CultureInfo.InvariantCulture);
+                    break;
+            }
+        }
+
+        return new BindingProperty(
+            property.Name,
+            property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+            address,
+            Math.Max(0, pollIntervalMs),
+            direction,
+            Math.Max(1, arrayLength));
+    }
+
+    private static void Execute(SourceProductionContext context, ImmutableArray<BindingClass> items)
+    {
+        foreach (var item in items.Distinct())
+        {
+            context.AddSource($"{item.ClassName}.S7Binding.g.cs", SourceText.From(Generate(item), Encoding.UTF8));
+        }
+    }
+
+    private static string Generate(BindingClass bindingClass)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("// <auto-generated />");
+        builder.AppendLine("#nullable enable");
+        builder.AppendLine("using System;");
+        builder.AppendLine("using System.Collections.Generic;");
+        builder.AppendLine();
+
+        if (!string.IsNullOrWhiteSpace(bindingClass.NamespaceName))
+        {
+            builder.Append("namespace ").Append(bindingClass.NamespaceName).AppendLine(";");
+            builder.AppendLine();
+        }
+
+        builder.Append(GetAccessibility(bindingClass.Accessibility)).Append(" partial class ").Append(bindingClass.ClassName).AppendLine();
+        builder.AppendLine("{");
+        builder.AppendLine("    private global::S7PlcRx.Binding.S7TagRuntimeBinding? __s7Binding;");
+        builder.AppendLine("    private bool __s7SuppressWrites;");
+        builder.AppendLine();
+
+        foreach (var property in bindingClass.Properties)
+        {
+            builder.Append("    private ").Append(property.FullyQualifiedTypeName).Append(' ').Append(GetBackingFieldName(property.Name)).AppendLine(";");
+        }
+
+        builder.AppendLine();
+        foreach (var property in bindingClass.Properties)
+        {
+            GenerateProperty(builder, property);
+        }
+
+        GenerateBindMethod(builder, bindingClass.Properties);
+        GenerateApplyRead(builder, bindingClass.Properties);
+
+        builder.AppendLine("}");
+        return builder.ToString();
+    }
+
+    private static void GenerateProperty(StringBuilder builder, BindingProperty property)
+    {
+        var backingField = GetBackingFieldName(property.Name);
+        builder.Append("    public partial ").Append(property.FullyQualifiedTypeName).Append(' ').Append(property.Name).AppendLine();
+        builder.AppendLine("    {");
+        builder.Append("        get => ").Append(backingField).AppendLine(";");
+        builder.AppendLine("        set");
+        builder.AppendLine("        {");
+        builder.Append("            if (global::System.Collections.Generic.EqualityComparer<").Append(property.FullyQualifiedTypeName).Append(">.Default.Equals(").Append(backingField).AppendLine(", value))");
+        builder.AppendLine("            {");
+        builder.AppendLine("                return;");
+        builder.AppendLine("            }");
+        builder.AppendLine();
+        builder.Append("            ").Append(backingField).AppendLine(" = value;");
+        builder.Append("            __s7Write(nameof(").Append(property.Name).AppendLine("), value);");
+        builder.AppendLine("        }");
+        builder.AppendLine("    }");
+        builder.AppendLine();
+    }
+
+    private static void GenerateBindMethod(StringBuilder builder, IReadOnlyList<BindingProperty> properties)
+    {
+        builder.AppendLine("    public global::System.IDisposable Bind(global::S7PlcRx.IRxS7 plc)");
+        builder.AppendLine("    {");
+        builder.AppendLine("        if (plc is null)");
+        builder.AppendLine("        {");
+        builder.AppendLine("            throw new global::System.ArgumentNullException(nameof(plc));");
+        builder.AppendLine("        }");
+        builder.AppendLine();
+        builder.AppendLine("        __s7Binding?.Dispose();");
+        builder.AppendLine("        __s7Binding = global::S7PlcRx.Binding.S7TagRuntimeBinding.Bind(plc, new global::S7PlcRx.Binding.S7TagDefinition[]");
+        builder.AppendLine("        {");
+        foreach (var property in properties)
+        {
+            builder.Append("            new global::S7PlcRx.Binding.S7TagDefinition(nameof(")
+                .Append(property.Name)
+                .Append("), ")
+                .Append(ToLiteral(property.Address))
+                .Append(", typeof(")
+                .Append(property.FullyQualifiedTypeName)
+                .Append("), ")
+                .Append(property.PollIntervalMs.ToString(CultureInfo.InvariantCulture))
+                .Append(", global::S7PlcRx.Binding.S7TagDirection.")
+                .Append(property.Direction)
+                .Append(", ")
+                .Append(property.ArrayLength.ToString(CultureInfo.InvariantCulture))
+                .AppendLine("),");
+        }
+
+        builder.AppendLine("        }, __s7ApplyRead);");
+        builder.AppendLine("        return __s7Binding;");
+        builder.AppendLine("    }");
+        builder.AppendLine();
+        builder.AppendLine("    private void __s7Write(string name, object? value)");
+        builder.AppendLine("    {");
+        builder.AppendLine("        if (!__s7SuppressWrites)");
+        builder.AppendLine("        {");
+        builder.AppendLine("            __s7Binding?.Write(name, value);");
+        builder.AppendLine("        }");
+        builder.AppendLine("    }");
+        builder.AppendLine();
+    }
+
+    private static void GenerateApplyRead(StringBuilder builder, IReadOnlyList<BindingProperty> properties)
+    {
+        builder.AppendLine("    private void __s7ApplyRead(string name, object? value)");
+        builder.AppendLine("    {");
+        builder.AppendLine("        __s7SuppressWrites = true;");
+        builder.AppendLine("        try");
+        builder.AppendLine("        {");
+        builder.AppendLine("            switch (name)");
+        builder.AppendLine("            {");
+        foreach (var property in properties)
+        {
+            builder.Append("                case nameof(").Append(property.Name).AppendLine("):");
+            builder.Append("                    ").Append(GetBackingFieldName(property.Name)).Append(" = value is ").Append(property.FullyQualifiedTypeName).Append(" typedValue ? typedValue : default!;").AppendLine();
+            builder.AppendLine("                    break;");
+        }
+
+        builder.AppendLine("            }");
+        builder.AppendLine("        }");
+        builder.AppendLine("        finally");
+        builder.AppendLine("        {");
+        builder.AppendLine("            __s7SuppressWrites = false;");
+        builder.AppendLine("        }");
+        builder.AppendLine("    }");
+    }
+
+    private static bool IsAttribute(AttributeData attribute, string metadataName) =>
+        string.Equals(attribute.AttributeClass?.ToDisplayString(), metadataName, StringComparison.Ordinal);
+
+    private static string GetBackingFieldName(string propertyName) => $"__s7{char.ToLowerInvariant(propertyName[0])}{propertyName.Substring(1)}";
+
+    private static string GetAccessibility(Accessibility accessibility) => accessibility switch
+    {
+        Accessibility.Public => "public",
+        Accessibility.Internal => "internal",
+        _ => "public",
+    };
+
+    private static string ToLiteral(string value) => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+
+    private const string AttributeSource = """
+        // <auto-generated />
+        #nullable enable
+        namespace S7PlcRx.SourceGeneration;
+
+        [global::System.AttributeUsage(global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+        public sealed class S7PlcBindingAttribute : global::System.Attribute
+        {
+        }
+
+        [global::System.AttributeUsage(global::System.AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+        public sealed class S7TagAttribute : global::System.Attribute
+        {
+            public S7TagAttribute(string address)
+            {
+                Address = address;
+            }
+
+            public string Address { get; }
+
+            public int PollIntervalMs { get; set; } = 100;
+
+            public S7TagDirection Direction { get; set; }
+
+            public int ArrayLength { get; set; } = 1;
+        }
+
+        public enum S7TagDirection
+        {
+            ReadWrite,
+            ReadOnly,
+            WriteOnly
+        }
+        """;
+
+    private sealed class BindingClass
+    {
+        public BindingClass(string? namespaceName, string className, Accessibility accessibility, IReadOnlyList<BindingProperty> properties)
+        {
+            NamespaceName = namespaceName;
+            ClassName = className;
+            Accessibility = accessibility;
+            Properties = properties;
+        }
+
+        public string? NamespaceName { get; }
+
+        public string ClassName { get; }
+
+        public Accessibility Accessibility { get; }
+
+        public IReadOnlyList<BindingProperty> Properties { get; }
+    }
+
+    private sealed class BindingProperty
+    {
+        public BindingProperty(string name, string fullyQualifiedTypeName, string typeName, string address, int pollIntervalMs, string direction, int arrayLength)
+        {
+            Name = name;
+            FullyQualifiedTypeName = fullyQualifiedTypeName;
+            TypeName = typeName;
+            Address = address;
+            PollIntervalMs = pollIntervalMs;
+            Direction = direction;
+            ArrayLength = arrayLength;
+        }
+
+        public string Name { get; }
+
+        public string FullyQualifiedTypeName { get; }
+
+        public string TypeName { get; }
+
+        public string Address { get; }
+
+        public int PollIntervalMs { get; }
+
+        public string Direction { get; }
+
+        public int ArrayLength { get; }
+    }
+}
