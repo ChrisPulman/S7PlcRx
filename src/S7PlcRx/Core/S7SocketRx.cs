@@ -37,8 +37,6 @@ internal class S7SocketRx : IDisposable
     private const int PortProbeTimeoutMs = 750;
     private const int AvailabilityFailureThreshold = 3;
     private const int ConnectionFailureThreshold = 3;
-    private static readonly TimeSpan PlcReadyProbeInterval = TimeSpan.FromMilliseconds(250);
-    private static readonly TimeSpan PlcReadyTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RecentOperationAvailabilityWindow = TimeSpan.FromSeconds(3);
 
     // Enhanced observables for better monitoring
@@ -484,7 +482,6 @@ internal class S7SocketRx : IDisposable
                         lengthOfDataRead = Word.FromByteArray(data, 37);
                         Array.Copy(data, 41, resultData, offset, szlDataLength);
                         offset += szlDataLength;
-                        lengthOfDataRead += lengthOfDataRead;
                         first = false;
                     }
                     else if (Word.FromByteArray(data, 27) == 0 && data[29] == 255)
@@ -494,7 +491,7 @@ internal class S7SocketRx : IDisposable
                         seqIn = data[24];
                         Array.Copy(data, 37, resultData, offset, szlDataLength);
                         offset += szlDataLength;
-                        lengthOfDataRead += lengthOfDataRead;
+                        lengthOfDataRead += (ushort)szlDataLength;
                     }
                     else
                     {
@@ -630,215 +627,6 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    private async Task<bool> WaitForPlcReadyAsync(Socket socket)
-    {
-        var deadline = DateTime.UtcNow + PlcReadyTimeout;
-        var consecutiveSuccessfulProbes = 0;
-
-        while (!_disposedValue && DateTime.UtcNow < deadline)
-        {
-            if (!CheckConnectionStatusOptimized(socket))
-            {
-                return false;
-            }
-
-            var cpuData = GetSZLData(socket, 28);
-            var orderCode = GetSZLData(socket, 17);
-            if (cpuData.data.Length >= 204 && orderCode.data.Length >= 25)
-            {
-                consecutiveSuccessfulProbes++;
-                if (consecutiveSuccessfulProbes >= 2)
-                {
-                    return true;
-                }
-            }
-            else
-            {
-                consecutiveSuccessfulProbes = 0;
-            }
-
-            await Task.Delay(PlcReadyProbeInterval).ConfigureAwait(false);
-        }
-
-        return false;
-    }
-
-    private (byte[] data, ushort size) GetSZLData(Socket socket, ushort szlArea, ushort index = 0)
-    {
-        byte[] s7_SZL1 = [3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 5, 0, 0, 8, 0, 8, 0, 1, 18, 4, 17, 68, 1, 0, 255, 9, 0, 4, 0, 0, 0, 0];
-        byte[] s7_SZL2 = [3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 6, 0, 0, 12, 0, 4, 0, 1, 18, 8, 18, 68, 1, 1, 0, 0, 0, 0, 10, 0, 0, 0];
-
-        const int bufferSize = 1024;
-        var data = _bufferPool.Rent(bufferSize);
-        var resultData = _bufferPool.Rent(bufferSize);
-
-        try
-        {
-            int length;
-            var done = false;
-            var first = true;
-            byte seqIn = 0;
-            ushort seqOut = 0;
-            var lastError = 0;
-            var offset = 0;
-            ushort lengthOfDataRead = 0;
-            int szlDataLength;
-
-            do
-            {
-                if (first)
-                {
-                    Word.ToByteArray(++seqOut, s7_SZL1, 11);
-                    Word.ToByteArray(szlArea, s7_SZL1, 29);
-                    Word.ToByteArray(index, s7_SZL1, 31);
-                    if (SendOnSocket(socket, s7_SZL1, s7_SZL1.Length) != s7_SZL1.Length)
-                    {
-                        return (Array.Empty<byte>(), 0);
-                    }
-                }
-                else
-                {
-                    Word.ToByteArray(++seqOut, s7_SZL2, 11);
-                    s7_SZL2[24] = seqIn;
-                    if (SendOnSocket(socket, s7_SZL2, s7_SZL2.Length) != s7_SZL2.Length)
-                    {
-                        return (Array.Empty<byte>(), 0);
-                    }
-                }
-
-                length = ReceiveIsoData(socket, ref data);
-
-                if (lastError == 0 && length > 32)
-                {
-                    if (first && Word.FromByteArray(data, 27) == 0 && data[29] == 255)
-                    {
-                        szlDataLength = Word.FromByteArray(data, 31) - 8;
-                        done = data[26] == 0;
-                        seqIn = data[24];
-                        lengthOfDataRead = Word.FromByteArray(data, 37);
-                        Array.Copy(data, 41, resultData, offset, szlDataLength);
-                        offset += szlDataLength;
-                        first = false;
-                    }
-                    else if (Word.FromByteArray(data, 27) == 0 && data[29] == 255)
-                    {
-                        szlDataLength = Word.FromByteArray(data, 31);
-                        done = data[26] == 0;
-                        seqIn = data[24];
-                        Array.Copy(data, 37, resultData, offset, szlDataLength);
-                        offset += szlDataLength;
-                    }
-                    else
-                    {
-                        lastError = (int)ErrorCode.WrongVarFormat;
-                    }
-                }
-                else
-                {
-                    lastError = (int)ErrorCode.WrongNumberReceivedBytes;
-                }
-            }
-            while (!done && lastError == 0);
-
-            if (lastError == 0)
-            {
-                var result = new byte[offset];
-                Array.Copy(resultData, result, offset);
-                return (result, lengthOfDataRead);
-            }
-
-            return (Array.Empty<byte>(), 0);
-        }
-        finally
-        {
-            _bufferPool.Return(data);
-            _bufferPool.Return(resultData);
-        }
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    private int SendOnSocket(Socket socket, byte[] buffer, int size)
-    {
-        var total = 0;
-        while (total < size)
-        {
-            var sent = socket.Send(buffer, total, size - total, SocketFlags.None);
-            if (sent <= 0)
-            {
-                return total;
-            }
-
-            total += sent;
-        }
-
-        return total;
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    private int ReceiveExact(Socket socket, byte[] buffer, int size, int offset = 0)
-    {
-        var total = 0;
-        while (total < size)
-        {
-            var read = socket.Receive(buffer, offset + total, size - total, SocketFlags.None);
-            if (read <= 0)
-            {
-                return total > 0 ? total : read;
-            }
-
-            total += read;
-        }
-
-        return total;
-    }
-
-    private int ReceiveIsoData(Socket socket, ref byte[] bytes)
-    {
-        var done = false;
-        var size = 0;
-        var lastError = 0;
-
-        while (lastError == 0 && !done)
-        {
-            var headerReceived = ReceiveExact(socket, bytes, 4);
-            if (headerReceived != 4)
-            {
-                lastError = (int)ErrorCode.WrongNumberReceivedBytes;
-                break;
-            }
-
-            size = Word.FromByteArray(bytes, 2);
-
-            if (size == 7)
-            {
-                if (ReceiveExact(socket, bytes, 3, 4) != 3)
-                {
-                    lastError = (int)ErrorCode.WrongNumberReceivedBytes;
-                }
-            }
-            else if (size > DataReadLength + 7 || size < 16)
-            {
-                lastError = (int)ErrorCode.WrongNumberReceivedBytes;
-            }
-            else
-            {
-                done = true;
-            }
-        }
-
-        if (lastError != 0)
-        {
-            return 0;
-        }
-
-        if (ReceiveExact(socket, bytes, 3, 4) != 3)
-        {
-            return 0;
-        }
-
-        return ReceiveExact(socket, bytes, size - 7, 7) == size - 7 ? size : 0;
-    }
-
     private int ReceiveRaw(Tag? tag, byte[] buffer, int size, int offset = 0)
         => ReceiveCore(tag, buffer, size, offset, traceOperation: false);
 
@@ -944,8 +732,7 @@ internal class S7SocketRx : IDisposable
                 }
 
                 // Handshake with current profile
-                if (await PerformOptimizedHandshakeAsync(attemptSocket, profile).ConfigureAwait(false) &&
-                    await WaitForPlcReadyAsync(attemptSocket).ConfigureAwait(false))
+                if (await PerformOptimizedHandshakeAsync(attemptSocket, profile).ConfigureAwait(false))
                 {
                     var oldSocket = _socket;
                     _socket = attemptSocket;
@@ -990,6 +777,7 @@ internal class S7SocketRx : IDisposable
     /// <summary>
     /// Performs an optimized asynchronous handshake using the specified TSAP profile.
     /// </summary>
+    /// <param name="socket">The connected socket used for the handshake.</param>
     /// <param name="profile">The TSAP profile to use for the handshake operation. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the handshake
     /// succeeds; otherwise, <see langword="false"/>.</returns>
@@ -1031,8 +819,7 @@ internal class S7SocketRx : IDisposable
             // Step 2: Receive connection response (TPKT length based)
             var received = await ReceiveTpktExactNetStandardAsync(socket, bReceive, 22).ConfigureAwait(false);
 
-            // minimal TPKT+COTP length sanity
-            if (received < 7)
+            if (received < 22)
             {
                 LogError($"Invalid connection response length {received}");
                 return false;
@@ -1053,7 +840,7 @@ internal class S7SocketRx : IDisposable
 
             // Step 4: Receive communication setup response (TPKT length based)
             received = await ReceiveTpktExactNetStandardAsync(socket, bReceive, 27).ConfigureAwait(false);
-            if (received < 7)
+            if (received < 27)
             {
                 LogError($"Invalid communication setup response length {received}");
                 return false;
@@ -1073,16 +860,19 @@ internal class S7SocketRx : IDisposable
     private async Task<int> ReceiveTpktExactNetStandardAsync(Socket socket, byte[] buffer, int expectedMin)
     {
         // Read TPKT header (4 bytes)
-        var read = await Task.Factory.FromAsync(
-            (cb, s) => socket.BeginReceive(buffer, 0, 4, SocketFlags.None, cb, s),
-            socket.EndReceive,
-            null).ConfigureAwait(false);
+        var read = await ReceiveExactAsync(socket, buffer, 4, 0).ConfigureAwait(false);
         if (read != 4)
         {
             return read;
         }
 
         var length = (buffer[2] << 8) | buffer[3];
+        if (length < 4 || length > buffer.Length)
+        {
+            LogWarning($"Invalid TPKT length {length} for receive buffer {buffer.Length}");
+            return 0;
+        }
+
         if (length < expectedMin && expectedMin > 0)
         {
             // Try to continue anyway, but report
@@ -1090,25 +880,36 @@ internal class S7SocketRx : IDisposable
         }
 
         var remaining = length - 4;
-        var total = 4;
-        while (remaining > 0)
+        if (remaining == 0)
         {
-            var r = await Task.Factory.FromAsync(
-                (cb, s) => socket.BeginReceive(buffer, total, remaining, SocketFlags.None, cb, s),
-                socket.EndReceive,
-                null).ConfigureAwait(false);
-
-            if (r <= 0)
-            {
-                break;
-            }
-
-            total += r;
-            remaining -= r;
+            return read;
         }
 
-        return total;
+        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, 4).ConfigureAwait(false);
+        return bodyRead <= 0 ? read : read + bodyRead;
+
+        static async Task<int> ReceiveExactAsync(Socket socket, byte[] buffer, int size, int offset)
+        {
+            var total = 0;
+            while (total < size)
+            {
+                var received = await Task.Factory.FromAsync(
+                    (callback, state) => socket.BeginReceive(buffer, offset + total, size - total, SocketFlags.None, callback, state),
+                    socket.EndReceive,
+                    null).ConfigureAwait(false);
+
+                if (received <= 0)
+                {
+                    break;
+                }
+
+                total += received;
+            }
+
+            return total;
+        }
     }
+
 #else
     /// <summary>
     /// Performs an optimized asynchronous handshake sequence with a remote endpoint using the modern socket API.
@@ -1117,6 +918,7 @@ internal class S7SocketRx : IDisposable
     /// connection. If any step in the handshake fails, the method logs an error and returns <see langword="false"/>.
     /// The method does not throw exceptions for handshake failures; instead, it returns <see langword="false"/> to
     /// indicate failure.</remarks>
+    /// <param name="socket">The connected socket used for the handshake.</param>
     /// <param name="bReceive">A buffer used to receive handshake response data from the remote endpoint. Must be large enough to hold the
     /// expected handshake messages.</param>
     /// <param name="profile">The connection profile containing parameters required for the handshake process.</param>
@@ -1137,7 +939,7 @@ internal class S7SocketRx : IDisposable
 
             // Step 2: Receive connection response (TPKT length based)
             var received = await ReceiveTpktExactModernAsync(socket, bReceive, 22).ConfigureAwait(false);
-            if (received < 7)
+            if (received < 22)
             {
                 LogError($"Invalid connection response length {received}");
                 return false;
@@ -1154,7 +956,7 @@ internal class S7SocketRx : IDisposable
 
             // Step 4: Receive communication setup response (TPKT length based)
             received = await ReceiveTpktExactModernAsync(socket, bReceive, 27).ConfigureAwait(false);
-            if (received < 7)
+            if (received < 27)
             {
                 LogError($"Invalid communication setup response length {received}");
                 return false;
@@ -1178,40 +980,58 @@ internal class S7SocketRx : IDisposable
     /// remaining data to complete the packet. If the actual packet length is less than the specified minimum, a warning
     /// is logged but the packet is still read. The method returns as soon as the full packet is received or if the
     /// connection is closed before completion.</remarks>
+    /// <param name="socket">The connected socket to read from.</param>
     /// <param name="buffer">The buffer that receives the TPKT packet data. Must be large enough to hold the entire packet.</param>
     /// <param name="expectedMin">The minimum expected length of the TPKT packet, in bytes. Used for validation; set to 0 to disable the check.</param>
     /// <returns>The total number of bytes read into the buffer, or a value less than 4 if the TPKT header could not be read.</returns>
     private async Task<int> ReceiveTpktExactModernAsync(Socket socket, byte[] buffer, int expectedMin)
     {
         // Read TPKT header (4 bytes)
-        var headerRead = await socket.ReceiveAsync(buffer.AsMemory(0, 4), SocketFlags.None).ConfigureAwait(false);
+        var headerRead = await ReceiveExactAsync(socket, buffer, 4, 0).ConfigureAwait(false);
         if (headerRead != 4)
         {
             return headerRead;
         }
 
         var length = (buffer[2] << 8) | buffer[3];
+        if (length < 4 || length > buffer.Length)
+        {
+            LogWarning($"Invalid TPKT length {length} for receive buffer {buffer.Length}");
+            return 0;
+        }
+
         if (length < expectedMin && expectedMin > 0)
         {
             LogWarning($"TPKT length {length} smaller than expected {expectedMin}");
         }
 
         var remaining = length - 4;
-        var total = 4;
-        while (remaining > 0)
+        if (remaining == 0)
         {
-            var r = await socket.ReceiveAsync(buffer.AsMemory(total, remaining), SocketFlags.None).ConfigureAwait(false);
-            if (r <= 0)
-            {
-                break;
-            }
-
-            total += r;
-            remaining -= r;
+            return headerRead;
         }
 
-        return total;
+        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, 4).ConfigureAwait(false);
+        return bodyRead <= 0 ? headerRead : headerRead + bodyRead;
+
+        static async Task<int> ReceiveExactAsync(Socket socket, byte[] buffer, int size, int offset)
+        {
+            var total = 0;
+            while (total < size)
+            {
+                var received = await socket.ReceiveAsync(buffer.AsMemory(offset + total, size - total), SocketFlags.None).ConfigureAwait(false);
+                if (received <= 0)
+                {
+                    break;
+                }
+
+                total += received;
+            }
+
+            return total;
+        }
     }
+
 #endif
 
     private async Task ProbeAvailabilityAndNotifyAsync(IObserver<bool> observer)

@@ -8,6 +8,7 @@
     <IsTestProject>true</IsTestProject>
     <PlatformTarget>x86</PlatformTarget>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
   </PropertyGroup>
   <PropertyGroup Condition="'$(CI)' == 'true'">
     <TargetFrameworks>net8.0</TargetFrameworks>
@@ -20,6 +21,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
     <PackageReference Include="NUnit" Version="4.6.1" />
     <PackageReference Include="NUnit3TestAdapter" Version="6.2.0" />
+    <PackageReference Include="TUnit.Assertions" Version="1.55.2" Aliases="TUnitAssertions" />
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
   </ItemGroup>
 
