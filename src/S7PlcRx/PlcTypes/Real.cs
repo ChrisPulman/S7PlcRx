@@ -1,10 +1,20 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Core;
+#else
 using S7PlcRx.Core;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
 /// <summary>
 /// Provides static methods for converting between Siemens S7 Real (4-byte IEEE 754 floating-point) representations and
@@ -15,17 +25,13 @@ namespace S7PlcRx.PlcTypes;
 /// working with S7 Real data formats. All methods are static and intended for internal use.</remarks>
 public static class Real
 {
-    /// <summary>
-    /// Converts a byte array to a single-precision floating-point value.
-    /// </summary>
+    /// <summary>Converts a byte array to a single-precision floating-point value.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert. Must contain at least four bytes representing a 32-bit
     /// floating-point value in the expected format.</param>
     /// <returns>A single-precision floating-point value represented by the specified byte array.</returns>
     public static float FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts a 4-byte big-endian span to a single-precision floating-point value.
-    /// </summary>
+    /// <summary>Converts a 4-byte big-endian span to a single-precision floating-point value.</summary>
     /// <remarks>This method interprets the input bytes as a big-endian IEEE 754 single-precision
     /// floating-point value, regardless of the system's endianness. Use this method when reading floating-point values
     /// from protocols or file formats that use big-endian byte order, such as Siemens S7 PLCs.</remarks>
@@ -52,9 +58,7 @@ public static class Real
         return MemoryMarshal.Read<float>(bytes);
     }
 
-    /// <summary>
-    /// Converts the specified single-precision floating-point value to its equivalent byte array representation.
-    /// </summary>
+    /// <summary>Converts the specified single-precision floating-point value to its equivalent byte array representation.</summary>
     /// <remarks>The byte order of the returned array is platform-dependent. To ensure consistent results
     /// across different systems, consider specifying endianness explicitly if required.</remarks>
     /// <param name="value">The single-precision floating-point value to convert.</param>
@@ -83,25 +87,15 @@ public static class Real
             throw new ArgumentException("Destination span must be at least 4 bytes", nameof(destination));
         }
 
-#pragma warning disable CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
-        MemoryMarshal.Write(destination, ref value);
-#pragma warning restore CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
-
-        // S7 uses big-endian, so reverse if we're on little-endian platform
-        if (BitConverter.IsLittleEndian)
-        {
-            destination.Slice(0, 4).Reverse();
-        }
+        BinaryPrimitives.WriteInt32BigEndian(destination, BitConverter.SingleToInt32Bits(value));
     }
 
-    /// <summary>
-    /// Converts an array of single-precision floating-point values to a byte array.
-    /// </summary>
+    /// <summary>Converts an array of single-precision floating-point values to a byte array.</summary>
     /// <param name="value">The array of <see cref="float"/> values to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input values.</returns>
     public static byte[] ToByteArray(float[] value)
     {
-        if (value == null)
+        if (value is null)
         {
             throw new ArgumentNullException(nameof(value), "Input array cannot be null");
         }
@@ -131,9 +125,7 @@ public static class Real
         }
     }
 
-    /// <summary>
-    /// Converts a byte array to an array of single-precision floating-point values.
-    /// </summary>
+    /// <summary>Converts a byte array to an array of single-precision floating-point values.</summary>
     /// <remarks>The method interprets each group of four bytes in the input array as a single-precision
     /// floating-point value, using the default endianness of the system. If the length of <paramref name="bytes"/> is
     /// not a multiple of 4, an exception may be thrown.</remarks>
@@ -142,9 +134,7 @@ public static class Real
     /// <returns>An array of <see cref="float"/> values converted from the specified byte array.</returns>
     public static float[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts a read-only span of bytes to an array of 32-bit floating-point values.
-    /// </summary>
+    /// <summary>Converts a read-only span of bytes to an array of 32-bit floating-point values.</summary>
     /// <remarks>The method interprets each consecutive group of 4 bytes in the input span as a
     /// single-precision floating-point value. The byte order and format must match the expected representation for
     /// floats on the current platform.</remarks>

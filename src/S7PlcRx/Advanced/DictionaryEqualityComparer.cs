@@ -1,23 +1,24 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Advanced;
+#else
 namespace S7PlcRx.Advanced;
+#endif
 
-/// <summary>
-/// Provides an equality comparer for dictionaries that determines equality based on their key-value pairs.
-/// </summary>
+/// <summary>Provides an equality comparer for dictionaries that determines equality based on their key-value pairs.</summary>
 /// <remarks>This comparer considers two dictionaries equal if they contain the same number of key-value pairs and
 /// each key in one dictionary exists in the other with an equal value, as determined by the default equality comparer
 /// for the value type. The order of key-value pairs does not affect equality. This comparer can be used to compare
 /// dictionaries in collections such as hash sets or as keys in other dictionaries.</remarks>
 /// <typeparam name="TKey">The type of keys in the dictionaries. Must be non-nullable.</typeparam>
 /// <typeparam name="TValue">The type of values in the dictionaries.</typeparam>
-public class DictionaryEqualityComparer<TKey, TValue> : IEqualityComparer<Dictionary<TKey, TValue>>
+public class DictionaryEqualityComparer<TKey, TValue> : IEqualityComparer<Dictionary<TKey, TValue>>, System.Collections.IEqualityComparer
     where TKey : notnull
 {
-    /// <summary>
-    /// Determines whether two dictionaries are equal by comparing their keys and values.
-    /// </summary>
+    /// <summary>Determines whether two dictionaries are equal by comparing their keys and values.</summary>
     /// <remarks>Dictionaries are considered equal if they have the same number of elements and each key in
     /// one dictionary exists in the other with an equal value, as determined by the default equality comparer for the
     /// value type. The order of elements is not considered.</remarks>
@@ -32,7 +33,7 @@ public class DictionaryEqualityComparer<TKey, TValue> : IEqualityComparer<Dictio
             return true;
         }
 
-        if (x == null || y == null)
+        if (x is null || y is null)
         {
             return false;
         }
@@ -53,16 +54,14 @@ public class DictionaryEqualityComparer<TKey, TValue> : IEqualityComparer<Dictio
         return true;
     }
 
-    /// <summary>
-    /// Returns a hash code for the specified dictionary instance.
-    /// </summary>
+    /// <summary>Returns a hash code for the specified dictionary instance.</summary>
     /// <remarks>The hash code is computed by combining the hash codes of the dictionary's keys and values.
     /// The order of elements in the dictionary does not affect the resulting hash code.</remarks>
     /// <param name="obj">The dictionary for which to compute the hash code. Can be null.</param>
     /// <returns>A hash code for the specified dictionary. Returns 0 if <paramref name="obj"/> is null.</returns>
     public int GetHashCode(Dictionary<TKey, TValue> obj)
     {
-        if (obj == null)
+        if (obj is null)
         {
             return 0;
         }
@@ -71,7 +70,7 @@ public class DictionaryEqualityComparer<TKey, TValue> : IEqualityComparer<Dictio
         foreach (var kvp in obj)
         {
             hash ^= kvp.Key.GetHashCode();
-            if (kvp.Value != null)
+            if (kvp.Value is not null)
             {
                 hash ^= kvp.Value.GetHashCode();
             }
@@ -79,4 +78,10 @@ public class DictionaryEqualityComparer<TKey, TValue> : IEqualityComparer<Dictio
 
         return hash;
     }
+
+    bool System.Collections.IEqualityComparer.Equals(object? x, object? y) =>
+        Equals(x as Dictionary<TKey, TValue>, y as Dictionary<TKey, TValue>);
+
+    int System.Collections.IEqualityComparer.GetHashCode(object obj) =>
+        obj is Dictionary<TKey, TValue> dictionary ? GetHashCode(dictionary) : 0;
 }

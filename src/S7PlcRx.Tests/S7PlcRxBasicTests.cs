@@ -1,5 +1,6 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using MockS7Plc;
 using S7PlcRx.Enums;
@@ -32,11 +33,12 @@ public class S7PlcRxBasicTests
     /// Test that different PLC types can be created.
     /// </summary>
     /// <param name="cpuType">The CPU type to test.</param>
-    [TestCase(CpuType.S71500)]
-    [TestCase(CpuType.S7300)]
-    [TestCase(CpuType.S7400)]
-    [TestCase(CpuType.S71200)]
-    [TestCase(CpuType.S7200)]
+    [Test]
+    [Arguments(CpuType.S71500)]
+    [Arguments(CpuType.S7300)]
+    [Arguments(CpuType.S7400)]
+    [Arguments(CpuType.S71200)]
+    [Arguments(CpuType.S7200)]
     public void RxS7_Create_DifferentTypes_ShouldSetCorrectCpuType(CpuType cpuType)
     {
         // Arrange & Act
@@ -147,8 +149,9 @@ public class S7PlcRxBasicTests
     /// Test invalid rack parameter throws exception.
     /// </summary>
     /// <param name="invalidRack">Invalid rack value to test.</param>
-    [TestCase(-1)]
-    [TestCase(8)]
+    [Test]
+    [Arguments(-1)]
+    [Arguments(8)]
     public void S71500_Create_InvalidRack_ShouldThrowArgumentOutOfRangeException(short invalidRack)
     {
         // Act & Assert
@@ -160,8 +163,9 @@ public class S7PlcRxBasicTests
     /// Test invalid slot parameter throws exception.
     /// </summary>
     /// <param name="invalidSlot">Invalid slot value to test.</param>
-    [TestCase(0)]
-    [TestCase(32)]
+    [Test]
+    [Arguments(0)]
+    [Arguments(32)]
     public void S71500_Create_InvalidSlot_ShouldThrowArgumentOutOfRangeException(short invalidSlot)
     {
         // Act & Assert

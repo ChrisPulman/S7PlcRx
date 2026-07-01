@@ -8,8 +8,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ReactiveUI.Primitives" Version="5.8.0" />
+    <PackageReference Include="ReactiveUI.Primitives.Extensions" Version="5.8.0" />
     <ProjectReference Include="..\MockS7Plc\MockS7Plc.csproj" />
     <ProjectReference Include="..\S7PlcRx\S7PlcRx.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
   </ItemGroup>
 
   <ItemGroup>

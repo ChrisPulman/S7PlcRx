@@ -1,10 +1,12 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Enterprise;
+#else
 namespace S7PlcRx.Enterprise;
+#endif
 
 /// <summary>
 /// Provides high-availability management for a set of PLC (Programmable Logic Controller) connections, automatically
@@ -16,9 +18,16 @@ namespace S7PlcRx.Enterprise;
 /// when it is no longer needed to release resources.</remarks>
 public class HighAvailabilityPlcManager : IDisposable
 {
+    /// <summary>Stores the b ac ku pp l c s used by this instance.</summary>
     private readonly IList<IRxS7> _backupPlcs;
+
+    /// <summary>Stores the h ea lt hc he ck ti m e r used by this instance.</summary>
     private readonly Timer _healthCheckTimer;
-    private readonly Subject<PlcFailoverEvent> _failoverEvents = new();
+
+    /// <summary>Stores the f ai lo ve re ve n t s used by this instance.</summary>
+    private readonly Signal<PlcFailoverEvent> _failoverEvents = new();
+
+    /// <summary>Stores the d is po s e d used by this instance.</summary>
     private bool _disposed;
 
     /// <summary>
@@ -38,7 +47,7 @@ public class HighAvailabilityPlcManager : IDisposable
         IList<IRxS7> backupPlcs,
         TimeSpan? healthCheckInterval = null)
     {
-        if (primaryPlc == null)
+        if (primaryPlc is null)
         {
             throw new ArgumentNullException(nameof(primaryPlc), "Primary PLC cannot be null.");
         }
@@ -48,46 +57,42 @@ public class HighAvailabilityPlcManager : IDisposable
         ActivePLC = primaryPlc;
 
         var interval = healthCheckInterval ?? TimeSpan.FromSeconds(30);
-        _healthCheckTimer = new Timer(PerformHealthCheck, null, interval, interval);
+        _healthCheckTimer = new(PerformHealthCheck, null, interval, interval);
     }
 
-    /// <summary>
-    /// Gets the currently active PLC connection.
-    /// </summary>
+    /// <summary>Gets the currently active PLC connection.</summary>
     public IRxS7 ActivePLC { get; private set; }
 
-    /// <summary>
-    /// Gets observable stream of failover events.
-    /// </summary>
-    public IObservable<PlcFailoverEvent> FailoverEvents => _failoverEvents.AsObservable();
+    /// <summary>Gets observable stream of failover events.</summary>
+    public IObservable<PlcFailoverEvent> FailoverEvents => _failoverEvents;
 
-    /// <summary>
-    /// Manually triggers a failover to the next available backup.
-    /// </summary>
+    /// <summary>Manually triggers a failover to the next available backup.</summary>
     /// <returns>A value indicating whether failover was successful.</returns>
-    public async Task<bool> TriggerFailover() => await PerformFailover("Manual failover triggered");
+    public Task<bool> TriggerFailover() => PerformFailover("Manual failover triggered");
 
-    /// <summary>
-    /// Disposes the high-availability manager.
-    /// </summary>
+    /// <summary>Disposes the high-availability manager.</summary>
     public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Releases the unmanaged resources used by the HighAvailabilityPlcManager and optionally releases the managed resources.
-    /// </summary>
+    /// <summary>Releases the unmanaged resources used by the HighAvailabilityPlcManager and optionally releases the managed resources.</summary>
     /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
     protected virtual void Dispose(bool disposing)
     {
-        if (!_disposed && disposing)
+        if (_disposed)
         {
-            _healthCheckTimer?.Dispose();
-            _failoverEvents?.Dispose();
-            _disposed = true;
+            return;
         }
+
+        if (disposing)
+        {
+            _healthCheckTimer.Dispose();
+            _failoverEvents.Dispose();
+        }
+
+        _disposed = true;
     }
 
     /// <summary>
@@ -118,9 +123,7 @@ public class HighAvailabilityPlcManager : IDisposable
         }
     }
 
-    /// <summary>
-    /// Attempts to switch the active PLC connection to a backup PLC in response to a failure condition.
-    /// </summary>
+    /// <summary>Attempts to switch the active PLC connection to a backup PLC in response to a failure condition.</summary>
     /// <remarks>If a backup PLC is available and connected, this method updates the active PLC and notifies
     /// subscribers of the failover event. If no backup PLC is connected, the active PLC remains unchanged and no event
     /// is raised.</remarks>

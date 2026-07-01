@@ -1,7 +1,7 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx.Advanced;
 using S7PlcRx.Enums;
@@ -18,7 +18,7 @@ public class S7PlcRxMultiVarPduReadTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    [NonParallelizable]
+    [NotInParallel]
     public async Task ValueBatch_ShouldReadMultipleTagsInOneCall()
     {
         using var server = new MockServer();
@@ -31,7 +31,7 @@ public class S7PlcRxMultiVarPduReadTests
         plc.AddUpdateTagItem<ushort>("T1", "DB1.DBW2").SetTagPollIng(false);
         plc.AddUpdateTagItem<ushort>("T2", "DB1.DBW4").SetTagPollIng(false);
 
-        await plc.IsConnected.FirstAsync(x => x);
+        await plc.IsConnected.Where(x => x).FirstAsync();
 
         plc.Value("T0", (ushort)10);
         plc.Value("T1", (ushort)20);

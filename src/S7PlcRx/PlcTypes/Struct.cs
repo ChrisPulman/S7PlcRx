@@ -1,10 +1,19 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Enums;
+#else
 using S7PlcRx.Enums;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
 /// <summary>
 /// Provides utility methods for working with struct types, including calculating their size in bytes and converting
@@ -29,7 +38,7 @@ public static class Struct
     /// <exception cref="ArgumentException">Thrown if a string field in the struct does not have the required S7StringAttribute.</exception>
     public static int GetStructSize(Type structType)
     {
-        if (structType == null)
+        if (structType is null)
         {
             throw new ArgumentNullException(nameof(structType));
         }
@@ -38,81 +47,13 @@ public static class Struct
 
         foreach (var info in structType.GetFields())
         {
-            switch (info.FieldType.Name)
-            {
-                case "Boolean":
-                    numBytes += 0.125;
-                    break;
-                case "Byte":
-                    numBytes = Math.Ceiling(numBytes);
-                    numBytes++;
-                    break;
-                case "Int16":
-                case "UInt16":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    numBytes += 2;
-                    break;
-                case "Int32":
-                case "UInt32":
-                case "TimeSpan":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    numBytes += 4;
-                    break;
-                case "Single":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    numBytes += 4;
-                    break;
-                case "Double":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    numBytes += 8;
-                    break;
-                case "String":
-                    var attribute = info.GetCustomAttributes<S7StringAttribute>().SingleOrDefault();
-                    if (attribute == default(S7StringAttribute))
-                    {
-                        throw new ArgumentException("Please add S7StringAttribute to the string field");
-                    }
-
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    numBytes += attribute.ReservedLengthInBytes;
-                    break;
-                default:
-                    numBytes += GetStructSize(info.FieldType);
-                    break;
-            }
+            numBytes = GetIncreasedNumberOfBytes(numBytes, info);
         }
 
         return (int)numBytes;
     }
 
-    /// <summary>
-    /// Deserializes a byte array into an instance of the specified structure type.
-    /// </summary>
+    /// <summary>Deserializes a byte array into an instance of the specified structure type.</summary>
     /// <remarks>The method supports deserialization of structures containing fields of supported primitive
     /// types, strings with S7StringAttribute, and nested structures. All fields must be public. The structure's layout
     /// and field order must match the serialized byte format.</remarks>
@@ -126,7 +67,7 @@ public static class Struct
     /// S7StringAttribute, or if an invalid string type is specified for the S7StringAttribute.</exception>
     public static object? FromBytes(Type structType, byte[] bytes)
     {
-        if (bytes == null)
+        if (bytes is null)
         {
             return null;
         }
@@ -143,186 +84,15 @@ public static class Struct
         var structValue = Activator.CreateInstance(structType) ??
             throw new ArgumentException($"Failed to create an instance of the type {structType}.", nameof(structType));
 
-        var infos = structValue.GetType()
-#if NETSTANDARD1_3
-                .GetTypeInfo().DeclaredFields;
-#else
-            .GetFields();
-#endif
-
-        foreach (var info in infos)
+        foreach (var info in GetStructFields(structValue.GetType()))
         {
-            switch (info.FieldType.Name)
-            {
-                case "Boolean":
-                    // get the value
-                    bytePos = (int)Math.Floor(numBytes);
-                    bitPos = (int)((numBytes - (double)bytePos) / 0.125);
-                    if ((bytes[bytePos] & (int)Math.Pow(2, bitPos)) != 0)
-                    {
-                        info.SetValue(structValue, true);
-                    }
-                    else
-                    {
-                        info.SetValue(structValue, false);
-                    }
-
-                    numBytes += 0.125;
-                    break;
-                case "Byte":
-                    numBytes = Math.Ceiling(numBytes);
-                    info.SetValue(structValue, (byte)bytes[(int)numBytes]);
-                    numBytes++;
-                    break;
-                case "Int16":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    // get the value
-                    var source = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
-                    info.SetValue(structValue, source.ConvertToShort());
-                    numBytes += 2;
-                    break;
-                case "UInt16":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    // get the value
-                    info.SetValue(structValue, Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]));
-                    numBytes += 2;
-                    break;
-                case "Int32":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    // get the value
-                    var sourceUInt = DWord.FromBytes(
-                        bytes[(int)numBytes + 3],
-                        bytes[(int)numBytes + 2],
-                        bytes[(int)numBytes + 1],
-                        bytes[(int)numBytes + 0]);
-                    info.SetValue(structValue, sourceUInt.ConvertToInt());
-                    numBytes += 4;
-                    break;
-                case "UInt32":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    // get the value
-                    info.SetValue(structValue, DWord.FromBytes(
-                        bytes[(int)numBytes],
-                        bytes[(int)numBytes + 1],
-                        bytes[(int)numBytes + 2],
-                        bytes[(int)numBytes + 3]));
-                    numBytes += 4;
-                    break;
-                case "Single":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    // get the value
-                    info.SetValue(structValue, Real.FromByteArray(
-                        [bytes[(int)numBytes],
-                            bytes[(int)numBytes + 1],
-                            bytes[(int)numBytes + 2],
-                            bytes[(int)numBytes + 3]]));
-                    numBytes += 4;
-                    break;
-                case "Double":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    // get the value
-                    var data = new byte[8];
-                    Array.Copy(bytes, (int)numBytes, data, 0, 8);
-                    info.SetValue(structValue, LReal.FromByteArray(data));
-                    numBytes += 8;
-                    break;
-                case "String":
-                    var attribute = info.GetCustomAttributes<S7StringAttribute>().SingleOrDefault();
-                    if (attribute == default(S7StringAttribute))
-                    {
-                        throw new ArgumentException("Please add S7StringAttribute to the string field");
-                    }
-
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    // get the value
-                    var sData = new byte[attribute.ReservedLengthInBytes];
-                    Array.Copy(bytes, (int)numBytes, sData, 0, sData.Length);
-                    switch (attribute.Type)
-                    {
-                        case S7StringType.S7String:
-                            info.SetValue(structValue, S7String.FromByteArray(sData));
-                            break;
-                        case S7StringType.S7WString:
-                            info.SetValue(structValue, S7WString.FromByteArray(sData));
-                            break;
-                        default:
-                            throw new ArgumentException("Please use a valid string type for the S7StringAttribute");
-                    }
-
-                    numBytes += sData.Length;
-                    break;
-                case "TimeSpan":
-                    numBytes = Math.Ceiling(numBytes);
-                    if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                    {
-                        numBytes++;
-                    }
-
-                    // get the value
-                    info.SetValue(structValue, TimeSpan.FromByteArray(
-                    [
-                        bytes[(int)numBytes + 0],
-                        bytes[(int)numBytes + 1],
-                        bytes[(int)numBytes + 2],
-                        bytes[(int)numBytes + 3]
-                    ]));
-                    numBytes += 4;
-                    break;
-                default:
-                    var buffer = new byte[GetStructSize(info.FieldType)];
-                    if (buffer.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    Buffer.BlockCopy(bytes, (int)Math.Ceiling(numBytes), buffer, 0, buffer.Length);
-                    info.SetValue(structValue, FromBytes(info.FieldType, buffer));
-                    numBytes += buffer.Length;
-                    break;
-            }
+            SetFieldValueFromBytes(info, structValue, bytes, ref bytePos, ref bitPos, ref numBytes);
         }
 
         return structValue;
     }
 
-    /// <summary>
-    /// Converts the specified structure object to its byte array representation.
-    /// </summary>
+    /// <summary>Converts the specified structure object to its byte array representation.</summary>
     /// <remarks>Supported field types include Boolean, Byte, Int16, UInt16, Int32, UInt32, Single, Double,
     /// String (with S7StringAttribute), and TimeSpan. All fields of the structure must be of these types for successful
     /// conversion.</remarks>
@@ -334,7 +104,7 @@ public static class Struct
     /// required S7StringAttribute, or if an invalid string type is specified in the S7StringAttribute.</exception>
     public static byte[] ToBytes(object structValue)
     {
-        if (structValue == null)
+        if (structValue is null)
         {
             return [];
         }
@@ -343,97 +113,485 @@ public static class Struct
 
         var size = Struct.GetStructSize(type);
         var bytes = new byte[size];
-        byte[]? bytes2 = null;
-
         var bytePos = 0;
         var numBytes = 0.0;
 
-        foreach (var info in type.GetFields())
+        foreach (var info in GetStructFields(type))
         {
-            static TValue GetValueOrThrow<TValue>(FieldInfo fi, object structValue)
-                where TValue : struct => fi.GetValue(structValue) as TValue? ??
-                    throw new ArgumentException($"Failed to convert value of field {fi.Name} of {structValue} to type {typeof(TValue)}");
-
-            bytes2 = null;
-            switch (info.FieldType.Name)
+            var fieldBytes = GetFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
+            if (fieldBytes is not null)
             {
-                case "Boolean":
-                    // get the value
-                    var bitPos = (int)Math.Floor(numBytes);
-                    bitPos = (int)((numBytes - bytePos) / 0.125);
-                    if (GetValueOrThrow<bool>(info, structValue))
-                    {
-                        bytes[bytePos] |= (byte)Math.Pow(2, bitPos);            // is true
-                    }
-                    else
-                    {
-                        bytes[bytePos] &= (byte)(~(byte)Math.Pow(2, bitPos));   // is false
-                    }
-
-                    numBytes += 0.125;
-                    break;
-                case "Byte":
-                    numBytes = (int)Math.Ceiling(numBytes);
-                    bytePos = (int)numBytes;
-                    bytes[bytePos] = GetValueOrThrow<byte>(info, structValue);
-                    numBytes++;
-                    break;
-                case "Int16":
-                    bytes2 = Int.ToByteArray(GetValueOrThrow<short>(info, structValue));
-                    break;
-                case "UInt16":
-                    bytes2 = Word.ToByteArray(GetValueOrThrow<ushort>(info, structValue));
-                    break;
-                case "Int32":
-                    bytes2 = DInt.ToByteArray(GetValueOrThrow<int>(info, structValue));
-                    break;
-                case "UInt32":
-                    bytes2 = DWord.ToByteArray(GetValueOrThrow<uint>(info, structValue));
-                    break;
-                case "Single":
-                    bytes2 = Real.ToByteArray(GetValueOrThrow<float>(info, structValue));
-                    break;
-                case "Double":
-                    bytes2 = LReal.ToByteArray(GetValueOrThrow<double>(info, structValue));
-                    break;
-                case "String":
-                    var attribute = info.GetCustomAttributes<S7StringAttribute>().SingleOrDefault();
-                    if (attribute == default(S7StringAttribute))
-                    {
-                        throw new ArgumentException("Please add S7StringAttribute to the string field");
-                    }
-
-                    bytes2 = attribute.Type switch
-                    {
-                        S7StringType.S7String => S7String.ToByteArray((string?)info.GetValue(structValue), attribute.ReservedLength),
-                        S7StringType.S7WString => S7WString.ToByteArray((string?)info.GetValue(structValue), attribute.ReservedLength),
-                        _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
-                    };
-                    break;
-                case "TimeSpan":
-                    bytes2 = TimeSpan.ToByteArray((System.TimeSpan)info.GetValue(structValue)!);
-                    break;
-            }
-
-            if (bytes2 != null)
-            {
-                // add them
-                numBytes = Math.Ceiling(numBytes);
-                if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
-                {
-                    numBytes++;
-                }
-
-                bytePos = (int)numBytes;
-                for (var bCnt = 0; bCnt < bytes2.Length; bCnt++)
-                {
-                    bytes[bytePos + bCnt] = bytes2[bCnt];
-                }
-
-                numBytes += bytes2.Length;
+                WriteAlignedBytes(fieldBytes, bytes, ref bytePos, ref numBytes);
             }
         }
 
         return bytes;
+    }
+
+    /// <summary>Calculates the byte count after adding a field.</summary>
+    /// <param name="numBytes">The current byte count.</param>
+    /// <param name="info">The field metadata.</param>
+    /// <returns>The updated byte count.</returns>
+    private static double GetIncreasedNumberOfBytes(double numBytes, FieldInfo info)
+    {
+        switch (info.FieldType.Name)
+        {
+            case "Boolean":
+                return numBytes + 0.125;
+            case "Byte":
+                return Math.Ceiling(numBytes) + 1;
+            case "Int16" or "UInt16":
+                {
+                    IncrementToEven(ref numBytes);
+                    return numBytes + 2;
+                }
+
+            case "Int32" or "UInt32" or "Single" or "TimeSpan":
+                {
+                    IncrementToEven(ref numBytes);
+                    return numBytes + 4;
+                }
+
+            case "Double":
+                {
+                    IncrementToEven(ref numBytes);
+                    return numBytes + 8;
+                }
+
+            case "String":
+                {
+                    IncrementToEven(ref numBytes);
+                    return numBytes + GetRequiredStringAttribute(info).ReservedLengthInBytes;
+                }
+
+            default:
+                return numBytes + GetStructSize(info.FieldType);
+        }
+    }
+
+    /// <summary>Returns the public fields for a struct type.</summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <returns>The field metadata collection.</returns>
+    private static FieldInfo[] GetStructFields(Type type)
+    {
+#if NETSTANDARD1_3
+        var fields = new List<FieldInfo>();
+        foreach (var field in type.GetTypeInfo().DeclaredFields)
+        {
+            fields.Add(field);
+        }
+
+        return fields.ToArray();
+#else
+        return type.GetFields();
+#endif
+    }
+
+    /// <summary>Assigns a field value from the supplied byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="bytePos">The current byte position.</param>
+    /// <param name="bitPos">The current bit position.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetFieldValueFromBytes(
+        FieldInfo info,
+        object structValue,
+        byte[] bytes,
+        ref int bytePos,
+        ref int bitPos,
+        ref double numBytes)
+    {
+        switch (info.FieldType.Name)
+        {
+            case "Boolean":
+                {
+                    SetBooleanFieldFromBytes(info, structValue, bytes, ref bytePos, ref bitPos, ref numBytes);
+                    break;
+                }
+
+            case "Byte":
+                {
+                    SetByteFieldFromBytes(info, structValue, bytes, ref numBytes);
+                    break;
+                }
+
+            case "Int16":
+                {
+                    info.SetValue(structValue, ReadWord(bytes, ref numBytes).ConvertToShort());
+                    break;
+                }
+
+            case "UInt16":
+                {
+                    info.SetValue(structValue, ReadWord(bytes, ref numBytes));
+                    break;
+                }
+
+            case "Int32":
+                {
+                    SetInt32FieldFromBytes(info, structValue, bytes, ref numBytes);
+                    break;
+                }
+
+            case "UInt32":
+                {
+                    SetUInt32FieldFromBytes(info, structValue, bytes, ref numBytes);
+                    break;
+                }
+
+            case "Single":
+                {
+                    SetSingleFieldFromBytes(info, structValue, bytes, ref numBytes);
+                    break;
+                }
+
+            case "Double":
+                {
+                    SetDoubleFieldFromBytes(info, structValue, bytes, ref numBytes);
+                    break;
+                }
+
+            case "String":
+                {
+                    SetStringFieldFromBytes(info, structValue, bytes, ref numBytes);
+                    break;
+                }
+
+            case "TimeSpan":
+                {
+                    SetTimeSpanFieldFromBytes(info, structValue, bytes, ref numBytes);
+                    break;
+                }
+
+            default:
+                {
+                    SetNestedFieldFromBytes(info, structValue, bytes, ref numBytes);
+                    break;
+                }
+        }
+    }
+
+    /// <summary>Sets a Boolean field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="bytePos">The current byte position.</param>
+    /// <param name="bitPos">The current bit position.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetBooleanFieldFromBytes(
+        FieldInfo info,
+        object structValue,
+        byte[] bytes,
+        ref int bytePos,
+        ref int bitPos,
+        ref double numBytes)
+    {
+        bytePos = (int)Math.Floor(numBytes);
+        bitPos = (int)((numBytes - bytePos) / 0.125);
+        info.SetValue(structValue, (bytes[bytePos] & (1 << bitPos)) != 0);
+        numBytes += 0.125;
+    }
+
+    /// <summary>Sets a byte field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetByteFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
+    {
+        numBytes = Math.Ceiling(numBytes);
+        info.SetValue(structValue, bytes[(int)numBytes]);
+        numBytes++;
+    }
+
+    /// <summary>Reads a word from a byte buffer.</summary>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    /// <returns>The word value.</returns>
+    private static ushort ReadWord(byte[] bytes, ref double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        var value = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
+        numBytes += 2;
+        return value;
+    }
+
+    /// <summary>Sets a signed 32-bit integer field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetInt32FieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        var sourceUInt = DWord.FromBytes(
+            bytes[(int)numBytes + 3],
+            bytes[(int)numBytes + 2],
+            bytes[(int)numBytes + 1],
+            bytes[(int)numBytes]);
+        info.SetValue(structValue, sourceUInt.ConvertToInt());
+        numBytes += 4;
+    }
+
+    /// <summary>Sets an unsigned 32-bit integer field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetUInt32FieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        info.SetValue(structValue, DWord.FromBytes(
+            bytes[(int)numBytes],
+            bytes[(int)numBytes + 1],
+            bytes[(int)numBytes + 2],
+            bytes[(int)numBytes + 3]));
+        numBytes += 4;
+    }
+
+    /// <summary>Sets a single precision field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetSingleFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        info.SetValue(structValue, Real.FromByteArray(
+            [
+                bytes[(int)numBytes],
+                bytes[(int)numBytes + 1],
+                bytes[(int)numBytes + 2],
+                bytes[(int)numBytes + 3]
+            ]));
+        numBytes += 4;
+    }
+
+    /// <summary>Sets a double precision field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetDoubleFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        var data = new byte[8];
+        Array.Copy(bytes, (int)numBytes, data, 0, 8);
+        info.SetValue(structValue, LReal.FromByteArray(data));
+        numBytes += 8;
+    }
+
+    /// <summary>Sets a string field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetStringFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
+    {
+        var attribute = GetRequiredStringAttribute(info);
+        IncrementToEven(ref numBytes);
+        var stringData = new byte[attribute.ReservedLengthInBytes];
+        Array.Copy(bytes, (int)numBytes, stringData, 0, stringData.Length);
+        info.SetValue(structValue, attribute.Type switch
+        {
+            S7StringType.S7String => S7String.FromByteArray(stringData),
+            S7StringType.S7WString => S7WString.FromByteArray(stringData),
+            _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
+        });
+        numBytes += stringData.Length;
+    }
+
+    /// <summary>Sets a time span field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetTimeSpanFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        info.SetValue(structValue, TimeSpan.FromByteArray(
+            [
+                bytes[(int)numBytes],
+                bytes[(int)numBytes + 1],
+                bytes[(int)numBytes + 2],
+                bytes[(int)numBytes + 3]
+            ]));
+        numBytes += 4;
+    }
+
+    /// <summary>Sets a nested struct field from a byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being populated.</param>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetNestedFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
+    {
+        var buffer = new byte[GetStructSize(info.FieldType)];
+        if (buffer.Length == 0)
+        {
+            return;
+        }
+
+        Buffer.BlockCopy(bytes, (int)Math.Ceiling(numBytes), buffer, 0, buffer.Length);
+        info.SetValue(structValue, FromBytes(info.FieldType, buffer));
+        numBytes += buffer.Length;
+    }
+
+    /// <summary>Gets serialized bytes for a field, or writes the field directly for bit and byte values.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being serialized.</param>
+    /// <param name="bytes">The destination bytes.</param>
+    /// <param name="bytePos">The current byte position.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    /// <returns>The serialized field bytes, or null when the field was written directly.</returns>
+    private static byte[]? GetFieldBytes(FieldInfo info, object structValue, byte[] bytes, ref int bytePos, ref double numBytes)
+    {
+        switch (info.FieldType.Name)
+        {
+            case "Boolean":
+                {
+                    SetBooleanFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
+                    return null;
+                }
+
+            case "Byte":
+                {
+                    SetByteFieldBytes(info, structValue, bytes, ref bytePos, ref numBytes);
+                    return null;
+                }
+
+            case "Int16":
+                return Int.ToByteArray(GetValueOrThrow<short>(info, structValue));
+            case "UInt16":
+                return Word.ToByteArray(GetValueOrThrow<ushort>(info, structValue));
+            case "Int32":
+                return DInt.ToByteArray(GetValueOrThrow<int>(info, structValue));
+            case "UInt32":
+                return DWord.ToByteArray(GetValueOrThrow<uint>(info, structValue));
+            case "Single":
+                return Real.ToByteArray(GetValueOrThrow<float>(info, structValue));
+            case "Double":
+                return LReal.ToByteArray(GetValueOrThrow<double>(info, structValue));
+            case "String":
+                return GetStringFieldBytes(info, structValue);
+            case "TimeSpan":
+                return TimeSpan.ToByteArray((System.TimeSpan)info.GetValue(structValue)!);
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>Sets a Boolean field in the destination byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being serialized.</param>
+    /// <param name="bytes">The destination bytes.</param>
+    /// <param name="bytePos">The current byte position.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetBooleanFieldBytes(FieldInfo info, object structValue, byte[] bytes, ref int bytePos, ref double numBytes)
+    {
+        var bitPos = (int)((numBytes - bytePos) / 0.125);
+        if (GetValueOrThrow<bool>(info, structValue))
+        {
+            bytes[bytePos] |= (byte)Math.Pow(2, bitPos); // is true
+        }
+        else
+        {
+            bytes[bytePos] &= (byte)(~(byte)Math.Pow(2, bitPos)); // is false
+        }
+
+        numBytes += 0.125;
+    }
+
+    /// <summary>Sets a byte field in the destination byte buffer.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being serialized.</param>
+    /// <param name="bytes">The destination bytes.</param>
+    /// <param name="bytePos">The current byte position.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void SetByteFieldBytes(FieldInfo info, object structValue, byte[] bytes, ref int bytePos, ref double numBytes)
+    {
+        numBytes = Math.Ceiling(numBytes);
+        bytePos = (int)numBytes;
+        bytes[bytePos] = GetValueOrThrow<byte>(info, structValue);
+        numBytes++;
+    }
+
+    /// <summary>Gets serialized bytes for a string field.</summary>
+    /// <param name="info">The field metadata.</param>
+    /// <param name="structValue">The struct instance being serialized.</param>
+    /// <returns>The serialized string bytes.</returns>
+    private static byte[] GetStringFieldBytes(FieldInfo info, object structValue)
+    {
+        var attribute = GetRequiredStringAttribute(info);
+        return attribute.Type switch
+        {
+            S7StringType.S7String => S7String.ToByteArray((string?)info.GetValue(structValue), attribute.ReservedLength),
+            S7StringType.S7WString => S7WString.ToByteArray((string?)info.GetValue(structValue), attribute.ReservedLength),
+            _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
+        };
+    }
+
+    /// <summary>Writes byte-aligned field bytes into the destination buffer.</summary>
+    /// <param name="source">The source bytes.</param>
+    /// <param name="destination">The destination bytes.</param>
+    /// <param name="bytePos">The current byte position.</param>
+    /// <param name="numBytes">The current byte count.</param>
+    private static void WriteAlignedBytes(byte[] source, byte[] destination, ref int bytePos, ref double numBytes)
+    {
+        IncrementToEven(ref numBytes);
+        bytePos = (int)numBytes;
+        source.CopyTo(destination, bytePos);
+        numBytes += source.Length;
+    }
+
+    /// <summary>Gets a non-null field value or throws.</summary>
+    /// <typeparam name="TValue">The field value type.</typeparam>
+    /// <param name="fieldInfo">The field metadata.</param>
+    /// <param name="structValue">The struct instance.</param>
+    /// <returns>The field value.</returns>
+    private static TValue GetValueOrThrow<TValue>(FieldInfo fieldInfo, object structValue)
+        where TValue : struct => (fieldInfo.GetValue(structValue) as TValue?) ??
+            throw new ArgumentException($"Failed to convert value of field {fieldInfo.Name} of {structValue} to type {typeof(TValue)}");
+
+    /// <summary>Gets the required S7 string attribute for a field.</summary>
+    /// <param name="fieldInfo">The field metadata.</param>
+    /// <returns>The required S7 string attribute.</returns>
+    private static S7StringAttribute GetRequiredStringAttribute(FieldInfo fieldInfo)
+    {
+        var attribute = GetS7StringAttribute(fieldInfo);
+        return attribute ?? throw new ArgumentException("Please add S7StringAttribute to the string field");
+    }
+
+    /// <summary>Gets the S7 string attribute for a field.</summary>
+    /// <param name="fieldInfo">The field metadata.</param>
+    /// <returns>The S7 string attribute, or null when one is not present.</returns>
+    private static S7StringAttribute? GetS7StringAttribute(FieldInfo fieldInfo)
+    {
+        S7StringAttribute? result = null;
+        foreach (var attribute in fieldInfo.GetCustomAttributes<S7StringAttribute>())
+        {
+            if (result is not null)
+            {
+                throw new InvalidOperationException($"Multiple {nameof(S7StringAttribute)} attributes were found on {fieldInfo.Name}.");
+            }
+
+            result = attribute;
+        }
+
+        return result;
+    }
+
+    /// <summary>Rounds the specified value up to the nearest even integer.</summary>
+    /// <param name="numBytes">The value to round.</param>
+    private static void IncrementToEven(ref double numBytes)
+    {
+        numBytes = Math.Ceiling(numBytes);
+        if (numBytes % 2 == 0)
+        {
+            return;
+        }
+
+        numBytes++;
     }
 }

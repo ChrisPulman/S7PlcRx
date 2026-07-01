@@ -1,35 +1,34 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Core;
+#else
 using S7PlcRx.Core;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.BatchOperations;
+#else
 namespace S7PlcRx.BatchOperations;
+#endif
 
-/// <summary>
-/// Represents a single request to be processed as part of a batch operation.
-/// </summary>
+/// <summary>Represents a single request to be processed as part of a batch operation.</summary>
 /// <param name="type">The type of the batch request to perform.</param>
 /// <param name="tag">The tag associated with the request to be processed.</param>
 /// <param name="priority">The priority level assigned to the request. Defaults to RequestPriority.Normal.</param>
 internal class BatchRequest(BatchRequestType type, Tag tag, RequestPriority priority = RequestPriority.Normal)
 {
-    /// <summary>
-    /// Gets the request type.
-    /// </summary>
+    /// <summary>Gets the request type.</summary>
     public BatchRequestType Type { get; } = type;
 
-    /// <summary>
-    /// Gets the tag to process.
-    /// </summary>
+    /// <summary>Gets the tag to process.</summary>
     public Tag Tag { get; } = tag;
 
-    /// <summary>
-    /// Gets the priority of the request.
-    /// </summary>
+    /// <summary>Gets the priority of the request.</summary>
     public RequestPriority Priority { get; } = priority;
 
-    /// <summary>
-    /// Gets the timestamp when the request was created.
-    /// </summary>
+    /// <summary>Gets the timestamp when the request was created.</summary>
     public DateTime Timestamp { get; } = DateTime.UtcNow;
 }

@@ -1,11 +1,14 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Production;
+#else
 namespace S7PlcRx.Production;
+#endif
 
-/// <summary>
-/// Represents aggregated metrics related to production tags, including counts and distribution information.
-/// </summary>
+/// <summary>Represents aggregated metrics related to production tags, including counts and distribution information.</summary>
 /// <remarks>Use this class to track and analyze the status and distribution of tags within a production
 /// environment. The metrics provided can assist in monitoring tag activity and identifying trends or anomalies in tag
 /// usage.</remarks>

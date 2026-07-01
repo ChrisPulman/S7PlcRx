@@ -1,21 +1,29 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
 using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Enums;
+using S7PlcRx.Reactive.PlcTypes;
+#else
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
+#endif
 using DateTime = System.DateTime;
 using TimeSpan = System.TimeSpan;
+using Timer = System.Threading.Timer;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Core;
+#else
 namespace S7PlcRx.Core;
+#endif
 
 /// <summary>
 /// Provides an enhanced, observable-based socket communication layer for connecting to Siemens S7 PLCs with improved
@@ -28,45 +36,86 @@ namespace S7PlcRx.Core;
 /// management. Dispose the instance to release all resources and terminate background monitoring.</remarks>
 internal class S7SocketRx : IDisposable
 {
+    /// <summary>Defines the f ai l e d value.</summary>
     private const string Failed = nameof(Failed);
+
+    /// <summary>Defines the s uc ce s s value.</summary>
     private const string Success = nameof(Success);
-    private const int DefaultTimeout = 10000;
+
+    /// <summary>Defines the d ef au lt ti me o u t value.</summary>
+    private const int DefaultTimeout = 10_000;
+
+    /// <summary>Defines the i ni ti al re tr yd el ay mi ll is ec on d s value.</summary>
     private const int InitialRetryDelayMilliseconds = 250;
-    private const int MaxRetryDelayMilliseconds = 5000;
-    private const int PingTimeoutMs = 2000;
+
+    /// <summary>Defines the a xr et ry de la ym il li se co n d s value.</summary>
+    private const int MaxRetryDelayMilliseconds = 5_000;
+
+    /// <summary>Defines the p in gt im eo ut m s value.</summary>
+    private const int PingTimeoutMs = 2_000;
+
+    /// <summary>Defines the p or tp ro be ti me ou t m s value.</summary>
     private const int PortProbeTimeoutMs = 750;
+
+    /// <summary>Defines the a va il ab il it yf ai lu re th re sh o l d value.</summary>
     private const int AvailabilityFailureThreshold = 3;
+
+    /// <summary>Defines the c on ne ct io nf ai lu re th re sh o l d value.</summary>
     private const int ConnectionFailureThreshold = 3;
+
+    /// <summary>Stores the r ec en to pe ra ti on av ai la bi li ty wi nd o w value.</summary>
     private static readonly TimeSpan RecentOperationAvailabilityWindow = TimeSpan.FromSeconds(3);
 
-    // Enhanced observables for better monitoring
-    private readonly Subject<ConnectionMetrics> _metricsSubject = new();
+    /// <summary>Stores the e tr ic ss ub je c t used by this instance.</summary>
+    private readonly Signal<ConnectionMetrics> _metricsSubject = new();
 
-    // Optimized connection management
+    /// <summary>Stores the c on ne ct io nl o c k used by this instance.</summary>
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
+
+    /// <summary>Stores the b uf fe rp o o l used by this instance.</summary>
     private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
-    // Connection monitoring
+    /// <summary>Stores the e tr i c s used by this instance.</summary>
     private readonly ConnectionMetrics _metrics = new();
-    private readonly System.Threading.Timer? _metricsTimer;
 
-    private Subject<Exception> _socketExceptionSubject = new();
+    /// <summary>Stores the e tr ic st im e r used by this instance.</summary>
+    private readonly Timer? _metricsTimer;
 
-    // State management
+    /// <summary>Stores the s oc ke te xc ep ti on su bj e c t used by this instance.</summary>
+    private Signal<Exception> _socketExceptionSubject = new();
+
+    /// <summary>Stores the d is po sa b l e used by this instance.</summary>
     private IDisposable _disposable;
-    private bool _disposedValue;
-    private bool _initComplete;
-    private bool? _isAvailable;
-    private bool? _isConnected;
-    private Socket? _socket;
-    private DateTime _lastSuccessfulOperation = DateTime.MinValue;
-    private int _consecutiveErrors;
-    private int _consecutiveAvailabilityFailures;
-    private int _consecutiveConnectionFailures;
-    private int _restartInProgress;
 
-    // Active TSAP profile used to connect (for multi-connection compatibility)
-    private TsapProfile _activeTsapProfile = TsapProfile.PG;
+    /// <summary>Stores the d is po se dv al u e used by this instance.</summary>
+    private bool _disposedValue;
+
+    /// <summary>Stores the i ni tc om pl e t e used by this instance.</summary>
+    private bool _initComplete;
+
+    /// <summary>Stores the i sa va il ab l e used by this instance.</summary>
+    private bool? _isAvailable;
+
+    /// <summary>Stores the i sc on ne ct e d used by this instance.</summary>
+    private bool? _isConnected;
+
+    /// <summary>Stores the s oc k e t used by this instance.</summary>
+    private Socket? _socket;
+
+    /// <summary>Stores the l as ts uc ce ss fu lo pe ra ti o n used by this instance.</summary>
+    private DateTime _lastSuccessfulOperation = DateTime.MinValue;
+
+    /// <summary>Stores the c on se cu ti ve er ro r s used by this instance.</summary>
+    private int _consecutiveErrors;
+
+    /// <summary>Stores the c on se cu ti ve av ai la bi li ty fa il ur e s used by this instance.</summary>
+    private int _consecutiveAvailabilityFailures;
+
+    /// <summary>Stores the c on se cu ti ve co nn ec ti on fa il ur e s used by this instance.</summary>
+    private int _consecutiveConnectionFailures;
+
+    /// <summary>Stores the r es ta rt in pr og re s s used by this instance.</summary>
+    private int _restartInProgress;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="S7SocketRx"/> class for communicating with a Siemens S7 PLC using the specified.
@@ -91,7 +140,7 @@ internal class S7SocketRx : IDisposable
         DataReadLength = GetOptimalDataReadLength(plcType);
 
         // Initialize metrics reporting
-        _metricsTimer = new System.Threading.Timer(ReportMetrics, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        _metricsTimer = new(ReportMetrics, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
         _disposable = Connect.Subscribe();
     }
@@ -123,39 +172,45 @@ internal class S7SocketRx : IDisposable
             {
                 dis.Add(_socketExceptionSubject.Subscribe(ex =>
                 {
-                    if (ex != null)
+                    if (ex is null)
                     {
-                        _metrics.RecordError();
-                        LogError($"Socket exception: {ex.Message}");
-                        obs.OnError(ex);
+                        return;
                     }
+
+                    _metrics.RecordError();
+                    LogError($"Socket exception: {ex.Message}");
+                    obs.OnError(ex);
                 }));
             }
             catch (ObjectDisposedException)
             {
-                _socketExceptionSubject = new Subject<Exception>();
+                _socketExceptionSubject = new();
                 dis.Add(_socketExceptionSubject.Subscribe(ex =>
                 {
-                    if (ex != null)
+                    if (ex is null)
                     {
-                        _metrics.RecordError();
-                        LogError($"Socket exception: {ex.Message}");
-                        obs.OnError(ex);
+                        return;
                     }
+
+                    _metrics.RecordError();
+                    LogError($"Socket exception: {ex.Message}");
+                    obs.OnError(ex);
                 }));
             }
 
             dis.Add(IsConnected.Subscribe(
                 deviceConnected =>
                 {
-                    var isAvail = _isAvailable != null && _isAvailable.HasValue && _isAvailable.Value;
+                    var isAvail = _isAvailable == true;
                     obs.OnNext(isAvail && deviceConnected);
-                    if (_initComplete && !deviceConnected)
+                    if (!_initComplete || deviceConnected)
                     {
-                        CloseSocketOptimized(_socket);
-                        _socket = null;
-                        obs.OnError(new S7Exception("Device not connected"));
+                        return;
                     }
+
+                    CloseSocketOptimized(_socket);
+                    _socket = null;
+                    obs.OnError(new S7Exception("Device not connected"));
                 },
                 ex =>
                 {
@@ -169,9 +224,9 @@ internal class S7SocketRx : IDisposable
                 {
                     try
                     {
-                        if (_isAvailable != null)
+                        if (_isAvailable is not null)
                         {
-                            var isAvail = _isAvailable != null && _isAvailable.HasValue && _isAvailable.Value;
+                            var isAvail = _isAvailable is not null && _isAvailable.HasValue && _isAvailable.Value;
                             if (isAvail)
                             {
                                 if (!_initComplete && !await InitializeSiemensConnectionOptimizedAsync())
@@ -182,7 +237,7 @@ internal class S7SocketRx : IDisposable
                                     return;
                                 }
 
-                                var isCon = _isConnected != null && _isConnected.HasValue && _isConnected.Value;
+                                var isCon = _isConnected is not null && _isConnected.HasValue && _isConnected.Value;
                                 if (_initComplete && !isCon)
                                 {
                                     CloseSocketOptimized(_socket);
@@ -214,39 +269,30 @@ internal class S7SocketRx : IDisposable
 
             return dis;
         })
-        .RetryWhen(errors => errors
-            .Select((ex, index) => new { ex, index })
-            .SelectMany(x =>
+        .RetryWithDelay(int.MaxValue, index =>
+        {
+            // Exponential backoff with cap: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
+            // Use bit shifting for better performance and prevent overflow
+            var exponent = Math.Min(index, 4);
+            var delayMilliseconds = Math.Min(InitialRetryDelayMilliseconds * (1 << exponent), MaxRetryDelayMilliseconds);
+
+            // Log only first 5 attempts and then every 10th attempt to prevent log flooding
+            if (index < 5 || index % 10 == 0)
             {
-                // Exponential backoff with cap: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
-                // Use bit shifting for better performance and prevent overflow
-                var exponent = Math.Min(x.index, 4);
-                var delayMilliseconds = Math.Min(InitialRetryDelayMilliseconds * (1 << exponent), MaxRetryDelayMilliseconds);
+                LogWarning($"Connection attempt {index + 1} failed. Retrying in {delayMilliseconds}ms...");
+            }
 
-                // Log only first 5 attempts and then every 10th attempt to prevent log flooding
-                if (x.index < 5 || x.index % 10 == 0)
-                {
-                    LogWarning($"Connection attempt {x.index + 1} failed: {x.ex.Message}. Retrying in {delayMilliseconds}ms...");
-                }
+            return TimeSpan.FromMilliseconds(delayMilliseconds);
+        })
+        .ReplayLastOnSubscribe(false);
 
-                return Observable.Timer(TimeSpan.FromMilliseconds(delayMilliseconds));
-            }))
-        .Publish(false)
-        .RefCount();
-
-    /// <summary>
-    /// Gets the IP address associated with the current instance.
-    /// </summary>
+    /// <summary>Gets the IP address associated with the current instance.</summary>
     public string IP { get; }
 
-    /// <summary>
-    /// Gets the optimized data read length based on PLC type capabilities.
-    /// </summary>
+    /// <summary>Gets the optimized data read length based on PLC type capabilities.</summary>
     public ushort DataReadLength { get; private set; }
 
-    /// <summary>
-    /// Gets an observable sequence that indicates whether the resource is currently available.
-    /// </summary>
+    /// <summary>Gets an observable sequence that indicates whether the resource is currently available.</summary>
     /// <remarks>The observable emits a value each time the availability status is checked, providing <see
     /// langword="true"/> if the resource is available; otherwise, <see langword="false"/>. The sequence uses a fast
     /// polling interval initially, then reduces frequency to minimize resource usage. Subscribers receive updates as
@@ -258,32 +304,30 @@ internal class S7SocketRx : IDisposable
             _isAvailable = null;
             var count = 0;
 
-            var timer = new SerialDisposable();
-
             // Fast probe (startup)
-            timer.Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(250)).Subscribe(async _ =>
+            SerialDisposable? timer = null;
+            timer = new SerialDisposable
             {
-                count++;
-                await ProbeAvailabilityAndNotifyAsync(obs).ConfigureAwait(false);
-
-                // After a few quick probes, back off to reduce ping noise.
-                if (count >= 8)
+                Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(250)).Subscribe(async _ =>
                 {
-                    count = 0;
-                    timer.Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(1)).Subscribe(async __ =>
+                    count++;
+                    await ProbeAvailabilityAndNotifyAsync(obs).ConfigureAwait(false);
+
+                    // After a few quick probes, back off to reduce ping noise.
+                    if (count < 8)
                     {
-                        await ProbeAvailabilityAndNotifyAsync(obs).ConfigureAwait(false);
-                    });
-                }
-            });
+                        return;
+                    }
+
+                    count = 0;
+                    timer!.Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(1)).Subscribe(async __ => await ProbeAvailabilityAndNotifyAsync(obs).ConfigureAwait(false));
+                })
+            };
 
             return timer;
-        }).Retry().Publish(false).RefCount();
+        }).OnErrorRetry().ReplayLastOnSubscribe(false);
 
-    /// <summary>
-    /// Gets an observable sequence that indicates whether the connection to the remote endpoint is currently
-    /// established.
-    /// </summary>
+    /// <summary>Gets an observable sequence that indicates whether the connection to the remote endpoint is currently established.</summary>
     /// <remarks>The observable emits a value whenever the connection status changes. Subscribers receive <see
     /// langword="true"/> when the connection is established and <see langword="false"/> when it is lost. The sequence
     /// emits the current status immediately upon subscription and continues to provide updates as the connection state
@@ -294,53 +338,47 @@ internal class S7SocketRx : IDisposable
             _isConnected = null;
 
             // Faster startup: check frequently until connected, then slow down.
-            var timer = new SerialDisposable();
-            var fast = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(50)).Subscribe(_ =>
+            SerialDisposable? timer = null;
+            timer = new SerialDisposable
             {
-                _isConnected = EvaluateConnectionStateWithHysteresis();
-                var isConnectedNow = _initComplete && _isConnected == true;
-                obs.OnNext(isConnectedNow);
-
-                if (isConnectedNow)
+                Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(50)).Subscribe(_ =>
                 {
+                    _isConnected = EvaluateConnectionStateWithHysteresis();
+                    var isConnectedNow = _initComplete && _isConnected == true;
+                    obs.OnNext(isConnectedNow);
+
+                    if (!isConnectedNow)
+                    {
+                        return;
+                    }
+
                     // Switch to steady-state checks.
-                    timer.Disposable = Observable.Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)).Subscribe(__ =>
+                    timer!.Disposable = Observable.Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)).Subscribe(__ =>
                     {
                         _isConnected = EvaluateConnectionStateWithHysteresis();
                         obs.OnNext(_initComplete && _isConnected == true);
                     });
-                }
-            });
+                })
+            };
 
-            timer.Disposable = fast;
             return timer;
-        }).Retry().Publish(false).RefCount().DistinctUntilChanged();
+        }).OnErrorRetry().ReplayLastOnSubscribe(false).DistinctUntilChanged();
 
-    /// <summary>
-    /// Gets the type of PLC (Programmable Logic Controller) associated with this instance.
-    /// </summary>
+    /// <summary>Gets the type of PLC (Programmable Logic Controller) associated with this instance.</summary>
     public CpuType PLCType { get; }
 
-    /// <summary>
-    /// Gets the rack number associated with the device or connection.
-    /// </summary>
+    /// <summary>Gets the rack number associated with the device or connection.</summary>
     public short Rack { get; }
 
-    /// <summary>
-    /// Gets the slot number associated with this instance.
-    /// </summary>
+    /// <summary>Gets the slot number associated with this instance.</summary>
     public short Slot { get; }
 
-    /// <summary>
-    /// Gets an observable sequence that provides real-time connection metrics.
-    /// </summary>
+    /// <summary>Gets an observable sequence that provides real-time connection metrics.</summary>
     /// <remarks>Subscribers receive updates whenever new connection metrics are available. The sequence
     /// completes when the underlying connection is closed or disposed.</remarks>
-    public IObservable<ConnectionMetrics> Metrics => _metricsSubject.AsObservable();
+    public IObservable<ConnectionMetrics> Metrics => _metricsSubject;
 
-    /// <summary>
-    /// Receives data from the connected device and writes it into the specified buffer.
-    /// </summary>
+    /// <summary>Receives data from the connected device and writes it into the specified buffer.</summary>
     /// <remarks>If the device is not connected or initialization is incomplete, the method returns -1 and no
     /// data is written to the buffer. Exceptions encountered during the receive operation are reported through the
     /// socket exception subject. The method is not thread-safe.</remarks>
@@ -355,9 +393,7 @@ internal class S7SocketRx : IDisposable
     public int Receive(Tag tag, byte[] buffer, int size, int offset = 0)
         => ReceiveCore(tag, buffer, size, offset, traceOperation: true);
 
-    /// <summary>
-    /// Sends data to the connected device using the specified tag and buffer.
-    /// </summary>
+    /// <summary>Sends data to the connected device using the specified tag and buffer.</summary>
     /// <remarks>If the device is not connected or an error occurs during the send operation, the method
     /// returns -1 and notifies subscribers of the exception. The method does not throw exceptions for connection or
     /// send failures.</remarks>
@@ -385,7 +421,7 @@ internal class S7SocketRx : IDisposable
                 stopwatch.Stop();
                 RecordSuccessfulOperation(stopwatch.Elapsed, sent, isReceive: false);
 
-                if (tag != null && Debugger.IsAttached)
+                if (tag is not null && Debugger.IsAttached)
                 {
                     var result = sent == size ? Success : Failed;
                     Debug.WriteLine($"{DateTime.Now} Wrote Tag: {tag.Name} value: {tag.Value} {result} ({sent}/{size} bytes, {stopwatch.ElapsedMilliseconds}ms)");
@@ -406,18 +442,14 @@ internal class S7SocketRx : IDisposable
         return -1;
     }
 
-    /// <summary>
-    /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-    /// </summary>
+    /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
     public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Retrieves System-Zustandsliste (SZL) data from the PLC for the specified SZL area and index.
-    /// </summary>
+    /// <summary>Retrieves System-Zustandsliste (SZL) data from the PLC for the specified SZL area and index.</summary>
     /// <remarks>This method performs a low-level SZL read operation using enhanced communication protocols.
     /// The returned data format depends on the specified SZL area and index. If the requested SZL area or index is not
     /// available, the returned data will be empty. This method is intended for advanced scenarios where direct access
@@ -447,8 +479,6 @@ internal class S7SocketRx : IDisposable
             var lastError = 0;
             var offset = 0;
             ushort lengthOfDataRead = 0;
-            int szlDataLength;
-
             do
             {
                 if (first)
@@ -456,46 +486,23 @@ internal class S7SocketRx : IDisposable
                     Word.ToByteArray(++seqOut, s7_SZL1, 11);
                     Word.ToByteArray(szlArea, s7_SZL1, 29);
                     Word.ToByteArray(index, s7_SZL1, 31);
-                    Send(tag, s7_SZL1, s7_SZL1.Length);
+                    _ = Send(tag, s7_SZL1, s7_SZL1.Length);
                 }
                 else
                 {
                     Word.ToByteArray(++seqOut, s7_SZL2, 11);
                     s7_SZL2[24] = seqIn;
-                    Send(tag, s7_SZL2, s7_SZL2.Length);
-                }
-
-                if (lastError != 0)
-                {
-                    return (Array.Empty<byte>(), 0);
+                    _ = Send(tag, s7_SZL2, s7_SZL2.Length);
                 }
 
                 length = ReceiveIsoData(tag, ref data);
 
-                if (lastError == 0 && length > 32)
+                if (length > 32)
                 {
-                    if (first && Word.FromByteArray(data, 27) == 0 && data[29] == 255)
+                    lastError = ProcessSzlResponse(data, resultData, first, ref done, ref seqIn, ref lengthOfDataRead, ref offset);
+                    if (lastError == 0)
                     {
-                        szlDataLength = Word.FromByteArray(data, 31) - 8;
-                        done = data[26] == 0;
-                        seqIn = data[24];
-                        lengthOfDataRead = Word.FromByteArray(data, 37);
-                        Array.Copy(data, 41, resultData, offset, szlDataLength);
-                        offset += szlDataLength;
                         first = false;
-                    }
-                    else if (Word.FromByteArray(data, 27) == 0 && data[29] == 255)
-                    {
-                        szlDataLength = Word.FromByteArray(data, 31);
-                        done = data[26] == 0;
-                        seqIn = data[24];
-                        Array.Copy(data, 37, resultData, offset, szlDataLength);
-                        offset += szlDataLength;
-                        lengthOfDataRead += (ushort)szlDataLength;
-                    }
-                    else
-                    {
-                        lastError = (int)ErrorCode.WrongVarFormat;
                     }
                 }
                 else
@@ -512,7 +519,7 @@ internal class S7SocketRx : IDisposable
                 return (result, lengthOfDataRead);
             }
 
-            return (Array.Empty<byte>(), 0);
+            return ([], 0);
         }
         finally
         {
@@ -521,9 +528,7 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    /// <summary>
-    /// Receives ISO protocol data from the specified tag and stores the result in the provided byte array.
-    /// </summary>
+    /// <summary>Receives ISO protocol data from the specified tag and stores the result in the provided byte array.</summary>
     /// <remarks>The method expects the incoming data to conform to the ISO protocol format. If the received
     /// data does not meet protocol requirements, the method returns 0 to indicate failure.</remarks>
     /// <param name="tag">The tag representing the communication endpoint from which to receive ISO data.</param>
@@ -532,104 +537,332 @@ internal class S7SocketRx : IDisposable
     /// <returns>The total number of bytes received if the operation is successful; otherwise, 0 if an error occurs.</returns>
     internal int ReceiveIsoData(Tag tag, ref byte[] bytes)
     {
-        var done = false;
         var size = 0;
-        var lastError = 0;
+        var done = false;
 
-        while (lastError == 0 && !done)
+        while (!done)
         {
-            var headerReceived = ReceiveExact(tag, bytes, 4);
-            if (headerReceived != 4)
+            if (!TryReceiveIsoHeader(tag, bytes, out size, out done))
             {
-                lastError = (int)ErrorCode.WrongNumberReceivedBytes;
-                break;
-            }
-
-            size = Word.FromByteArray(bytes, 2);
-
-            if (size == 7)
-            {
-                if (ReceiveExact(tag, bytes, 3, 4) != 3)
-                {
-                    lastError = (int)ErrorCode.WrongNumberReceivedBytes;
-                }
-            }
-            else if (size > DataReadLength + 7 || size < 16)
-            {
-                lastError = (int)ErrorCode.WrongNumberReceivedBytes;
-            }
-            else
-            {
-                done = true;
-            }
-        }
-
-        switch (lastError)
-        {
-            case 0:
-                // Get PDU Type
-                if (ReceiveExact(tag, bytes, 3, 4) != 3)
-                {
-                    return 0;
-                }
-
-                // Receive S7 ISO Payload
-                if (ReceiveExact(tag, bytes, size - 7, 7) != size - 7)
-                {
-                    return 0;
-                }
-
-                return size;
-            default:
                 return 0;
+            }
         }
+
+        // Get PDU Type
+        if (ReceiveExact(tag, bytes, 3, 4) != 3)
+        {
+            return 0;
+        }
+
+        // Receive S7 ISO Payload
+        return ReceiveExact(tag, bytes, size - 7, 7) == size - 7 ? size : 0;
     }
 
-    /// <summary>
-    /// Releases unmanaged and - optionally - managed resources.
-    /// </summary>
+    /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
     /// <param name="disposing">
     /// <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release
     /// only unmanaged resources.
     /// </param>
     protected virtual void Dispose(bool disposing)
     {
-        if (!_disposedValue)
+        if (_disposedValue)
         {
-            if (disposing)
+            return;
+        }
+
+        if (disposing)
+        {
+            // Stop connection/retry loops before disposing subjects
+            try
             {
-                // Stop connection/retry loops before disposing subjects
-                try
-                {
-                    _disposable?.Dispose();
-                }
-                catch
-                {
-                }
-
-                _metricsTimer?.Dispose();
-                CloseSocketOptimized(_socket);
-                _socket = null;
-
-                try
-                {
-                    _socketExceptionSubject?.Dispose();
-                }
-                catch
-                {
-                }
-
-                _metricsSubject?.Dispose();
-                _connectionLock?.Dispose();
+                _disposable?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                LogError($"Subscription disposal failed: {ex.Message}");
             }
 
-            _disposedValue = true;
+            _metricsTimer?.Dispose();
+            CloseSocketOptimized(_socket);
+            _socket = null;
+
+            try
+            {
+                _socketExceptionSubject?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                LogError($"Socket exception subject disposal failed: {ex.Message}");
+            }
+
+            _metricsSubject?.Dispose();
+            _connectionLock?.Dispose();
+        }
+
+        _disposedValue = true;
+    }
+
+    /// <summary>Processes a received SZL response packet.</summary>
+    /// <param name="data">The response buffer.</param>
+    /// <param name="resultData">The accumulated result buffer.</param>
+    /// <param name="first">A value indicating whether this is the first packet.</param>
+    /// <param name="done">A value indicating whether the response is complete.</param>
+    /// <param name="sequenceIn">The incoming sequence value.</param>
+    /// <param name="lengthOfDataRead">The accumulated data length.</param>
+    /// <param name="offset">The accumulated result offset.</param>
+    /// <returns>Zero when the packet is valid; otherwise, an S7 error code.</returns>
+    private static int ProcessSzlResponse(
+        byte[] data,
+        byte[] resultData,
+        bool first,
+        ref bool done,
+        ref byte sequenceIn,
+        ref ushort lengthOfDataRead,
+        ref int offset)
+    {
+        if (Word.FromByteArray(data, 27) != 0 || data[29] != 255)
+        {
+            return (int)ErrorCode.WrongVarFormat;
+        }
+
+        var sourceOffset = first ? 41 : 37;
+        var szlDataLength = first ? Word.FromByteArray(data, 31) - 8 : Word.FromByteArray(data, 31);
+        done = data[26] == 0;
+        sequenceIn = data[24];
+        Array.Copy(data, sourceOffset, resultData, offset, szlDataLength);
+        offset += szlDataLength;
+        lengthOfDataRead = first
+            ? Word.FromByteArray(data, 37)
+            : (ushort)(lengthOfDataRead + szlDataLength);
+
+        return 0;
+    }
+
+    /// <summary>Checks whether the socket is still connected.</summary>
+    /// <param name="socket">The socket to check.</param>
+    /// <returns><see langword="true"/> when the socket appears connected; otherwise, <see langword="false"/>.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool CheckConnectionStatusOptimized(Socket socket)
+    {
+        try
+        {
+            return socket.Connected &&
+                !(socket.Poll(1000, SelectMode.SelectRead) && socket.Available == 0);
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
         }
     }
 
+    /// <summary>Determines the optimal data read length, in bytes, for the specified PLC type.</summary>
+    /// <param name="plcType">The type of PLC for which to determine the optimal data read length.</param>
+    /// <returns>The recommended number of bytes to read in a single operation for the specified PLC type.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ushort GetOptimalDataReadLength(CpuType plcType) => plcType switch
+    {
+        CpuType.Logo0BA8 => 240,
+        CpuType.S7200 => 480,
+        CpuType.S7300 => 480,
+        CpuType.S7400 => 960,
+        CpuType.S71200 => 960,
+        CpuType.S71500 => 1440,
+        _ => 480
+    };
+
+    /// <summary>Closes and disposes the specified socket.</summary>
+    /// <param name="socket">The socket to close and dispose.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void CloseSocketOptimized(Socket? socket)
+    {
+        if (socket is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (socket.Connected)
+            {
+                try
+                {
+                    socket.Shutdown(SocketShutdown.Both);
+                }
+                catch (Exception ex)
+                {
+                    LogWarning($"Socket shutdown failed: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LogWarning($"Socket connection state check failed during close: {ex.Message}");
+        }
+        finally
+        {
+            try
+            {
+                socket.Close();
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Socket close failed: {ex.Message}");
+            }
+
+            try
+            {
+                socket.Dispose();
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Socket dispose failed: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>Logs an error message to the debug output when a debugger is attached.</summary>
+    /// <param name="message">The error message to log.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void LogError(string message)
+    {
+        if (!Debugger.IsAttached)
+        {
+            return;
+        }
+
+        Debug.WriteLine($"[ERROR] {System.DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+    }
+
+    /// <summary>Writes an informational message to the debug output when a debugger is attached.</summary>
+    /// <param name="message">The informational message to write to the debug output.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void LogInfo(string message)
+    {
+        if (!Debugger.IsAttached)
+        {
+            return;
+        }
+
+        Debug.WriteLine($"[INFO] {System.DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+    }
+
+    /// <summary>Writes a warning message to the debug output when a debugger is attached.</summary>
+    /// <param name="message">The warning message to write to the debug output.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void LogWarning(string message)
+    {
+        if (!Debugger.IsAttached)
+        {
+            return;
+        }
+
+        Debug.WriteLine($"[WARN] {System.DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+    }
+
+#if !NETFRAMEWORK
+    /// <summary>Asynchronously receives a complete TPKT packet from the underlying socket into the specified buffer.</summary>
+    /// <param name="socket">The connected socket to read from.</param>
+    /// <param name="buffer">The buffer that receives the TPKT packet data.</param>
+    /// <param name="expectedMin">The minimum expected length of the TPKT packet, in bytes.</param>
+    /// <returns>The total number of bytes read into the buffer, or a value less than 4 if the TPKT header could not be read.</returns>
+    private static async Task<int> ReceiveTpktExactModernAsync(Socket socket, byte[] buffer, int expectedMin)
+    {
+        var headerRead = await ReceiveExactAsync(socket, buffer, 4, 0).ConfigureAwait(false);
+        if (headerRead != 4)
+        {
+            return headerRead;
+        }
+
+        var length = (buffer[2] << 8) | buffer[3];
+        if (length < 4 || length > buffer.Length)
+        {
+            LogWarning($"Invalid TPKT length {length} for receive buffer {buffer.Length}");
+            return 0;
+        }
+
+        if (length < expectedMin && expectedMin > 0)
+        {
+            LogWarning($"TPKT length {length} smaller than expected {expectedMin}");
+        }
+
+        var remaining = length - 4;
+        if (remaining == 0)
+        {
+            return headerRead;
+        }
+
+        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, 4).ConfigureAwait(false);
+        return bodyRead <= 0 ? headerRead : headerRead + bodyRead;
+
+        static async Task<int> ReceiveExactAsync(Socket socket, byte[] buffer, int size, int offset)
+        {
+            var total = 0;
+            while (total < size)
+            {
+                var received = await socket.ReceiveAsync(buffer.AsMemory(offset + total, size - total), SocketFlags.None).ConfigureAwait(false);
+                if (received <= 0)
+                {
+                    break;
+                }
+
+                total += received;
+            }
+
+            return total;
+        }
+    }
+#endif
+
+    /// <summary>Receives and validates an ISO packet header.</summary>
+    /// <param name="tag">The related PLC tag.</param>
+    /// <param name="bytes">The receive buffer.</param>
+    /// <param name="size">The parsed packet size.</param>
+    /// <param name="done">A value indicating whether the payload header has been reached.</param>
+    /// <returns>true when the header is valid; otherwise, false.</returns>
+    private bool TryReceiveIsoHeader(Tag tag, byte[] bytes, out int size, out bool done)
+    {
+        done = false;
+        size = 0;
+        if (ReceiveExact(tag, bytes, 4) != 4)
+        {
+            return false;
+        }
+
+        size = Word.FromByteArray(bytes, 2);
+        if (size == 7)
+        {
+            return ReceiveExact(tag, bytes, 3, 4) == 3;
+        }
+
+        if (size > DataReadLength + 7 || size < 16)
+        {
+            return false;
+        }
+
+        done = true;
+        return true;
+    }
+
+    /// <summary>Stores the r ec ei ve r a w value.</summary>
+    /// <param name="tag">The t a g value.</param>
+    /// <param name="buffer">The b uf f e r value.</param>
+    /// <param name="size">The s i z e value.</param>
+    /// <param name="offset">The o ff s e t value.</param>
+    /// <returns>The resulting value.</returns>
     private int ReceiveRaw(Tag? tag, byte[] buffer, int size, int offset = 0)
         => ReceiveCore(tag, buffer, size, offset, traceOperation: false);
 
+    /// <summary>Stores the r ec ei ve co r e value.</summary>
+    /// <param name="tag">The t a g value.</param>
+    /// <param name="buffer">The b uf f e r value.</param>
+    /// <param name="size">The s i z e value.</param>
+    /// <param name="offset">The o ff s e t value.</param>
+    /// <param name="traceOperation">The t ra ce op er at i o n value.</param>
+    /// <returns>The resulting value.</returns>
     private int ReceiveCore(Tag? tag, byte[] buffer, int size, int offset, bool traceOperation)
     {
         if (!_initComplete)
@@ -648,7 +881,7 @@ internal class S7SocketRx : IDisposable
                 stopwatch.Stop();
                 RecordSuccessfulOperation(stopwatch.Elapsed, received, isReceive: true);
 
-                if (traceOperation && tag != null && Debugger.IsAttached)
+                if (traceOperation && tag is not null && Debugger.IsAttached)
                 {
                     var result = buffer[21] == 255 ? Success : Failed;
                     Debug.WriteLine($"{DateTime.Now} Read Tag: {tag.Name} value: {tag.Value} {result} ({received} bytes, {stopwatch.ElapsedMilliseconds}ms)");
@@ -669,10 +902,7 @@ internal class S7SocketRx : IDisposable
         return -1;
     }
 
-    /// <summary>
-    /// Attempts to establish and optimize a connection to a Siemens PLC using multiple TSAP profiles for maximum
-    /// compatibility.
-    /// </summary>
+    /// <summary>Attempts to establish and optimize a connection to a Siemens PLC using multiple TSAP profiles for maximum compatibility.</summary>
     /// <remarks>This method tries several known TSAP profiles to improve the likelihood of connecting to
     /// different Siemens PLC models. It configures socket options for optimal performance and handles connection
     /// retries internally. If the connection cannot be established with any profile, the method returns <see
@@ -690,15 +920,13 @@ internal class S7SocketRx : IDisposable
                 return false;
             }
 
-            if (_initComplete && _socket != null && CheckConnectionStatusOptimized(_socket))
+            if (_initComplete && _socket is not null && CheckConnectionStatusOptimized(_socket))
             {
                 return true;
             }
 
             // Try known TSAP profiles to maximize multi-connection compatibility
-            var profiles = new[] { TsapProfile.PG, TsapProfile.OP, TsapProfile.PGAlt };
-
-            foreach (var profile in profiles)
+            foreach (var profile in new[] { TsapProfile.PG, TsapProfile.OP, TsapProfile.PGAlt })
             {
                 var attemptSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
@@ -737,7 +965,6 @@ internal class S7SocketRx : IDisposable
                     var oldSocket = _socket;
                     _socket = attemptSocket;
                     CloseSocketOptimized(oldSocket);
-                    _activeTsapProfile = profile;
                     _initComplete = true;
                     _isConnected = true;
                     _lastSuccessfulOperation = DateTime.UtcNow;
@@ -764,7 +991,7 @@ internal class S7SocketRx : IDisposable
             {
                 if (!_disposedValue)
                 {
-                    _connectionLock.Release();
+                    _ = _connectionLock.Release();
                 }
             }
             catch (ObjectDisposedException)
@@ -774,91 +1001,38 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    /// <summary>
-    /// Performs an optimized asynchronous handshake using the specified TSAP profile.
-    /// </summary>
+    /// <summary>Performs an optimized asynchronous handshake using the specified TSAP profile.</summary>
     /// <param name="socket">The connected socket used for the handshake.</param>
     /// <param name="profile">The TSAP profile to use for the handshake operation. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the handshake
     /// succeeds; otherwise, <see langword="false"/>.</returns>
     private async Task<bool> PerformOptimizedHandshakeAsync(Socket socket, TsapProfile profile)
     {
-        var bReceive = _bufferPool.Rent(256);
+        var receiveBuffer = _bufferPool.Rent(256);
         try
         {
 #if NETFRAMEWORK
-            return await PerformOptimizedHandshakeNetStandardAsync(socket, bReceive, profile).ConfigureAwait(false);
+            return await PerformOptimizedHandshakeNetStandardAsync(socket, receiveBuffer, profile).ConfigureAwait(false);
 #else
-            return await PerformOptimizedHandshakeModernAsync(socket, bReceive, profile).ConfigureAwait(false);
+            return await PerformOptimizedHandshakeModernAsync(socket, receiveBuffer, profile).ConfigureAwait(false);
 #endif
         }
         finally
         {
-            _bufferPool.Return(bReceive);
+            _bufferPool.Return(receiveBuffer);
         }
     }
 
 #if NETFRAMEWORK
-    private async Task<bool> PerformOptimizedHandshakeNetStandardAsync(Socket socket, byte[] bReceive, TsapProfile profile)
-    {
-        try
-        {
-            // Step 1: Initial connection request
-            var bSend1 = GetConnectionRequestBytes(profile);
-            var sentTask = Task.Factory.FromAsync(
-                (callback, state) => socket.BeginSend(bSend1, 0, bSend1.Length, SocketFlags.None, callback, state),
-                socket.EndSend,
-                null);
-            var sent = await sentTask.ConfigureAwait(false);
-            if (sent != bSend1.Length)
-            {
-                LogError("Failed to send initial connection request");
-                return false;
-            }
-
-            // Step 2: Receive connection response (TPKT length based)
-            var received = await ReceiveTpktExactNetStandardAsync(socket, bReceive, 22).ConfigureAwait(false);
-
-            if (received < 22)
-            {
-                LogError($"Invalid connection response length {received}");
-                return false;
-            }
-
-            // Step 3: Communication setup request
-            var bSend2 = GetCommunicationSetupBytes();
-            sentTask = Task.Factory.FromAsync(
-                (callback, state) => socket.BeginSend(bSend2, 0, bSend2.Length, SocketFlags.None, callback, state),
-                socket.EndSend,
-                null);
-            sent = await sentTask.ConfigureAwait(false);
-            if (sent != bSend2.Length)
-            {
-                LogError("Failed to send communication setup request");
-                return false;
-            }
-
-            // Step 4: Receive communication setup response (TPKT length based)
-            received = await ReceiveTpktExactNetStandardAsync(socket, bReceive, 27).ConfigureAwait(false);
-            if (received < 27)
-            {
-                LogError($"Invalid communication setup response length {received}");
-                return false;
-            }
-
-            UpdateNegotiatedPduLength(bReceive, received);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            LogError($"Handshake failed: {ex.Message}");
-            return false;
-        }
-    }
-
+    /// <summary>Receives a complete TPKT packet on .NET Framework using the legacy socket async pattern.</summary>
+    /// <param name="socket">The connected socket to read from.</param>
+    /// <param name="buffer">The destination buffer that receives the packet bytes.</param>
+    /// <param name="expectedMin">The minimum expected packet length in bytes.</param>
+    /// <returns>The number of bytes read, or a value less than four when the TPKT header could not be read.</returns>
     private async Task<int> ReceiveTpktExactNetStandardAsync(Socket socket, byte[] buffer, int expectedMin)
     {
+        GC.KeepAlive(this);
+
         // Read TPKT header (4 bytes)
         var read = await ReceiveExactAsync(socket, buffer, 4, 0).ConfigureAwait(false);
         if (read != 4)
@@ -910,35 +1084,31 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-#else
-    /// <summary>
-    /// Performs an optimized asynchronous handshake sequence with a remote endpoint using the modern socket API.
-    /// </summary>
-    /// <remarks>This method sends and receives protocol-specific handshake messages to establish a
-    /// connection. If any step in the handshake fails, the method logs an error and returns <see langword="false"/>.
-    /// The method does not throw exceptions for handshake failures; instead, it returns <see langword="false"/> to
-    /// indicate failure.</remarks>
+    /// <summary>Performs the legacy asynchronous S7 handshake sequence on .NET Framework sockets.</summary>
     /// <param name="socket">The connected socket used for the handshake.</param>
-    /// <param name="bReceive">A buffer used to receive handshake response data from the remote endpoint. Must be large enough to hold the
-    /// expected handshake messages.</param>
-    /// <param name="profile">The connection profile containing parameters required for the handshake process.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the handshake
-    /// completes successfully; otherwise, <see langword="false"/>.</returns>
-    private async Task<bool> PerformOptimizedHandshakeModernAsync(Socket socket, byte[] bReceive, TsapProfile profile)
+    /// <param name="receiveBuffer">The shared buffer that receives handshake responses.</param>
+    /// <param name="profile">The TSAP profile that defines the connection parameters.</param>
+    /// <returns><see langword="true"/> when the handshake completes successfully; otherwise, <see langword="false"/>.</returns>
+    private async Task<bool> PerformOptimizedHandshakeNetStandardAsync(Socket socket, byte[] receiveBuffer, TsapProfile profile)
     {
         try
         {
             // Step 1: Initial connection request
-            var bSend1 = GetConnectionRequestBytes(profile);
-            var sent = await socket.SendAsync(bSend1, SocketFlags.None).ConfigureAwait(false);
-            if (sent != bSend1.Length)
+            var connectionRequest = GetConnectionRequestBytes(profile);
+            var sentTask = Task.Factory.FromAsync(
+                (callback, state) => socket.BeginSend(connectionRequest, 0, connectionRequest.Length, SocketFlags.None, callback, state),
+                socket.EndSend,
+                null);
+            var sent = await sentTask.ConfigureAwait(false);
+            if (sent != connectionRequest.Length)
             {
                 LogError("Failed to send initial connection request");
                 return false;
             }
 
             // Step 2: Receive connection response (TPKT length based)
-            var received = await ReceiveTpktExactModernAsync(socket, bReceive, 22).ConfigureAwait(false);
+            var received = await ReceiveTpktExactNetStandardAsync(socket, receiveBuffer, 22).ConfigureAwait(false);
+
             if (received < 22)
             {
                 LogError($"Invalid connection response length {received}");
@@ -946,23 +1116,87 @@ internal class S7SocketRx : IDisposable
             }
 
             // Step 3: Communication setup request
-            var bSend2 = GetCommunicationSetupBytes();
-            sent = await socket.SendAsync(bSend2, SocketFlags.None).ConfigureAwait(false);
-            if (sent != bSend2.Length)
+            var communicationSetupRequest = GetCommunicationSetupBytes();
+            sentTask = Task.Factory.FromAsync(
+                (callback, state) => socket.BeginSend(communicationSetupRequest, 0, communicationSetupRequest.Length, SocketFlags.None, callback, state),
+                socket.EndSend,
+                null);
+            sent = await sentTask.ConfigureAwait(false);
+            if (sent != communicationSetupRequest.Length)
             {
                 LogError("Failed to send communication setup request");
                 return false;
             }
 
             // Step 4: Receive communication setup response (TPKT length based)
-            received = await ReceiveTpktExactModernAsync(socket, bReceive, 27).ConfigureAwait(false);
+            received = await ReceiveTpktExactNetStandardAsync(socket, receiveBuffer, 27).ConfigureAwait(false);
             if (received < 27)
             {
                 LogError($"Invalid communication setup response length {received}");
                 return false;
             }
 
-            UpdateNegotiatedPduLength(bReceive, received);
+            UpdateNegotiatedPduLength(receiveBuffer, received);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LogError($"Handshake failed: {ex.Message}");
+            return false;
+        }
+    }
+#else
+    /// <summary>Performs an optimized asynchronous handshake sequence with a remote endpoint using the modern socket API.</summary>
+    /// <remarks>This method sends and receives protocol-specific handshake messages to establish a
+    /// connection. If any step in the handshake fails, the method logs an error and returns <see langword="false"/>.
+    /// The method does not throw exceptions for handshake failures; instead, it returns <see langword="false"/> to
+    /// indicate failure.</remarks>
+    /// <param name="socket">The connected socket used for the handshake.</param>
+    /// <param name="receiveBuffer">A buffer used to receive handshake response data from the remote endpoint. Must be large enough to hold the
+    /// expected handshake messages.</param>
+    /// <param name="profile">The connection profile containing parameters required for the handshake process.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the handshake
+    /// completes successfully; otherwise, <see langword="false"/>.</returns>
+    private async Task<bool> PerformOptimizedHandshakeModernAsync(Socket socket, byte[] receiveBuffer, TsapProfile profile)
+    {
+        try
+        {
+            // Step 1: Initial connection request
+            var connectionRequest = GetConnectionRequestBytes(profile);
+            var sent = await socket.SendAsync(connectionRequest, SocketFlags.None).ConfigureAwait(false);
+            if (sent != connectionRequest.Length)
+            {
+                LogError("Failed to send initial connection request");
+                return false;
+            }
+
+            // Step 2: Receive connection response (TPKT length based)
+            var received = await ReceiveTpktExactModernAsync(socket, receiveBuffer, 22).ConfigureAwait(false);
+            if (received < 22)
+            {
+                LogError($"Invalid connection response length {received}");
+                return false;
+            }
+
+            // Step 3: Communication setup request
+            var communicationSetupRequest = GetCommunicationSetupBytes();
+            sent = await socket.SendAsync(communicationSetupRequest, SocketFlags.None).ConfigureAwait(false);
+            if (sent != communicationSetupRequest.Length)
+            {
+                LogError("Failed to send communication setup request");
+                return false;
+            }
+
+            // Step 4: Receive communication setup response (TPKT length based)
+            received = await ReceiveTpktExactModernAsync(socket, receiveBuffer, 27).ConfigureAwait(false);
+            if (received < 27)
+            {
+                LogError($"Invalid communication setup response length {received}");
+                return false;
+            }
+
+            UpdateNegotiatedPduLength(receiveBuffer, received);
 
             return true;
         }
@@ -973,67 +1207,11 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    /// <summary>
-    /// Asynchronously receives a complete TPKT packet from the underlying socket into the specified buffer.
-    /// </summary>
-    /// <remarks>The method reads the 4-byte TPKT header to determine the packet length, then reads the
-    /// remaining data to complete the packet. If the actual packet length is less than the specified minimum, a warning
-    /// is logged but the packet is still read. The method returns as soon as the full packet is received or if the
-    /// connection is closed before completion.</remarks>
-    /// <param name="socket">The connected socket to read from.</param>
-    /// <param name="buffer">The buffer that receives the TPKT packet data. Must be large enough to hold the entire packet.</param>
-    /// <param name="expectedMin">The minimum expected length of the TPKT packet, in bytes. Used for validation; set to 0 to disable the check.</param>
-    /// <returns>The total number of bytes read into the buffer, or a value less than 4 if the TPKT header could not be read.</returns>
-    private async Task<int> ReceiveTpktExactModernAsync(Socket socket, byte[] buffer, int expectedMin)
-    {
-        // Read TPKT header (4 bytes)
-        var headerRead = await ReceiveExactAsync(socket, buffer, 4, 0).ConfigureAwait(false);
-        if (headerRead != 4)
-        {
-            return headerRead;
-        }
-
-        var length = (buffer[2] << 8) | buffer[3];
-        if (length < 4 || length > buffer.Length)
-        {
-            LogWarning($"Invalid TPKT length {length} for receive buffer {buffer.Length}");
-            return 0;
-        }
-
-        if (length < expectedMin && expectedMin > 0)
-        {
-            LogWarning($"TPKT length {length} smaller than expected {expectedMin}");
-        }
-
-        var remaining = length - 4;
-        if (remaining == 0)
-        {
-            return headerRead;
-        }
-
-        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, 4).ConfigureAwait(false);
-        return bodyRead <= 0 ? headerRead : headerRead + bodyRead;
-
-        static async Task<int> ReceiveExactAsync(Socket socket, byte[] buffer, int size, int offset)
-        {
-            var total = 0;
-            while (total < size)
-            {
-                var received = await socket.ReceiveAsync(buffer.AsMemory(offset + total, size - total), SocketFlags.None).ConfigureAwait(false);
-                if (received <= 0)
-                {
-                    break;
-                }
-
-                total += received;
-            }
-
-            return total;
-        }
-    }
-
 #endif
 
+    /// <summary>Stores the p ro be av ai la bi li ty an dn ot if ya sy n c value.</summary>
+    /// <param name="observer">The o bs er v e r value.</param>
+    /// <returns>The resulting value.</returns>
     private async Task ProbeAvailabilityAndNotifyAsync(IObserver<bool> observer)
     {
         var isReachable = await CheckAvailabilityOptimizedAsync().ConfigureAwait(false);
@@ -1065,6 +1243,8 @@ internal class S7SocketRx : IDisposable
         observer.OnNext(_isAvailable == true);
     }
 
+    /// <summary>Stores the e va lu at ec on ne ct io ns ta te wi th hy st er es i s value.</summary>
+    /// <returns>The resulting value.</returns>
     private bool EvaluateConnectionStateWithHysteresis()
     {
         if (!_initComplete)
@@ -1087,30 +1267,19 @@ internal class S7SocketRx : IDisposable
             return true;
         }
 
-        if (_initComplete && _consecutiveConnectionFailures == ConnectionFailureThreshold)
-        {
-            LogWarning($"Connection probe failed {_consecutiveConnectionFailures} times consecutively. Restarting connection.");
-            RestartConnection();
-        }
-
-        return false;
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool CheckConnectionStatusOptimized(Socket socket)
-    {
-        try
-        {
-            return socket.Connected &&
-                !(socket.Poll(1000, SelectMode.SelectRead) && socket.Available == 0);
-        }
-        catch
+        if (!_initComplete || _consecutiveConnectionFailures != ConnectionFailureThreshold)
         {
             return false;
         }
+
+        LogWarning($"Connection probe failed {_consecutiveConnectionFailures} times consecutively. Restarting connection.");
+        RestartConnection();
+        return false;
     }
 
+    /// <summary>Stores the u pd at en eg ot ia te dp du le ng t h value.</summary>
+    /// <param name="response">The r es po n s e value.</param>
+    /// <param name="responseLength">The r es po ns el en g t h value.</param>
     private void UpdateNegotiatedPduLength(byte[] response, int responseLength)
     {
         if (responseLength < 27)
@@ -1132,6 +1301,12 @@ internal class S7SocketRx : IDisposable
         DataReadLength = negotiatedPduLength;
     }
 
+    /// <summary>Receives exactly the requested number of bytes unless the socket closes first.</summary>
+    /// <param name="tag">The tag associated with the receive operation.</param>
+    /// <param name="buffer">The receive buffer.</param>
+    /// <param name="size">The number of bytes to receive.</param>
+    /// <param name="offset">The buffer offset.</param>
+    /// <returns>The number of bytes received.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int ReceiveExact(Tag tag, byte[] buffer, int size, int offset = 0)
     {
@@ -1150,9 +1325,7 @@ internal class S7SocketRx : IDisposable
         return total;
     }
 
-    /// <summary>
-    /// Builds a connection request message as a byte array using the specified TSAP profile settings.
-    /// </summary>
+    /// <summary>Builds a connection request message as a byte array using the specified TSAP profile settings.</summary>
     /// <remarks>The generated message is compatible with S7-1200, S7-300, and S7-400 devices, using a TPDU
     /// size of 512 bytes. The TSAP values are set based on the properties of the supplied profile.</remarks>
     /// <param name="profile">The TSAP profile containing source and destination transport service access point (TSAP) values used to
@@ -1161,41 +1334,36 @@ internal class S7SocketRx : IDisposable
     /// profile.</returns>
     private byte[] GetConnectionRequestBytes(TsapProfile profile)
     {
-        byte[] bSend1 = [3, 0, 0, 22, 17, 224, 0, 0, 0, 46, 0, 193, 2, 1, 0, 194, 2, 3, 0, 192, 1, 9];
+        byte[] connectionRequest = [3, 0, 0, 22, 17, 224, 0, 0, 0, 46, 0, 193, 2, 1, 0, 194, 2, 3, 0, 192, 1, 9];
 
         // Use TPDU size 512 (0x09) for S7-1200/300/400 compatibility
-
         // Source TSAP (C1)
-        bSend1[13] = profile.SrcHi;
-        bSend1[14] = profile.SrcLo;
+        connectionRequest[13] = profile.SrcHi;
+        connectionRequest[14] = profile.SrcLo;
 
         // Destination TSAP (C2)
-        bSend1[17] = profile.DstHi;
-        bSend1[18] = profile.DstLo(Rack, Slot);
+        connectionRequest[17] = profile.DstHi;
+        connectionRequest[18] = profile.DstLo(Rack, Slot);
 
-        return bSend1;
+        return connectionRequest;
     }
 
-    /// <summary>
-    /// Creates and returns a byte array containing the communication setup parameters for the PLC connection.
-    /// </summary>
+    /// <summary>Creates and returns a byte array containing the communication setup parameters for the PLC connection.</summary>
     /// <remarks>The returned array includes protocol-specific configuration values, including the optimal PDU
     /// length for the target PLC type. This method is intended for internal use when establishing or configuring a PLC
     /// communication session.</remarks>
     /// <returns>A byte array representing the communication setup message to be sent to the PLC.</returns>
     private byte[] GetCommunicationSetupBytes()
     {
-        byte[] bSend2 = [3, 0, 0, 25, 2, 240, 128, 50, 1, 0, 0, 4, 0, 0, 8, 0, 0, 240, 0, 0, 1, 0, 1, 0, 30];
+        byte[] communicationSetupRequest = [3, 0, 0, 25, 2, 240, 128, 50, 1, 0, 0, 4, 0, 0, 8, 0, 0, 240, 0, 0, 1, 0, 1, 0, 30];
 
         // Set optimal PDU length for the specific PLC type
-        Word.ToByteArray(DataReadLength, bSend2, 23);
+        Word.ToByteArray(DataReadLength, communicationSetupRequest, 23);
 
-        return bSend2;
+        return communicationSetupRequest;
     }
 
-    /// <summary>
-    /// Records a successful send or receive operation, updating internal metrics and error counters.
-    /// </summary>
+    /// <summary>Records a successful send or receive operation, updating internal metrics and error counters.</summary>
     /// <param name="duration">The duration of the completed operation.</param>
     /// <param name="bytes">The number of bytes processed during the operation.</param>
     /// <param name="isReceive">true to record a receive operation; false to record a send operation.</param>
@@ -1216,9 +1384,7 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    /// <summary>
-    /// Records an error occurrence and updates internal error tracking state.
-    /// </summary>
+    /// <summary>Records an error occurrence and updates internal error tracking state.</summary>
     /// <remarks>If the number of consecutive errors exceeds a predefined threshold, this method initiates a
     /// connection restart to recover from persistent failures.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1228,16 +1394,16 @@ internal class S7SocketRx : IDisposable
         _metrics.RecordError();
 
         // Trigger connection restart if too many consecutive errors
-        if (_consecutiveErrors == 6)
+        if (_consecutiveErrors != 6)
         {
-            LogWarning($"Excessive failures detected: {_consecutiveErrors}. Restarting connection.");
-            RestartConnection();
+            return;
         }
+
+        LogWarning($"Excessive failures detected: {_consecutiveErrors}. Restarting connection.");
+        RestartConnection();
     }
 
-    /// <summary>
-    /// Attempts to asynchronously restart the network connection after a failure.
-    /// </summary>
+    /// <summary>Attempts to asynchronously restart the network connection after a failure.</summary>
     /// <remarks>This method initiates a background task to close the current socket, reset connection state,
     /// and re-establish the connection. If the object has been disposed, the operation is not performed. Any exceptions
     /// encountered during the restart process are logged. This method is intended for internal use and is not
@@ -1278,13 +1444,11 @@ internal class S7SocketRx : IDisposable
             }
             finally
             {
-                Interlocked.Exchange(ref _restartInProgress, 0);
+                _ = Interlocked.Exchange(ref _restartInProgress, 0);
             }
         });
 
-    /// <summary>
-    /// Reports the current set of collected metrics to subscribed observers.
-    /// </summary>
+    /// <summary>Reports the current set of collected metrics to subscribed observers.</summary>
     /// <remarks>This method is typically intended to be used as a callback for timer or scheduling mechanisms
     /// that require a method signature accepting a state parameter. Any exceptions encountered during reporting are
     /// logged and do not propagate to the caller.</remarks>
@@ -1301,131 +1465,7 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    /// <summary>
-    /// Determines the optimal data read length, in bytes, for the specified PLC type.
-    /// </summary>
-    /// <remarks>The returned value is based on typical performance characteristics and protocol limitations
-    /// for each supported PLC type. Using the optimal read length can improve communication efficiency and reduce the
-    /// number of required read operations.</remarks>
-    /// <param name="plcType">The type of PLC for which to determine the optimal data read length.</param>
-    /// <returns>A 16-bit unsigned integer representing the recommended number of bytes to read in a single operation for the
-    /// specified PLC type.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ushort GetOptimalDataReadLength(CpuType plcType) => plcType switch
-    {
-        CpuType.Logo0BA8 => 240,
-        CpuType.S7200 => 480,
-        CpuType.S7300 => 480,
-        CpuType.S7400 => 960,
-        CpuType.S71200 => 960,
-        CpuType.S71500 => 1440,
-        _ => 480
-    };
-
-    /// <summary>
-    /// Closes and disposes the specified socket, suppressing any exceptions that may occur during shutdown or disposal.
-    /// </summary>
-    /// <remarks>This method attempts to gracefully shut down the socket if it is connected, then closes and
-    /// disposes it. Any exceptions thrown during shutdown, close, or dispose operations are caught and ignored to
-    /// ensure that the method does not throw.</remarks>
-    /// <param name="socket">The socket to close and dispose. If null, the method performs no action.</param>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void CloseSocketOptimized(Socket? socket)
-    {
-        if (socket == null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (socket.Connected)
-            {
-                try
-                {
-                    socket.Shutdown(SocketShutdown.Both);
-                }
-                catch
-                {
-                }
-            }
-        }
-        catch
-        {
-        }
-        finally
-        {
-            try
-            {
-                socket.Close();
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                socket.Dispose();
-            }
-            catch
-            {
-            }
-        }
-    }
-
-    /// <summary>
-    /// Logs an error message to the debug output when a debugger is attached.
-    /// </summary>
-    /// <remarks>This method writes the error message to the debug output window only if a debugger is
-    /// currently attached. It does not persist the message or display it in production environments.</remarks>
-    /// <param name="message">The error message to log. Cannot be null.</param>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void LogError(string message)
-    {
-        if (Debugger.IsAttached)
-        {
-            Debug.WriteLine($"[ERROR] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
-        }
-    }
-
-    /// <summary>
-    /// Writes an informational message to the debug output when a debugger is attached.
-    /// </summary>
-    /// <remarks>This method has no effect if a debugger is not attached. The message is prefixed with a
-    /// timestamp and an [INFO] label for clarity in the debug output.</remarks>
-    /// <param name="message">The informational message to write to the debug output.</param>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void LogInfo(string message)
-    {
-        if (Debugger.IsAttached)
-        {
-            Debug.WriteLine($"[INFO] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
-        }
-    }
-
-    /// <summary>
-    /// Writes a warning message to the debug output when a debugger is attached.
-    /// </summary>
-    /// <remarks>This method has no effect if a debugger is not attached. The message is prefixed with a
-    /// timestamp and a warning label for easier identification in the debug output.</remarks>
-    /// <param name="message">The warning message to write to the debug output.</param>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void LogWarning(string message)
-    {
-        if (Debugger.IsAttached)
-        {
-            Debug.WriteLine($"[WARN] {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously checks whether the configured IP address is reachable using an optimized ping operation.
-    /// </summary>
+    /// <summary>Asynchronously checks whether the configured IP address is reachable using an optimized ping operation.</summary>
     /// <remarks>Returns <see langword="false"/> if the IP address is not set or is invalid, or if the ping
     /// operation fails due to network errors or exceptions.</remarks>
     /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the IP address
@@ -1437,7 +1477,7 @@ internal class S7SocketRx : IDisposable
             return false;
         }
 
-        if (_initComplete && _socket != null && CheckConnectionStatusOptimized(_socket) &&
+        if (_initComplete && _socket is not null && CheckConnectionStatusOptimized(_socket) &&
             DateTime.UtcNow - _lastSuccessfulOperation <= RecentOperationAvailabilityWindow)
         {
             return true;
@@ -1463,6 +1503,8 @@ internal class S7SocketRx : IDisposable
         return await CheckPortAvailabilityAsync().ConfigureAwait(false);
     }
 
+    /// <summary>Stores the c he ck po rt av ai la bi li ty as y n c value.</summary>
+    /// <returns>The resulting value.</returns>
     private async Task<bool> CheckPortAvailabilityAsync()
     {
         using var probeSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -1499,10 +1541,7 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    /// <summary>
-    /// Determines whether the underlying socket connection is currently active, using an optimized check to minimize
-    /// overhead.
-    /// </summary>
+    /// <summary>Determines whether the underlying socket connection is currently active, using an optimized check to minimize overhead.</summary>
     /// <remarks>This method performs a lightweight check to verify the connection status. If the connection
     /// appears active but has not been used for more than two minutes, an additional lightweight operation is performed
     /// to confirm connectivity. If the connection is found to be inactive and initialization is complete, the
@@ -1511,7 +1550,7 @@ internal class S7SocketRx : IDisposable
     /// <returns>true if the connection is considered active; otherwise, false.</returns>
     private bool CheckConnectionStatusOptimized()
     {
-        if (_socket == null)
+        if (_socket is null)
         {
             return false;
         }
@@ -1521,12 +1560,9 @@ internal class S7SocketRx : IDisposable
             var isConnected = _socket.Connected &&
                             !(_socket.Poll(1000, SelectMode.SelectRead) && _socket.Available == 0);
 
-            if (isConnected && DateTime.UtcNow - _lastSuccessfulOperation > TimeSpan.FromMinutes(2))
-            {
-                return PerformLightweightConnectionCheck();
-            }
-
-            return isConnected;
+            return isConnected && DateTime.UtcNow - _lastSuccessfulOperation > TimeSpan.FromMinutes(2)
+                ? PerformLightweightConnectionCheck()
+                : isConnected;
         }
         catch (ObjectDisposedException)
         {
@@ -1538,9 +1574,7 @@ internal class S7SocketRx : IDisposable
         }
     }
 
-    /// <summary>
-    /// Performs a lightweight check to determine whether the underlying socket connection is still valid.
-    /// </summary>
+    /// <summary>Performs a lightweight check to determine whether the underlying socket connection is still valid.</summary>
     /// <remarks>This method attempts to set a socket option as a way to verify the connection's health
     /// without sending data. It does not guarantee that the connection is fully operational, but can be used as a quick
     /// check before performing more expensive operations.</remarks>
@@ -1572,25 +1606,19 @@ internal class S7SocketRx : IDisposable
     /// <param name="Name">The name that identifies the TSAP profile.</param>
     private readonly record struct TsapProfile(byte SrcHi, byte SrcLo, byte DstHi, Func<short, short, byte> DstLo, string Name)
     {
-        /// <summary>
-        /// Gets the TSAP profile for the "PG" (Programming Device) connection type.
-        /// </summary>
+        /// <summary>Gets the TSAP profile for the "PG" (Programming Device) connection type.</summary>
         /// <remarks>This profile is typically used when establishing a connection to a PLC as a
         /// programming device. The PG profile may have different access rights or communication behavior compared to
         /// other TSAP profiles, depending on the PLC configuration.</remarks>
         public static TsapProfile PG => new(0x01, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "PG");
 
-        /// <summary>
-        /// Gets the TSAP profile for the "OP" (Operator Panel) communication type.
-        /// </summary>
+        /// <summary>Gets the TSAP profile for the "OP" (Operator Panel) communication type.</summary>
         /// <remarks>Use this profile when establishing a connection that requires the Operator Panel TSAP
         /// settings. The profile includes predefined parameters suitable for typical OP communication
         /// scenarios.</remarks>
         public static TsapProfile OP => new(0x02, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "OP");
 
-        /// <summary>
-        /// Gets the TSAP profile for the PGAlt (Programming Device Alternative) connection type.
-        /// </summary>
+        /// <summary>Gets the TSAP profile for the PGAlt (Programming Device Alternative) connection type.</summary>
         public static TsapProfile PGAlt => new(0x10, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "PGAlt");
     }
 }

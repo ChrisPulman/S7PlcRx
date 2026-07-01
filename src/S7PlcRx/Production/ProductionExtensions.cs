@@ -1,10 +1,14 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
-using System.Reactive.Linq;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Production;
+#else
 namespace S7PlcRx.Production;
+#endif
 
 /// <summary>
 /// Provides extension methods for enabling production-grade error handling, retry logic, and system validation on PLC
@@ -17,113 +21,93 @@ namespace S7PlcRx.Production;
 /// ensured for shared resources such as circuit breakers.</remarks>
 public static class ProductionExtensions
 {
+    /// <summary>Stores the c ir cu it br ea ke r s used by this instance.</summary>
     private static readonly ConcurrentDictionary<string, CircuitBreaker> _circuitBreakers = new();
 
-    /// <summary>
-    /// Enables production error handling for the specified PLC using the provided configuration.
-    /// </summary>
-    /// <param name="plc">The PLC instance to enable production error handling for. Cannot be null.</param>
-    /// <param name="config">The configuration settings to use for production error handling. Cannot be null.</param>
-    /// <returns>A new instance of <see cref="ProductionErrorHandler"/> configured for the specified PLC.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="config"/> is null.</exception>
-    public static ProductionErrorHandler EnableProductionErrorHandling(
-        this IRxS7 plc,
-        ProductionErrorConfig config)
+    /// <summary>Provides production-readiness extensions for PLC instances.</summary>
+    /// <param name="plc">The PLC instance.</param>
+    extension(IRxS7 plc)
     {
-        if (plc == null)
+        /// <summary>Enables production error handling for the specified PLC using the provided configuration.</summary>
+        /// <param name="config">The configuration settings to use for production error handling.</param>
+        /// <returns>A new instance of <see cref="ProductionErrorHandler"/> configured for the specified PLC.</returns>
+        public ProductionErrorHandler EnableProductionErrorHandling(ProductionErrorConfig config)
         {
-            throw new ArgumentNullException(nameof(plc));
+            if (plc is null)
+            {
+                throw new ArgumentNullException(nameof(plc));
+            }
+
+            if (config is null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
+
+            return new ProductionErrorHandler(config);
         }
 
-        if (config == null)
+        /// <summary>Executes the specified asynchronous PLC operation with error handling and circuit breaker protection.</summary>
+        /// <typeparam name="T">The type of the result returned by the operation.</typeparam>
+        /// <param name="operation">A function that represents the asynchronous operation to execute.</param>
+        /// <param name="config">An optional configuration object that specifies error handling and circuit breaker behavior.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        public Task<T> ExecuteWithErrorHandling<T>(
+            Func<Task<T>> operation,
+            ProductionErrorConfig? config = null)
         {
-            throw new ArgumentNullException(nameof(config));
+            if (plc is null)
+            {
+                throw new ArgumentNullException(nameof(plc));
+            }
+
+            if (operation is null)
+            {
+                throw new ArgumentNullException(nameof(operation));
+            }
+
+            var errorConfig = config ?? new ProductionErrorConfig();
+            var circuitBreakerKey = $"{plc.IP}_{plc.PLCType}";
+            var circuitBreaker = _circuitBreakers.GetOrAdd(circuitBreakerKey, _ => new CircuitBreaker(errorConfig));
+
+            return circuitBreaker.ExecuteAsync(operation);
         }
 
-        return new ProductionErrorHandler(config);
-    }
-
-    /// <summary>
-    /// Executes the specified asynchronous PLC operation with error handling and circuit breaker protection.
-    /// </summary>
-    /// <remarks>This method ensures that the provided operation is executed with error handling policies
-    /// defined by the specified or default configuration. It uses a circuit breaker to prevent repeated execution of
-    /// failing operations, which can help protect the PLC and improve system resilience.</remarks>
-    /// <typeparam name="T">The type of the result returned by the operation.</typeparam>
-    /// <param name="plc">The PLC instance on which to perform the operation. Cannot be null.</param>
-    /// <param name="operation">A function that represents the asynchronous operation to execute. Cannot be null.</param>
-    /// <param name="config">An optional configuration object that specifies error handling and circuit breaker behavior. If null, a default
-    /// configuration is used.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains the value returned by the operation.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="plc"/> or <paramref name="operation"/> is null.</exception>
-    public static async Task<T> ExecuteWithErrorHandling<T>(
-        this IRxS7 plc,
-        Func<Task<T>> operation,
-        ProductionErrorConfig? config = null)
-    {
-        if (plc == null)
+        /// <summary>Performs a comprehensive validation of the specified PLC to determine its readiness for production deployment.</summary>
+        /// <param name="validationConfig">An optional configuration object that specifies validation parameters and thresholds.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        public async Task<SystemValidationResult> ValidateProductionReadiness(
+            ProductionValidationConfig? validationConfig = null)
         {
-            throw new ArgumentNullException(nameof(plc));
+            if (plc is null)
+            {
+                throw new ArgumentNullException(nameof(plc));
+            }
+
+            var config = validationConfig ?? new ProductionValidationConfig();
+            var result = new SystemValidationResult
+            {
+                ValidationStartTime = DateTime.UtcNow,
+                PLCIdentifier = $"{plc.IP}:{plc.PLCType}"
+            };
+
+            try
+            {
+                await ValidateConnectivity(plc, result);
+                await ValidatePerformance(plc, result, config);
+                await ValidateReliability(plc, result, config);
+
+                result.OverallScore = CalculateOverallScore(result);
+                result.IsProductionReady = result.OverallScore >= config.MinimumProductionScore;
+            }
+            catch (Exception ex)
+            {
+                result.CriticalErrors.Add($"Validation failed: {ex.Message}");
+                result.IsProductionReady = false;
+            }
+
+            result.ValidationEndTime = DateTime.UtcNow;
+            return result;
         }
-
-        if (operation == null)
-        {
-            throw new ArgumentNullException(nameof(operation));
-        }
-
-        var errorConfig = config ?? new ProductionErrorConfig();
-        var circuitBreakerKey = $"{plc.IP}_{plc.PLCType}";
-        var circuitBreaker = _circuitBreakers.GetOrAdd(circuitBreakerKey, _ => new CircuitBreaker(errorConfig));
-
-        return await circuitBreaker.ExecuteAsync(operation);
-    }
-
-    /// <summary>
-    /// Performs a comprehensive validation of the specified PLC to determine its readiness for production deployment.
-    /// </summary>
-    /// <remarks>The validation process includes checks for connectivity, performance, and reliability. The
-    /// method aggregates results and determines production readiness based on the provided or default configuration.
-    /// The returned result includes timestamps, scores, and any critical errors encountered during
-    /// validation.</remarks>
-    /// <param name="plc">The PLC instance to validate for production readiness. Cannot be null.</param>
-    /// <param name="validationConfig">An optional configuration object that specifies validation parameters and thresholds. If null, default
-    /// validation settings are used.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a SystemValidationResult object with
-    /// detailed validation outcomes, including overall readiness, scores, and any detected issues.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
-    public static async Task<SystemValidationResult> ValidateProductionReadiness(
-        this IRxS7 plc,
-        ProductionValidationConfig? validationConfig = null)
-    {
-        if (plc == null)
-        {
-            throw new ArgumentNullException(nameof(plc));
-        }
-
-        var config = validationConfig ?? new ProductionValidationConfig();
-        var result = new SystemValidationResult
-        {
-            ValidationStartTime = DateTime.UtcNow,
-            PLCIdentifier = $"{plc.IP}:{plc.PLCType}"
-        };
-
-        try
-        {
-            await ValidateConnectivity(plc, result);
-            await ValidatePerformance(plc, result, config);
-            await ValidateReliability(plc, result, config);
-
-            result.OverallScore = CalculateOverallScore(result);
-            result.IsProductionReady = result.OverallScore >= config.MinimumProductionScore;
-        }
-        catch (Exception ex)
-        {
-            result.CriticalErrors.Add($"Validation failed: {ex.Message}");
-            result.IsProductionReady = false;
-        }
-
-        result.ValidationEndTime = DateTime.UtcNow;
-        return result;
     }
 
     /// <summary>
@@ -238,9 +222,9 @@ public static class ProductionExtensions
                     await plc.GetCpuInfo();
                     successCount++;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Count failures
+                    reliabilityTest.Details.Add($"Reliability operation {i + 1} failed: {ex.Message}");
                 }
 
                 if (i < consecutiveOperations - 1)
@@ -272,9 +256,7 @@ public static class ProductionExtensions
         result.ValidationTests.Add(reliabilityTest);
     }
 
-    /// <summary>
-    /// Calculates the overall success rate of validation tests as a percentage.
-    /// </summary>
+    /// <summary>Calculates the overall success rate of validation tests as a percentage.</summary>
     /// <param name="result">The result object containing the collection of validation tests to evaluate. Cannot be null.</param>
     /// <returns>A double value representing the percentage of successful validation tests. Returns 0 if there are no validation
     /// tests.</returns>
@@ -285,7 +267,15 @@ public static class ProductionExtensions
             return 0;
         }
 
-        var successfulTests = result.ValidationTests.Count(t => t.Success);
+        var successfulTests = 0;
+        foreach (var test in result.ValidationTests)
+        {
+            if (test.Success)
+            {
+                successfulTests++;
+            }
+        }
+
         return (double)successfulTests / result.ValidationTests.Count * 100;
     }
 }

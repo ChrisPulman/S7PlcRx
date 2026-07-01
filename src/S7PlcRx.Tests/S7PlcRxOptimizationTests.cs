@@ -1,7 +1,7 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx.Advanced;
 using S7PlcRx.Core;
@@ -17,7 +17,7 @@ namespace S7PlcRx.Tests;
 /// Comprehensive optimization tests for S7PlcRx covering performance, caching, batching, and production features.
 /// These tests validate the optimized library functionality without requiring physical PLCs.
 /// </summary>
-[NonParallelizable]
+[NotInParallel]
 public sealed class S7PlcRxOptimizationTests : IDisposable
 {
     private readonly RxS7 _plc;
@@ -605,9 +605,10 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     /// <param name="bit">The bit index (0-7).</param>
     /// <param name="value">Whether the bit should be set.</param>
     /// <param name="expected">The expected byte value after applying the bit operation.</param>
-    [TestCase(0, true, (byte)0b0000_0001)]
-    [TestCase(0, false, (byte)0b0000_0000)]
-    [TestCase(7, true, (byte)0b1000_0000)]
+    [Test]
+    [Arguments(0, true, (byte)0b0000_0001)]
+    [Arguments(0, false, (byte)0b0000_0000)]
+    [Arguments(7, true, (byte)0b1000_0000)]
     public void BitMasking_ShouldSetAndClearBitsCorrectly(int bit, bool value, byte expected)
     {
         // Arrange

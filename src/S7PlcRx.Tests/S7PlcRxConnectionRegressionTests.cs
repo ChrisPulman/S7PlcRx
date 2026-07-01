@@ -1,23 +1,21 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-extern alias TUnitAssertions;
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
-using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx.Enums;
-using TUnitAssertions::TUnit.Assertions.Extensions;
-using TUnitAssert = TUnitAssertions::TUnit.Assertions.Assert;
+using TUnit.Assertions.Extensions;
+using TUnitAssert = TUnit.Assertions.Assert;
 
 namespace S7PlcRx.Tests;
 
 /// <summary>
 /// Regression tests for connection readiness and watchdog behavior.
 /// </summary>
-[NonParallelizable]
+[NotInParallel]
 public sealed class S7PlcRxConnectionRegressionTests
 {
     private const string LivePlcIp = "172.16.13.1";

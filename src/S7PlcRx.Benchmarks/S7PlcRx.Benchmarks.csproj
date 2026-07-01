@@ -9,7 +9,6 @@
 
     <!-- Benchmarks: keep analyzers off to avoid StyleCop/doc requirements impacting perf harness -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);SA1600;SA1633;CA1001;CA1822;SA1313</NoWarn>
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
 
     <!-- Ensure dependencies are present in output folder for in-process execution -->
@@ -17,8 +16,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ReactiveUI.Primitives" Version="5.8.0" />
+    <PackageReference Include="ReactiveUI.Primitives.Extensions" Version="5.8.0" />
     <ProjectReference Include="..\MockS7Plc\MockS7Plc.csproj" />
     <ProjectReference Include="..\S7PlcRx\S7PlcRx.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
   </ItemGroup>
 
   <ItemGroup>

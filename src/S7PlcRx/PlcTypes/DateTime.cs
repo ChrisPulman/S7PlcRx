@@ -1,35 +1,30 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Contains the methods to convert between <see cref="T:System.DateTime"/> and S7 representation of datetime values.
-/// </summary>
+/// <summary>Contains the methods to convert between <see cref="T:System.DateTime"/> and S7 representation of datetime values.</summary>
 public static class DateTime
 {
-    /// <summary>
-    /// The minimum <see cref="T:System.DateTime"/> value supported by the specification.
-    /// </summary>
+    /// <summary>The minimum <see cref="T:System.DateTime"/> value supported by the specification.</summary>
     public static readonly System.DateTime SpecMinimumDateTime = new(1990, 1, 1);
 
-    /// <summary>
-    /// The maximum <see cref="T:System.DateTime"/> value supported by the specification.
-    /// </summary>
+    /// <summary>The maximum <see cref="T:System.DateTime"/> value supported by the specification.</summary>
     public static readonly System.DateTime SpecMaximumDateTime = new(2089, 12, 31, 23, 59, 59, 999);
 
-    /// <summary>
-    /// Parses a <see cref="T:System.DateTime"/> value from bytes.
-    /// </summary>
+    /// <summary>Parses a <see cref="T:System.DateTime"/> value from bytes.</summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
     /// <returns>A <see cref="T:System.DateTime"/> object representing the value read from PLC.</returns>
     public static System.DateTime FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
-    /// <summary>
-    /// Parses a <see cref="T:System.DateTime"/> value from a span.
-    /// </summary>
+    /// <summary>Parses a <see cref="T:System.DateTime"/> value from a span.</summary>
     /// <param name="bytes">Input bytes span read from PLC.</param>
     /// <returns>A <see cref="T:System.DateTime"/> object representing the value read from PLC.</returns>
     public static System.DateTime FromSpan(ReadOnlySpan<byte> bytes)
@@ -42,16 +37,12 @@ public static class DateTime
         return FromSpanImpl(bytes);
     }
 
-    /// <summary>
-    /// Parses an array of <see cref="T:System.DateTime"/> values from bytes.
-    /// </summary>
+    /// <summary>Parses an array of <see cref="T:System.DateTime"/> values from bytes.</summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
     /// <returns>An array of <see cref="T:System.DateTime"/> objects representing the values read from PLC.</returns>
     public static System.DateTime[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
 
-    /// <summary>
-    /// Parses an array of <see cref="T:System.DateTime"/> values from a span.
-    /// </summary>
+    /// <summary>Parses an array of <see cref="T:System.DateTime"/> values from a span.</summary>
     /// <param name="bytes">Input bytes span read from PLC.</param>
     /// <returns>An array of <see cref="T:System.DateTime"/> objects representing the values read from PLC.</returns>
     public static System.DateTime[] ToArray(ReadOnlySpan<byte> bytes)
@@ -72,9 +63,7 @@ public static class DateTime
         return result;
     }
 
-    /// <summary>
-    /// Converts a <see cref="T:System.DateTime"/> value to a byte array.
-    /// </summary>
+    /// <summary>Converts a <see cref="T:System.DateTime"/> value to a byte array.</summary>
     /// <param name="dateTime">The DateTime value to convert.</param>
     /// <returns>A byte array containing the S7 date time representation of <paramref name="dateTime"/>.</returns>
     public static byte[] ToByteArray(System.DateTime dateTime)
@@ -84,9 +73,7 @@ public static class DateTime
         return bytes.ToArray();
     }
 
-    /// <summary>
-    /// Converts a <see cref="T:System.DateTime"/> value to a span.
-    /// </summary>
+    /// <summary>Converts a <see cref="T:System.DateTime"/> value to a span.</summary>
     /// <param name="dateTime">The DateTime value to convert.</param>
     /// <param name="destination">The destination span.</param>
     public static void ToSpan(System.DateTime dateTime, Span<byte> destination)
@@ -120,9 +107,7 @@ public static class DateTime
         destination[7] = (byte)(((dateTime.Millisecond % 10) << 4) | DayOfWeekToInt(dateTime.DayOfWeek));
     }
 
-    /// <summary>
-    /// Converts an array of <see cref="T:System.DateTime"/> values to a byte array.
-    /// </summary>
+    /// <summary>Converts an array of <see cref="T:System.DateTime"/> values to a byte array.</summary>
     /// <param name="dateTimes">The DateTime values to convert.</param>
     /// <returns>A byte array containing the S7 date time representations of <paramref name="dateTimes"/>.</returns>
     public static byte[] ToByteArray(System.DateTime[] dateTimes)
@@ -151,16 +136,14 @@ public static class DateTime
         }
         finally
         {
-            if (pooledArray != null)
+            if (pooledArray is not null)
             {
                 ArrayPool<byte>.Shared.Return(pooledArray);
             }
         }
     }
 
-    /// <summary>
-    /// Converts multiple DateTime values to the specified span.
-    /// </summary>
+    /// <summary>Converts multiple DateTime values to the specified span.</summary>
     /// <param name="dateTimes">The DateTime values.</param>
     /// <param name="destination">The destination span.</param>
     public static void ToSpan(ReadOnlySpan<System.DateTime> dateTimes, Span<byte> destination)
@@ -176,6 +159,9 @@ public static class DateTime
         }
     }
 
+    /// <summary>Stores the f ro ms pa ni m p l value.</summary>
+    /// <param name="bytes">The b yt e s value.</param>
+    /// <returns>The resulting value.</returns>
     private static System.DateTime FromSpanImpl(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length < 8)
@@ -224,8 +210,6 @@ public static class DateTime
         var second = AssertRangeInclusive(DecodeBcd(bytes[5]), 0, 59, "second");
         var hsec = AssertRangeInclusive(DecodeBcd(bytes[6]), 0, 99, "first two millisecond digits");
         var msec = AssertRangeInclusive(bytes[7] >> 4, 0, 9, "third millisecond digit");
-        ////var dayOfWeek = AssertRangeInclusive(bytes[7] & 0b00001111, 1, 7, "day of week");
-
         return new System.DateTime(year, month, day, hour, minute, second, (hsec * 10) + msec);
     }
 }

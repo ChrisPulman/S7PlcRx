@@ -1,24 +1,29 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Core;
+#else
 using S7PlcRx.Core;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Provides static methods for converting between S7 LReal (64-bit floating point) representations and .NET double
-/// values.
-/// </summary>
+/// <summary>Provides static methods for converting between S7 LReal (64-bit floating point) representations and .NET double values.</summary>
 /// <remarks>The methods in this class handle conversion between S7 LReal format (used in Siemens S7 PLCs) and
 /// .NET double values, including proper handling of endianness. All methods are static and intended for internal use
 /// when working with S7 protocol data. This class is not thread-safe, but all members are stateless and safe for
 /// concurrent use.</remarks>
 public static class LReal
 {
-    /// <summary>
-    /// Converts a byte array to a double-precision floating-point number.
-    /// </summary>
+    /// <summary>Converts a byte array to a double-precision floating-point number.</summary>
     /// <param name="bytes">The byte array containing the binary representation of a double-precision floating-point value. Must be at least
     /// 8 bytes in length.</param>
     /// <returns>A double-precision floating-point number represented by the specified byte array.</returns>
@@ -64,23 +69,17 @@ public static class LReal
         return MemoryMarshal.Read<double>(bytes);
     }
 
-    /// <summary>
-    /// Converts a 32-bit signed integer in DWord format to its equivalent double-precision floating-point value.
-    /// </summary>
+    /// <summary>Converts a 32-bit signed integer in DWord format to its equivalent double-precision floating-point value.</summary>
     /// <param name="value">The 32-bit signed integer value in DWord format to convert.</param>
     /// <returns>A double-precision floating-point value that represents the specified DWord.</returns>
     public static double FromDWord(int value) => FromByteArray(DInt.ToByteArray(value));
 
-    /// <summary>
-    /// Converts the specified 32-bit unsigned integer to its double-precision floating-point representation.
-    /// </summary>
+    /// <summary>Converts the specified 32-bit unsigned integer to its double-precision floating-point representation.</summary>
     /// <param name="value">The 32-bit unsigned integer value to convert.</param>
     /// <returns>A double-precision floating-point number that represents the specified 32-bit unsigned integer.</returns>
     public static double FromDWord(uint value) => FromByteArray(DWord.ToByteArray(value));
 
-    /// <summary>
-    /// Converts a byte array to an array of double-precision floating-point values.
-    /// </summary>
+    /// <summary>Converts a byte array to an array of double-precision floating-point values.</summary>
     /// <remarks>The method interprets each consecutive group of 8 bytes in the input array as a
     /// double-precision floating-point value, using the system's endianness. If the length of the input array is not a
     /// multiple of 8, an exception may be thrown.</remarks>
@@ -88,9 +87,7 @@ public static class LReal
     /// <returns>An array of double values created from the input byte array.</returns>
     public static double[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts a read-only span of bytes to an array of double-precision floating-point values.
-    /// </summary>
+    /// <summary>Converts a read-only span of bytes to an array of double-precision floating-point values.</summary>
     /// <remarks>The method interprets each consecutive group of 8 bytes in the span as a double-precision
     /// floating-point value. The conversion uses the system's endianness. Any remaining bytes that do not form a
     /// complete double are ignored.</remarks>
@@ -112,9 +109,7 @@ public static class LReal
         return values;
     }
 
-    /// <summary>
-    /// Converts the specified double-precision floating-point value to its equivalent 8-byte array representation.
-    /// </summary>
+    /// <summary>Converts the specified double-precision floating-point value to its equivalent 8-byte array representation.</summary>
     /// <param name="value">The double-precision floating-point number to convert.</param>
     /// <returns>A byte array containing the 8-byte binary representation of the specified value.</returns>
     public static byte[] ToByteArray(double value)
@@ -124,9 +119,7 @@ public static class LReal
         return bytes.ToArray();
     }
 
-    /// <summary>
-    /// Writes the specified double-precision floating-point value to the provided span in big-endian byte order.
-    /// </summary>
+    /// <summary>Writes the specified double-precision floating-point value to the provided span in big-endian byte order.</summary>
     /// <remarks>This method writes the value in big-endian format, which is commonly used in certain binary
     /// protocols such as Siemens S7. If the current platform is little-endian, the bytes are reversed to ensure correct
     /// ordering.</remarks>
@@ -141,15 +134,7 @@ public static class LReal
             throw new ArgumentException("Destination span must be at least 8 bytes", nameof(destination));
         }
 
-#pragma warning disable CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
-        MemoryMarshal.Write(destination, ref value);
-#pragma warning restore CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
-
-        // S7 uses big-endian, so reverse if we're on little-endian platform
-        if (BitConverter.IsLittleEndian)
-        {
-            destination.Slice(0, 8).Reverse();
-        }
+        BinaryPrimitives.WriteInt64BigEndian(destination, BitConverter.DoubleToInt64Bits(value));
     }
 
     /// <summary>
@@ -157,9 +142,9 @@ public static class LReal
     /// span as a sequence of bytes.
     /// </summary>
     /// <param name="values">The read-only span of double values to convert to their byte representations.</param>
-    /// <param name="destination">The span of bytes that receives the byte representations of the values. Must be at least values.Length × 8 bytes
+    /// <param name="destination">The span of bytes that receives the byte representations of the values. Must be at least values.Length Ã— 8 bytes
     /// in length.</param>
-    /// <exception cref="ArgumentException">Thrown when the length of destination is less than values.Length × 8 bytes.</exception>
+    /// <exception cref="ArgumentException">Thrown when the length of destination is less than values.Length Ã— 8 bytes.</exception>
     public static void ToSpan(ReadOnlySpan<double> values, Span<byte> destination)
     {
         if (destination.Length < values.Length * 8)
@@ -173,15 +158,13 @@ public static class LReal
         }
     }
 
-    /// <summary>
-    /// Converts an array of double-precision floating-point numbers to a byte array representation.
-    /// </summary>
+    /// <summary>Converts an array of double-precision floating-point numbers to a byte array representation.</summary>
     /// <param name="value">The array of double values to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input double array. The array will be empty if the
     /// input array is empty.</returns>
     public static byte[] ToByteArray(double[] value)
     {
-        if (value == null)
+        if (value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }

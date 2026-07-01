@@ -1,40 +1,33 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Contains the methods to convert between <see cref="T:System.DateTime" /> and S7 representation of DateTimeLong (DTL) values.
-/// </summary>
+/// <summary>Contains the methods to convert between <see cref="T:System.DateTime" /> and S7 representation of DateTimeLong (DTL) values.</summary>
 public static class DateTimeLong
 {
-    /// <summary>
-    /// The type length in bytes.
-    /// </summary>
+    /// <summary>The type length in bytes.</summary>
     public const int TypeLengthInBytes = 12;
 
-    /// <summary>
-    /// The minimum <see cref="T:System.DateTime" /> value supported by the specification.
-    /// </summary>
+    /// <summary>The minimum <see cref="T:System.DateTime" /> value supported by the specification.</summary>
     public static readonly System.DateTime SpecMinimumDateTime = new(1970, 1, 1);
 
-    /// <summary>
-    /// The maximum <see cref="T:System.DateTime" /> value supported by the specification.
-    /// </summary>
+    /// <summary>The maximum <see cref="T:System.DateTime" /> value supported by the specification.</summary>
     public static readonly System.DateTime SpecMaximumDateTime = new(2262, 4, 11, 23, 47, 16, 854);
 
-    /// <summary>
-    /// Parses a <see cref="T:System.DateTime" /> value from bytes.
-    /// </summary>
+    /// <summary>Parses a <see cref="T:System.DateTime" /> value from bytes.</summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
     /// <returns>A <see cref="T:System.DateTime" /> object representing the value read from PLC.</returns>
     public static System.DateTime FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
-    /// <summary>
-    /// Parses a <see cref="T:System.DateTime" /> value from a span.
-    /// </summary>
+    /// <summary>Parses a <see cref="T:System.DateTime" /> value from a span.</summary>
     /// <param name="bytes">Input bytes span read from PLC.</param>
     /// <returns>A <see cref="T:System.DateTime" /> object representing the value read from PLC.</returns>
     public static System.DateTime FromSpan(ReadOnlySpan<byte> bytes)
@@ -47,16 +40,12 @@ public static class DateTimeLong
         return FromSpanImpl(bytes);
     }
 
-    /// <summary>
-    /// Parses an array of <see cref="T:System.DateTime" /> values from bytes.
-    /// </summary>
+    /// <summary>Parses an array of <see cref="T:System.DateTime" /> values from bytes.</summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
     /// <returns>An array of <see cref="T:System.DateTime" /> objects representing the values read from PLC.</returns>
     public static System.DateTime[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
 
-    /// <summary>
-    /// Parses an array of <see cref="T:System.DateTime" /> values from a span.
-    /// </summary>
+    /// <summary>Parses an array of <see cref="T:System.DateTime" /> values from a span.</summary>
     /// <param name="bytes">Input bytes span read from PLC.</param>
     /// <returns>An array of <see cref="T:System.DateTime" /> objects representing the values read from PLC.</returns>
     public static System.DateTime[] ToArray(ReadOnlySpan<byte> bytes)
@@ -77,9 +66,7 @@ public static class DateTimeLong
         return result;
     }
 
-    /// <summary>
-    /// Converts a <see cref="T:System.DateTime" /> value to a byte array.
-    /// </summary>
+    /// <summary>Converts a <see cref="T:System.DateTime" /> value to a byte array.</summary>
     /// <param name="dateTime">The DateTime value to convert.</param>
     /// <returns>A byte array containing the S7 DateTimeLong representation of <paramref name="dateTime" />.</returns>
     public static byte[] ToByteArray(System.DateTime dateTime)
@@ -89,9 +76,7 @@ public static class DateTimeLong
         return bytes.ToArray();
     }
 
-    /// <summary>
-    /// Converts a <see cref="T:System.DateTime" /> value to a span.
-    /// </summary>
+    /// <summary>Converts a <see cref="T:System.DateTime" /> value to a span.</summary>
     /// <param name="dateTime">The DateTime value to convert.</param>
     /// <param name="destination">The destination span.</param>
     public static void ToSpan(System.DateTime dateTime, Span<byte> destination)
@@ -134,18 +119,16 @@ public static class DateTimeLong
 
         // Convert Nanoseconds. Net DateTime has a representation of 1 Tick = 100ns.
         // Thus First take the ticks Mod 1 Second (1s = 10'000'000 ticks), and then Convert to nanoseconds.
-        var nanoseconds = (uint)((dateTime.Ticks % 10000000) * 100);
+        var nanoseconds = (uint)((dateTime.Ticks % 10_000_000) * 100);
         DWord.ToSpan(nanoseconds, destination.Slice(8, 4));
     }
 
-    /// <summary>
-    /// Converts an array of <see cref="T:System.DateTime" /> values to a byte array.
-    /// </summary>
+    /// <summary>Converts an array of <see cref="T:System.DateTime" /> values to a byte array.</summary>
     /// <param name="dateTimes">The DateTime values to convert.</param>
     /// <returns>A byte array containing the S7 DateTimeLong representations of <paramref name="dateTimes" />.</returns>
     public static byte[] ToByteArray(System.DateTime[] dateTimes)
     {
-        if (dateTimes == null)
+        if (dateTimes is null)
         {
             throw new ArgumentNullException(nameof(dateTimes));
         }
@@ -169,16 +152,14 @@ public static class DateTimeLong
         }
         finally
         {
-            if (pooledArray != null)
+            if (pooledArray is not null)
             {
                 ArrayPool<byte>.Shared.Return(pooledArray);
             }
         }
     }
 
-    /// <summary>
-    /// Converts multiple DateTime values to the specified span.
-    /// </summary>
+    /// <summary>Converts multiple DateTime values to the specified span.</summary>
     /// <param name="dateTimes">The DateTime values.</param>
     /// <param name="destination">The destination span.</param>
     public static void ToSpan(ReadOnlySpan<System.DateTime> dateTimes, Span<byte> destination)
@@ -194,6 +175,9 @@ public static class DateTimeLong
         }
     }
 
+    /// <summary>Stores the f ro ms pa ni m p l value.</summary>
+    /// <param name="bytes">The b yt e s value.</param>
+    /// <returns>The resulting value.</returns>
     private static System.DateTime FromSpanImpl(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length < TypeLengthInBytes)
@@ -204,17 +188,23 @@ public static class DateTimeLong
         var year = AssertRangeInclusive(Word.FromSpan(bytes.Slice(0, 2)), (ushort)1970, (ushort)2262, "year");
         var month = AssertRangeInclusive(bytes[2], (byte)1, (byte)12, "month");
         var day = AssertRangeInclusive(bytes[3], (byte)1, (byte)31, "day of month");
-        ////var dayOfWeek = AssertRangeInclusive(bytes[4], (byte)1, (byte)7, "day of week");
         var hour = AssertRangeInclusive(bytes[5], (byte)0, (byte)23, "hour");
         var minute = AssertRangeInclusive(bytes[6], (byte)0, (byte)59, "minute");
         var second = AssertRangeInclusive(bytes[7], (byte)0, (byte)59, "second");
 
-        var nanoseconds = AssertRangeInclusive(DWord.FromSpan(bytes.Slice(8, 4)), 0u, 999999999u, "nanoseconds");
+        var nanoseconds = AssertRangeInclusive(DWord.FromSpan(bytes.Slice(8, 4)), 0u, 999_999_999u, "nanoseconds");
 
         var time = new System.DateTime(year, month, day, hour, minute, second);
         return time.AddTicks(nanoseconds / 100);
     }
 
+    /// <summary>Stores the a ss er tr an ge in cl us i v e value.</summary>
+    /// <typeparam name="T">The t value type.</typeparam>
+    /// <param name="input">The i np u t value.</param>
+    /// <param name="min">The m i n value.</param>
+    /// <param name="max">The m a x value.</param>
+    /// <param name="field">The f ie l d value.</param>
+    /// <returns>The resulting value.</returns>
     private static T AssertRangeInclusive<T>(T input, T min, T max, string field)
         where T : IComparable<T>
     {

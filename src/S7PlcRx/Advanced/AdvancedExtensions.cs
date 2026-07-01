@@ -1,14 +1,25 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
-using System.Reactive.Linq;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.BatchOperations;
+using S7PlcRx.Reactive.Enums;
+using S7PlcRx.Reactive.Performance;
+using S7PlcRx.Reactive.Production;
+#else
 using S7PlcRx.BatchOperations;
 using S7PlcRx.Enums;
 using S7PlcRx.Performance;
 using S7PlcRx.Production;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Advanced;
+#else
 namespace S7PlcRx.Advanced;
+#endif
 
 /// <summary>
 /// Provides advanced extension methods for efficient batch operations, diagnostics, and performance analysis on PLC
@@ -21,6 +32,10 @@ namespace S7PlcRx.Advanced;
 /// considerations are addressed where relevant in individual method documentation.</remarks>
 public static class AdvancedExtensions
 {
+    /// <summary>Provides advanced batch, diagnostics, and analysis extensions for PLC instances.</summary>
+    /// <param name="plc">The PLC instance.</param>
+    extension(IRxS7 plc)
+    {
     /// <summary>
     /// Observes the values of multiple PLC variables as a batch and emits updates as a dictionary when any of the
     /// specified variables change.
@@ -29,19 +44,18 @@ public static class AdvancedExtensions
     /// not already being polled, polling is automatically enabled for that variable. The sequence emits a new
     /// dictionary only when the set of variable values changes.</remarks>
     /// <typeparam name="T">The type of the variable values to observe. Must be compatible with the PLC variable types.</typeparam>
-    /// <param name="plc">The PLC instance that provides access to the variables to observe. Cannot be null.</param>
     /// <param name="variables">The names of the PLC variables to observe. If empty, an empty dictionary is emitted.</param>
     /// <returns>An observable sequence that emits a dictionary mapping each specified variable name to its most recent value.
     /// The dictionary is updated and emitted whenever any of the observed variables change.</returns>
     /// <exception cref="ArgumentNullException">Thrown if the <paramref name="plc"/> parameter is null.</exception>
-    public static IObservable<Dictionary<string, T?>> ObserveBatch<T>(this IRxS7 plc, params string[] variables)
+        public IObservable<Dictionary<string, T?>> ObserveBatch<T>(params string[] variables)
     {
-        if (plc == null)
+        if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
 
-        if (variables == null || variables.Length == 0)
+        if (variables is null || variables.Length == 0)
         {
             return Observable.Return(new Dictionary<string, T?>());
         }
@@ -50,12 +64,12 @@ public static class AdvancedExtensions
         {
             if (!plc.TagList.ContainsKey(variable))
             {
-                plc.GetTag(variable).SetTagPollIng(true);
+                _ = plc.GetTag(variable).SetTagPollIng(true);
             }
         }
 
         return plc.ObserveAll
-            .Where(t => t != null && variables.Contains(t.Name) && TagValueIsValid<T>(t))
+            .Where(t => t is not null && variables.Contains(t.Name) && TagValueIsValid<T>(t))
             .Select(t => new KeyValuePair<string, T?>(t!.Name!, (T?)t.Value))
             .Scan(new Dictionary<string, T?>(), (acc, kvp) =>
             {
@@ -75,15 +89,14 @@ public static class AdvancedExtensions
     /// dictionary will be the default value for type T. The order of the returned dictionary corresponds to the order
     /// of the requested variable names. This method may perform the reads in parallel for efficiency.</remarks>
     /// <typeparam name="T">The type of the variable values to read from the PLC.</typeparam>
-    /// <param name="plc">The PLC instance from which to read the variable values. Cannot be null.</param>
     /// <param name="variables">An array of variable names to read from the PLC. Each name must correspond to a valid variable in the PLC.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a dictionary mapping each requested
     /// variable name to its value of type T, or to the default value of T if the variable could not be read or does not
     /// exist. If no variables are specified, returns an empty dictionary.</returns>
     /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
-    public static async Task<Dictionary<string, T?>> ValueBatch<T>(this IRxS7 plc, params string[] variables)
+        public async Task<Dictionary<string, T?>> ValueBatch<T>(params string[] variables)
     {
-        if (plc == null)
+        if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
@@ -91,24 +104,21 @@ public static class AdvancedExtensions
         return await plc.ReadValuesAsync<T>(variables).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Writes a batch of values to the PLC asynchronously using the specified tag-value pairs.
-    /// </summary>
+    /// <summary>Writes a batch of values to the PLC asynchronously using the specified tag-value pairs.</summary>
     /// <remarks>If the underlying PLC implementation supports batch writing, the method attempts to write all
     /// values in a single operation for improved performance. Otherwise, values are written individually in parallel.
     /// No action is taken if the dictionary is null or empty.</remarks>
     /// <typeparam name="T">The type of the values to write to the PLC.</typeparam>
-    /// <param name="plc">The PLC interface to which the values will be written.</param>
     /// <param name="values">A dictionary containing tag names as keys and the corresponding values to write. Cannot be null or empty.</param>
     /// <returns>A task that represents the asynchronous write operation.</returns>
-    public static async Task ValueBatch<T>(this IRxS7 plc, Dictionary<string, T> values)
+        public async Task ValueBatch<T>(Dictionary<string, T> values)
     {
-        if (values == null || values.Count == 0)
+        if (values is null || values.Count == 0)
         {
             return;
         }
 
-        if (plc == null)
+        if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
@@ -116,14 +126,11 @@ public static class AdvancedExtensions
         await plc.WriteValuesAsync(values).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Reads a batch of tags from the PLC in an optimized manner, grouping reads by data block to improve performance.
-    /// </summary>
+    /// <summary>Reads a batch of tags from the PLC in an optimized manner, grouping reads by data block to improve performance.</summary>
     /// <remarks>If the tagMapping dictionary is null or empty, the method returns a successful result with no
     /// values. Tags are grouped by data block to minimize communication overhead. If a tag does not exist in the PLC's
     /// tag list, it is added before reading. Each tag read is subject to the specified timeout.</remarks>
     /// <typeparam name="T">The type of the values to read from the PLC tags.</typeparam>
-    /// <param name="plc">The PLC instance that provides access to the tags to be read. Cannot be null.</param>
     /// <param name="tagMapping">A dictionary mapping logical tag names to their corresponding PLC addresses. Each key is the tag name, and each
     /// value is the PLC address to read.</param>
     /// <param name="timeoutMs">The maximum time, in milliseconds, to wait for each tag read operation before timing out. The default is 5000
@@ -131,86 +138,27 @@ public static class AdvancedExtensions
     /// <returns>A task that represents the asynchronous operation. The task result contains a BatchReadResult{T} with the values
     /// read, per-tag success status, and any errors encountered.</returns>
     /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
-    public static async Task<BatchReadResult<T>> ReadBatchOptimized<T>(
-        this IRxS7 plc,
-        Dictionary<string, string> tagMapping,
-        int timeoutMs = 5000)
+        public async Task<BatchReadResult<T>> ReadBatchOptimized<T>(
+            Dictionary<string, string> tagMapping,
+            int timeoutMs = 5000)
     {
-        if (plc == null)
+        if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
 
         var result = new BatchReadResult<T>();
 
-        if (tagMapping == null || tagMapping.Count == 0)
+        if (tagMapping is null || tagMapping.Count == 0)
         {
             result.OverallSuccess = true;
             return result;
         }
 
-        // Ensure all tags exist
-        foreach (var mapping in tagMapping)
-        {
-            if (!plc.TagList.ContainsKey(mapping.Key))
-            {
-                plc.AddUpdateTagItem<T>(mapping.Key, mapping.Value).SetTagPollIng(false);
-            }
-        }
-
-        // Group by data block for optimization
-        var dataBlockGroups = tagMapping
-            .GroupBy(kvp => ExtractDataBlockId(kvp.Value))
-            .ToList();
-
-        var readTasks = dataBlockGroups.Select(async group =>
-        {
-            var groupResults = new Dictionary<string, T>();
-            var groupErrors = new Dictionary<string, string>();
-
-            foreach (var tag in group)
-            {
-                try
-                {
-                    using (var cts = new CancellationTokenSource(timeoutMs))
-                    {
-                        var value = await plc.Value<T>(tag.Key);
-                        if (value != null)
-                        {
-                            groupResults[tag.Key] = value;
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    groupErrors[tag.Key] = "Operation timed out";
-                }
-                catch (Exception ex)
-                {
-                    groupErrors[tag.Key] = ex.Message;
-                }
-            }
-
-            return new { Results = groupResults, Errors = groupErrors };
-        });
-
-        var groupResultsArray = await Task.WhenAll(readTasks);
-
-        // Combine results
-        foreach (var groupResult in groupResultsArray)
-        {
-            foreach (var kvp in groupResult.Results)
-            {
-                result.Values[kvp.Key] = kvp.Value;
-                result.Success[kvp.Key] = true;
-            }
-
-            foreach (var kvp in groupResult.Errors)
-            {
-                result.Errors[kvp.Key] = kvp.Value;
-                result.Success[kvp.Key] = false;
-            }
-        }
+        EnsureMappedTags<T>(plc, tagMapping);
+        var dataBlockGroups = GroupTagMappingsByDataBlock(tagMapping);
+        var groupResultsArray = await ReadDataBlockGroupsAsync<T>(plc, dataBlockGroups, timeoutMs);
+        ApplyReadGroupResults(result, groupResultsArray);
 
         result.OverallSuccess = result.Errors.Count == 0;
         return result;
@@ -225,7 +173,6 @@ public static class AdvancedExtensions
     /// writing to ensure correctness. This method is asynchronous and should be awaited to ensure completion of all
     /// write and verification operations.</remarks>
     /// <typeparam name="T">The type of the values to write to the PLC.</typeparam>
-    /// <param name="plc">The PLC instance to which the values will be written. Cannot be null.</param>
     /// <param name="values">A dictionary mapping PLC variable addresses to the values to write. Each key represents a PLC address, and each
     /// value is the data to write to that address. If the dictionary is null or empty, no write operations are
     /// performed.</param>
@@ -236,13 +183,12 @@ public static class AdvancedExtensions
     /// <returns>A BatchWriteResult object containing the outcome of the batch write operation, including per-address success and
     /// error information. If no values are provided, the result indicates overall success.</returns>
     /// <exception cref="ArgumentNullException">Thrown if plc is null.</exception>
-    public static async Task<BatchWriteResult> WriteBatchOptimized<T>(
-        this IRxS7 plc,
-        Dictionary<string, T> values,
-        bool verifyWrites = false,
-        bool enableRollback = false)
+        public async Task<BatchWriteResult> WriteBatchOptimized<T>(
+            Dictionary<string, T> values,
+            bool verifyWrites = false,
+            bool enableRollback = false)
     {
-        if (plc == null)
+        if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
@@ -250,75 +196,22 @@ public static class AdvancedExtensions
         var result = new BatchWriteResult();
         var originalValues = new Dictionary<string, T>();
 
-        if (values == null || values.Count == 0)
+        if (values is null || values.Count == 0)
         {
             result.OverallSuccess = true;
             return result;
         }
 
-        // Store original values for rollback
         if (enableRollback)
         {
-            foreach (var kvp in values)
-            {
-                try
-                {
-                    var originalValue = await plc.Value<T>(kvp.Key);
-                    if (originalValue != null)
-                    {
-                        originalValues[kvp.Key] = originalValue;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    result.Errors[kvp.Key] = $"Failed to read original value: {ex.Message}";
-                }
-            }
+            await CaptureOriginalValues(plc, values, originalValues, result);
         }
 
-        // Perform writes
-        foreach (var kvp in values)
-        {
-            try
-            {
-                plc.Value(kvp.Key, kvp.Value);
-                result.Success[kvp.Key] = true;
+        await WriteBatchValues(plc, values, verifyWrites, result);
 
-                // Verify write if requested
-                if (verifyWrites)
-                {
-                    await Task.Delay(50);
-                    var readBack = await plc.Value<T>(kvp.Key);
-
-                    if (readBack == null || !EqualityComparer<T>.Default.Equals(readBack, kvp.Value))
-                    {
-                        result.Success[kvp.Key] = false;
-                        result.Errors[kvp.Key] = "Write verification failed";
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                result.Success[kvp.Key] = false;
-                result.Errors[kvp.Key] = ex.Message;
-            }
-        }
-
-        // Rollback if needed
         if (enableRollback && result.Errors.Count > 0)
         {
-            foreach (var kvp in originalValues)
-            {
-                try
-                {
-                    plc.Value(kvp.Key, kvp.Value);
-                }
-                catch
-                {
-                    // Ignore rollback errors
-                }
-            }
-
+            RollbackValues(plc, originalValues, result);
             result.RollbackPerformed = true;
         }
 
@@ -326,20 +219,17 @@ public static class AdvancedExtensions
         return result;
     }
 
-    /// <summary>
-    /// Asynchronously collects diagnostic information and performance metrics from the specified PLC instance.
-    /// </summary>
+    /// <summary>Asynchronously collects diagnostic information and performance metrics from the specified PLC instance.</summary>
     /// <remarks>If the PLC is not connected, only basic information is included in the diagnostics. For
     /// S7-1500 PLCs, additional CPU information and connection latency are measured. Any errors encountered during
     /// diagnostic collection are recorded in the Errors property of the returned ProductionDiagnostics
     /// object.</remarks>
-    /// <param name="plc">The PLC instance from which to retrieve diagnostics. Must implement the IRxS7 interface.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a ProductionDiagnostics object with
     /// collected diagnostic data, tag metrics, and optimization recommendations.</returns>
     /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
-    public static async Task<ProductionDiagnostics> GetDiagnostics(this IRxS7 plc)
+        public async Task<ProductionDiagnostics> GetDiagnostics()
     {
-        if (plc == null)
+        if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
@@ -368,12 +258,32 @@ public static class AdvancedExtensions
                 }
 
                 // Get tag statistics
-                var allTags = plc.TagList.ToList();
+                var allTags = new List<Tag>();
+                var activeTags = 0;
+                var inactiveTags = 0;
+                foreach (var item in plc.TagList)
+                {
+                    if (item is not Tag tag)
+                    {
+                        continue;
+                    }
+
+                    allTags.Add(tag);
+                    if (tag.DoNotPoll)
+                    {
+                        inactiveTags++;
+                    }
+                    else
+                    {
+                        activeTags++;
+                    }
+                }
+
                 diagnostics.TagMetrics = new ProductionTagMetrics
                 {
                     TotalTags = allTags.Count,
-                    ActiveTags = allTags.Count(t => !t.DoNotPoll),
-                    InactiveTags = allTags.Count(t => t.DoNotPoll),
+                    ActiveTags = activeTags,
+                    InactiveTags = inactiveTags,
                     DataBlockDistribution = AnalyzeDataBlockDistribution(allTags)
                 };
             }
@@ -397,14 +307,13 @@ public static class AdvancedExtensions
     /// each tag during the specified monitoring period. The analysis includes total tag changes, per-tag change counts,
     /// and suggestions for optimizing performance based on observed activity. The method is thread-safe and does not
     /// block the calling thread.</remarks>
-    /// <param name="plc">The PLC instance to monitor for tag changes. Cannot be null.</param>
     /// <param name="monitoringDuration">The length of time to observe tag changes. Must be a positive time span.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a PerformanceAnalysis object with
     /// tag change statistics and performance recommendations for the monitored period.</returns>
     /// <exception cref="ArgumentNullException">Thrown if the plc parameter is null.</exception>
-    public static async Task<PerformanceAnalysis> AnalyzePerformance(this IRxS7 plc, TimeSpan monitoringDuration)
+        public async Task<PerformanceAnalysis> AnalyzePerformance(TimeSpan monitoringDuration)
     {
-        if (plc == null)
+        if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
         }
@@ -415,27 +324,21 @@ public static class AdvancedExtensions
 
         // Monitor tag changes
         var subscription = plc.ObserveAll
-            .Where(t => t != null)
             .Subscribe(tag =>
             {
-                if (tag?.Name != null)
+                if (tag?.Name is null)
                 {
-                    var changed = false;
-                    if (lastValues.TryGetValue(tag.Name, out var lastValue))
-                    {
-                        changed = !Equals(lastValue, tag.Value);
-                    }
-                    else
-                    {
-                        changed = true;
-                    }
-
-                    if (changed)
-                    {
-                        lastValues[tag.Name] = tag.Value;
-                        tagChangeCounts.AddOrUpdate(tag.Name, 1, (_, count) => count + 1);
-                    }
+                    return;
                 }
+
+                var changed = !lastValues.TryGetValue(tag.Name, out var lastValue) || !Equals(lastValue, tag.Value);
+                if (!changed)
+                {
+                    return;
+                }
+
+                lastValues[tag.Name] = tag.Value;
+                _ = tagChangeCounts.AddOrUpdate(tag.Name, 1, (_, count) => count + 1);
             });
 
         // Monitor for specified duration
@@ -446,9 +349,15 @@ public static class AdvancedExtensions
         analysis.MonitoringDuration = monitoringDuration;
 
         // Analyze results
-        analysis.TagChangeFrequencies = tagChangeCounts.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-        analysis.TotalTagChanges = tagChangeCounts.Values.Sum();
-        analysis.AverageChangesPerTag = tagChangeCounts.Values.Count > 0 ? tagChangeCounts.Values.Average() : 0;
+        var totalTagChanges = 0;
+        foreach (var kvp in tagChangeCounts)
+        {
+            analysis.TagChangeFrequencies[kvp.Key] = kvp.Value;
+            totalTagChanges += kvp.Value;
+        }
+
+        analysis.TotalTagChanges = totalTagChanges;
+        analysis.AverageChangesPerTag = !tagChangeCounts.IsEmpty ? (double)totalTagChanges / tagChangeCounts.Count : 0;
 
         // Generate recommendations
         analysis.Recommendations = GeneratePerformanceRecommendations(tagChangeCounts, monitoringDuration);
@@ -463,16 +372,229 @@ public static class AdvancedExtensions
     /// <remarks>Use this method to efficiently manage and operate on multiple tags as a single group, which
     /// can improve performance for batch operations.</remarks>
     /// <typeparam name="T">The data type of the tag values in the group.</typeparam>
-    /// <param name="plc">The PLC connection used to access the tags. Cannot be null.</param>
     /// <param name="groupName">The name assigned to the tag group. Used to identify the group within the PLC context.</param>
     /// <param name="tagNames">An array of tag names to include in the group. Each name must correspond to a valid tag in the PLC.</param>
     /// <returns>A new instance of HighPerformanceTagGroup{T} containing the specified tags, associated with the given PLC
     /// connection.</returns>
-    public static HighPerformanceTagGroup<T> CreateTagGroup<T>(this IRxS7 plc, string groupName, params string[] tagNames) => new(plc, groupName, tagNames);
+        public HighPerformanceTagGroup<T> CreateTagGroup<T>(string groupName, params string[] tagNames) => new(plc, groupName, tagNames);
+    }
 
-    /// <summary>
-    /// Extracts the data block identifier from the specified address string.
-    /// </summary>
+    /// <summary>Ensures all mapped tags exist on the PLC.</summary>
+    /// <typeparam name="T">The tag value type.</typeparam>
+    /// <param name="plc">The PLC instance.</param>
+    /// <param name="tagMapping">The tag mapping.</param>
+    private static void EnsureMappedTags<T>(IRxS7 plc, Dictionary<string, string> tagMapping)
+    {
+        foreach (var mapping in tagMapping)
+        {
+            if (!plc.TagList.ContainsKey(mapping.Key))
+            {
+                _ = plc.AddUpdateTagItem<T>(mapping.Key, mapping.Value).SetTagPollIng(false);
+            }
+        }
+    }
+
+    /// <summary>Groups tag mappings by data block.</summary>
+    /// <param name="tagMapping">The tag mapping.</param>
+    /// <returns>The tag mappings grouped by data block.</returns>
+    private static Dictionary<string, List<KeyValuePair<string, string>>> GroupTagMappingsByDataBlock(Dictionary<string, string> tagMapping)
+    {
+        var dataBlockGroups = new Dictionary<string, List<KeyValuePair<string, string>>>(StringComparer.InvariantCultureIgnoreCase);
+        foreach (var mapping in tagMapping)
+        {
+            var dataBlock = ExtractDataBlockId(mapping.Value);
+            if (!dataBlockGroups.TryGetValue(dataBlock, out var group))
+            {
+                group = [];
+                dataBlockGroups[dataBlock] = group;
+            }
+
+            group.Add(mapping);
+        }
+
+        return dataBlockGroups;
+    }
+
+    /// <summary>Reads all grouped data-block tag mappings.</summary>
+    /// <typeparam name="T">The tag value type.</typeparam>
+    /// <param name="plc">The PLC instance.</param>
+    /// <param name="dataBlockGroups">The grouped tag mappings.</param>
+    /// <param name="timeoutMs">The read timeout in milliseconds.</param>
+    /// <returns>The read results and errors for each group.</returns>
+    private static Task<(Dictionary<string, T> Results, Dictionary<string, string> Errors)[]> ReadDataBlockGroupsAsync<T>(
+        IRxS7 plc,
+        Dictionary<string, List<KeyValuePair<string, string>>> dataBlockGroups,
+        int timeoutMs)
+    {
+        var readTasks = new List<Task<(Dictionary<string, T> Results, Dictionary<string, string> Errors)>>(dataBlockGroups.Count);
+        foreach (var group in dataBlockGroups.Values)
+        {
+            readTasks.Add(ReadDataBlockGroupAsync<T>(plc, group, timeoutMs));
+        }
+
+        return Task.WhenAll(readTasks);
+    }
+
+    /// <summary>Reads one data-block group.</summary>
+    /// <typeparam name="T">The tag value type.</typeparam>
+    /// <param name="plc">The PLC instance.</param>
+    /// <param name="group">The group to read.</param>
+    /// <param name="timeoutMs">The read timeout in milliseconds.</param>
+    /// <returns>The read results and errors.</returns>
+    private static async Task<(Dictionary<string, T> Results, Dictionary<string, string> Errors)> ReadDataBlockGroupAsync<T>(
+        IRxS7 plc,
+        List<KeyValuePair<string, string>> group,
+        int timeoutMs)
+    {
+        var groupResults = new Dictionary<string, T>();
+        var groupErrors = new Dictionary<string, string>();
+
+        foreach (var tag in group)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(timeoutMs);
+                var value = await plc.ValueAsync<T>(tag.Key, cts.Token).ConfigureAwait(false);
+                if (value is not null)
+                {
+                    groupResults[tag.Key] = value;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                groupErrors[tag.Key] = "Operation timed out";
+            }
+            catch (Exception ex)
+            {
+                groupErrors[tag.Key] = ex.Message;
+            }
+        }
+
+        return (groupResults, groupErrors);
+    }
+
+    /// <summary>Applies grouped read results to a batch result.</summary>
+    /// <typeparam name="T">The tag value type.</typeparam>
+    /// <param name="result">The batch read result to update.</param>
+    /// <param name="groupResultsArray">The grouped read results.</param>
+    private static void ApplyReadGroupResults<T>(
+        BatchReadResult<T> result,
+        (Dictionary<string, T> Results, Dictionary<string, string> Errors)[] groupResultsArray)
+    {
+        foreach (var groupResult in groupResultsArray)
+        {
+            foreach (var kvp in groupResult.Results)
+            {
+                result.Values[kvp.Key] = kvp.Value;
+                result.Success[kvp.Key] = true;
+            }
+
+            foreach (var kvp in groupResult.Errors)
+            {
+                result.Errors[kvp.Key] = kvp.Value;
+                result.Success[kvp.Key] = false;
+            }
+        }
+    }
+
+    /// <summary>Captures original values before a rollback-enabled write.</summary>
+    /// <typeparam name="T">The tag value type.</typeparam>
+    /// <param name="plc">The PLC instance.</param>
+    /// <param name="values">The values to write.</param>
+    /// <param name="originalValues">The original values dictionary to populate.</param>
+    /// <param name="result">The batch write result to update.</param>
+    /// <returns>A task that represents the asynchronous capture operation.</returns>
+    private static async Task CaptureOriginalValues<T>(
+        IRxS7 plc,
+        Dictionary<string, T> values,
+        Dictionary<string, T> originalValues,
+        BatchWriteResult result)
+    {
+        foreach (var kvp in values)
+        {
+            try
+            {
+                var originalValue = await plc.Value<T>(kvp.Key).ConfigureAwait(false);
+                if (originalValue is not null)
+                {
+                    originalValues[kvp.Key] = originalValue;
+                }
+            }
+            catch (Exception ex)
+            {
+                result.Errors[kvp.Key] = $"Failed to read original value: {ex.Message}";
+            }
+        }
+    }
+
+    /// <summary>Writes batch values and optionally verifies them.</summary>
+    /// <typeparam name="T">The tag value type.</typeparam>
+    /// <param name="plc">The PLC instance.</param>
+    /// <param name="values">The values to write.</param>
+    /// <param name="verifyWrites">Whether writes should be verified.</param>
+    /// <param name="result">The batch write result to update.</param>
+    /// <returns>A task that represents the asynchronous write operation.</returns>
+    private static async Task WriteBatchValues<T>(
+        IRxS7 plc,
+        Dictionary<string, T> values,
+        bool verifyWrites,
+        BatchWriteResult result)
+    {
+        foreach (var kvp in values)
+        {
+            try
+            {
+                plc.Value(kvp.Key, kvp.Value);
+                result.Success[kvp.Key] = true;
+
+                if (verifyWrites && !await VerifyWrite(plc, kvp).ConfigureAwait(false))
+                {
+                    result.Success[kvp.Key] = false;
+                    result.Errors[kvp.Key] = "Write verification failed";
+                }
+            }
+            catch (Exception ex)
+            {
+                result.Success[kvp.Key] = false;
+                result.Errors[kvp.Key] = ex.Message;
+            }
+        }
+    }
+
+    /// <summary>Verifies a single written value.</summary>
+    /// <typeparam name="T">The tag value type.</typeparam>
+    /// <param name="plc">The PLC instance.</param>
+    /// <param name="kvp">The written value.</param>
+    /// <returns>true when the read-back value matches; otherwise, false.</returns>
+    private static async Task<bool> VerifyWrite<T>(IRxS7 plc, KeyValuePair<string, T> kvp)
+    {
+        await Task.Delay(50).ConfigureAwait(false);
+        var readBack = await plc.Value<T>(kvp.Key).ConfigureAwait(false);
+        return readBack is not null && EqualityComparer<T>.Default.Equals(readBack, kvp.Value);
+    }
+
+    /// <summary>Rolls back written values.</summary>
+    /// <typeparam name="T">The tag value type.</typeparam>
+    /// <param name="plc">The PLC instance.</param>
+    /// <param name="originalValues">The original values to restore.</param>
+    /// <param name="result">The batch write result to update.</param>
+    private static void RollbackValues<T>(IRxS7 plc, Dictionary<string, T> originalValues, BatchWriteResult result)
+    {
+        foreach (var kvp in originalValues)
+        {
+            try
+            {
+                plc.Value(kvp.Key, kvp.Value);
+            }
+            catch (Exception ex)
+            {
+                result.Success[kvp.Key] = false;
+                result.Errors[kvp.Key] = $"Rollback failed: {ex.Message}";
+            }
+        }
+    }
+
+    /// <summary>Extracts the data block identifier from the specified address string.</summary>
     /// <remarks>If the address does not start with "DB" or is null or empty, the method returns "SYSTEM". If
     /// the address does not contain a period ('.') after the "DB" prefix, or if the period occurs at or before the
     /// third character, "SYSTEM" is also returned.</remarks>
@@ -487,18 +609,24 @@ public static class AdvancedExtensions
         }
 
         var dotIndex = address.IndexOf('.');
-        return dotIndex <= 2 ? "SYSTEM" : address.Substring(0, dotIndex);
+        return dotIndex <= 2 ? "SYSTEM" : address[..dotIndex];
     }
 
-    /// <summary>
-    /// Analyzes the distribution of tags across data blocks and returns a count of tags per data block identifier.
-    /// </summary>
+    /// <summary>Analyzes the distribution of tags across data blocks and returns a count of tags per data block identifier.</summary>
     /// <param name="tags">The collection of tags to analyze. Each tag must have a non-null address.</param>
     /// <returns>A dictionary mapping each data block identifier to the number of tags associated with it. If no tags are
     /// provided, the dictionary will be empty.</returns>
-    private static Dictionary<string, int> AnalyzeDataBlockDistribution(IEnumerable<Tag> tags) => tags
-            .GroupBy(t => ExtractDataBlockId(t.Address!))
-            .ToDictionary(g => g.Key, g => g.Count());
+    private static Dictionary<string, int> AnalyzeDataBlockDistribution(IEnumerable<Tag> tags)
+    {
+        var distribution = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
+        foreach (var tag in tags)
+        {
+            var dataBlock = ExtractDataBlockId(tag.Address!);
+            distribution[dataBlock] = distribution.TryGetValue(dataBlock, out var count) ? count + 1 : 1;
+        }
+
+        return distribution;
+    }
 
     /// <summary>
     /// Analyzes production diagnostics and generates a list of optimization recommendations based on detected
@@ -552,37 +680,41 @@ public static class AdvancedExtensions
         }
 
         // Identify slow-changing tags
-        var slowChangingTags = tagChangeCounts
-            .Where(kvp => kvp.Value / totalMinutes < 0.1)
-            .Select(kvp => kvp.Key)
-            .ToList();
-
-        if (slowChangingTags.Count > 0)
+        var slowChangingTagCount = 0;
+        var fastChangingTagCount = 0;
+        foreach (var kvp in tagChangeCounts)
         {
-            recommendations.Add($"Consider reducing polling frequency for {slowChangingTags.Count} slow-changing tags");
+            var changesPerMinute = kvp.Value / totalMinutes;
+            if (changesPerMinute < 0.1)
+            {
+                slowChangingTagCount++;
+            }
+
+            if (changesPerMinute > 10)
+            {
+                fastChangingTagCount++;
+            }
+        }
+
+        if (slowChangingTagCount > 0)
+        {
+            recommendations.Add($"Consider reducing polling frequency for {slowChangingTagCount} slow-changing tags");
         }
 
         // Identify fast-changing tags
-        var fastChangingTags = tagChangeCounts
-            .Where(kvp => kvp.Value / totalMinutes > 10)
-            .Select(kvp => kvp.Key)
-            .ToList();
-
-        if (fastChangingTags.Count > 0)
+        if (fastChangingTagCount > 0)
         {
-            recommendations.Add($"Consider grouping {fastChangingTags.Count} fast-changing tags for batch operations");
+            recommendations.Add($"Consider grouping {fastChangingTagCount} fast-changing tags for batch operations");
         }
 
         return recommendations;
     }
 
-    /// <summary>
-    /// Determines whether the specified tag is non-null and its value is compatible with the specified type parameter.
-    /// </summary>
+    /// <summary>Determines whether the specified tag is non-null and its value is compatible with the specified type parameter.</summary>
     /// <remarks>If T is object, any non-null tag is considered valid regardless of its value type.</remarks>
     /// <typeparam name="T">The type to check the tag's value against.</typeparam>
     /// <param name="tag">The tag to validate. May be null.</param>
     /// <returns>true if the tag is not null and its value is compatible with type T; otherwise, false.</returns>
     private static bool TagValueIsValid<T>(Tag? tag) =>
-        tag != null && (typeof(object) == typeof(T) || (tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
+        tag is not null && (typeof(object) == typeof(T) || (tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
 }

@@ -1,23 +1,24 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
 using System.Runtime.InteropServices;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Core;
+#else
 namespace S7PlcRx.Core;
+#endif
 
-/// <summary>
-/// Provides utility methods for converting between arrays of value types and their byte representations.
-/// </summary>
+/// <summary>Provides utility methods for converting between arrays of value types and their byte representations.</summary>
 /// <remarks>The methods in this class are intended for efficient serialization and deserialization of arrays of
 /// value types, particularly when working with binary data formats such as those used in S7 communication. All methods
 /// require a user-supplied converter function to handle the specific conversion logic for the value type. This class is
 /// not thread-safe.</remarks>
 internal static class TypeConverter
 {
-    /// <summary>
-    /// Converts an array of value types to a contiguous byte array using the specified conversion function.
-    /// </summary>
+    /// <summary>Converts an array of value types to a contiguous byte array using the specified conversion function.</summary>
     /// <remarks>The resulting byte array is constructed by concatenating the byte arrays returned by the
     /// converter for each element in the input array, in order. This method uses pooled buffers for large arrays to
     /// reduce memory allocations.</remarks>
@@ -57,16 +58,14 @@ internal static class TypeConverter
         }
         finally
         {
-            if (pooledArray != null)
+            if (pooledArray is not null)
             {
                 ArrayPool<byte>.Shared.Return(pooledArray);
             }
         }
     }
 
-    /// <summary>
-    /// Converts a byte array to an array of value type elements using the specified converter function.
-    /// </summary>
+    /// <summary>Converts a byte array to an array of value type elements using the specified converter function.</summary>
     /// <typeparam name="T">The value type to convert each byte array segment to.</typeparam>
     /// <param name="bytes">The byte array to convert. Cannot be null.</param>
     /// <param name="converter">A function that converts a byte array segment to an instance of type T. Cannot be null.</param>

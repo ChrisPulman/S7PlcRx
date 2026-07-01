@@ -1,32 +1,34 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Core;
+#else
 using S7PlcRx.Core;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Provides utility methods for converting between S7 DWord (4-byte) representations and unsigned 32-bit integers
-/// (uint).
-/// </summary>
+/// <summary>Provides utility methods for converting between S7 DWord (4-byte) representations and unsigned 32-bit integers (uint).</summary>
 /// <remarks>All conversions assume S7 DWord format, which uses big-endian byte order. These methods are intended
 /// for working with Siemens S7 PLC data or other protocols that represent 32-bit unsigned integers in big-endian
 /// format. Methods throw exceptions if provided buffers are too small to contain a DWord value.</remarks>
 public static class DWord
 {
-    /// <summary>
-    /// Creates a 32-bit unsigned integer from a byte array.
-    /// </summary>
+    /// <summary>Creates a 32-bit unsigned integer from a byte array.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert. Must contain at least four bytes starting at the beginning of
     /// the array.</param>
     /// <returns>A 32-bit unsigned integer represented by the first four bytes of the array.</returns>
     public static uint FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts a sequence of bytes from the specified array, starting at the given index, to a 32-bit unsigned
-    /// integer.
-    /// </summary>
+    /// <summary>Converts a sequence of bytes from the specified array, starting at the given index, to a 32-bit unsigned integer.</summary>
     /// <param name="bytes">The array containing the bytes to convert.</param>
     /// <param name="start">The zero-based index in the array at which to begin reading bytes.</param>
     /// <returns>A 32-bit unsigned integer representing the converted value from the specified byte sequence.</returns>
@@ -61,9 +63,7 @@ public static class DWord
         return MemoryMarshal.Read<uint>(bytes);
     }
 
-    /// <summary>
-    /// Creates a 32-bit unsigned integer from four individual bytes, using little-endian byte order.
-    /// </summary>
+    /// <summary>Creates a 32-bit unsigned integer from four individual bytes, using little-endian byte order.</summary>
     /// <remarks>The bytes are combined such that v1 is the lowest-order byte and v4 is the highest-order
     /// byte. This method is useful for reconstructing a UInt32 value from a sequence of bytes, such as when reading
     /// binary data from a stream.</remarks>
@@ -75,18 +75,14 @@ public static class DWord
     public static uint FromBytes(byte v1, byte v2, byte v3, byte v4) =>
         (uint)(v1 | (v2 << 8) | (v3 << 16) | (v4 << 24));
 
-    /// <summary>
-    /// Converts the specified byte array to an array of 32-bit unsigned integers.
-    /// </summary>
+    /// <summary>Converts the specified byte array to an array of 32-bit unsigned integers.</summary>
     /// <remarks>The conversion uses the default byte order of the system architecture. If the length of the
     /// input array is not a multiple of 4, an exception may be thrown.</remarks>
     /// <param name="bytes">The byte array to convert. The length must be a multiple of 4.</param>
     /// <returns>An array of 32-bit unsigned integers representing the converted values from the input byte array.</returns>
     public static uint[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts the specified read-only span of bytes to an array of 32-bit unsigned integers.
-    /// </summary>
+    /// <summary>Converts the specified read-only span of bytes to an array of 32-bit unsigned integers.</summary>
     /// <remarks>Each group of four consecutive bytes in the input span is interpreted as a single 32-bit
     /// unsigned integer. The conversion uses the byte order expected by the FromSpan method. If the length of the span
     /// is not a multiple of 4, any remaining bytes are ignored.</remarks>
@@ -106,9 +102,7 @@ public static class DWord
         return values;
     }
 
-    /// <summary>
-    /// Converts the specified 32-bit unsigned integer to a byte array in little-endian order.
-    /// </summary>
+    /// <summary>Converts the specified 32-bit unsigned integer to a byte array in little-endian order.</summary>
     /// <param name="value">The 32-bit unsigned integer to convert to a byte array.</param>
     /// <returns>A 4-element byte array containing the bytes of the specified value in little-endian order.</returns>
     public static byte[] ToByteArray(uint value)
@@ -118,9 +112,7 @@ public static class DWord
         return bytes.ToArray();
     }
 
-    /// <summary>
-    /// Writes the specified 32-bit unsigned integer value to the provided span in big-endian byte order.
-    /// </summary>
+    /// <summary>Writes the specified 32-bit unsigned integer value to the provided span in big-endian byte order.</summary>
     /// <remarks>This method writes the value in big-endian format, regardless of the system's native
     /// endianness. The first byte in the span will contain the most significant byte of the value.</remarks>
     /// <param name="value">The 32-bit unsigned integer value to write to the span.</param>
@@ -133,15 +125,7 @@ public static class DWord
             throw new ArgumentException("Destination span must be at least 4 bytes", nameof(destination));
         }
 
-#pragma warning disable CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
-        MemoryMarshal.Write(destination, ref value);
-#pragma warning restore CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
-
-        // S7 uses big-endian, so reverse if we're on little-endian platform
-        if (BitConverter.IsLittleEndian)
-        {
-            destination.Slice(0, 4).Reverse();
-        }
+        BinaryPrimitives.WriteUInt32BigEndian(destination, value);
     }
 
     /// <summary>
@@ -166,15 +150,13 @@ public static class DWord
         }
     }
 
-    /// <summary>
-    /// Converts the specified array of 32-bit unsigned integers to a byte array.
-    /// </summary>
+    /// <summary>Converts the specified array of 32-bit unsigned integers to a byte array.</summary>
     /// <param name="value">An array of 32-bit unsigned integers to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input values. The length of the returned array is four
     /// times the length of the input array.</returns>
     public static byte[] ToByteArray(uint[] value)
     {
-        if (value == null)
+        if (value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }

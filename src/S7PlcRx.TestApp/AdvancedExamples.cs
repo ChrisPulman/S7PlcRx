@@ -1,8 +1,8 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using System.Reactive.Linq;
 using S7PlcRx.Advanced;
 using S7PlcRx.Core;
 using S7PlcRx.Enterprise;
@@ -17,7 +17,14 @@ namespace S7PlcRx.Examples;
 /// </summary>
 public static class AdvancedExamples
 {
+    /// <summary>
+    /// The PLC IP address used by the examples.
+    /// </summary>
     internal const string IpAddress = "172.16.13.1";
+
+    /// <summary>
+    /// The PLC CPU type used by the examples.
+    /// </summary>
     internal const CpuType PlcType = CpuType.S71500;
 
     /// <summary>
@@ -30,24 +37,24 @@ public static class AdvancedExamples
     /// </returns>
     public static async Task BasicBatchReadExample(IRxS7 plc)
     {
-        if (plc == null)
+        if (plc is null)
         {
             throw new ArgumentNullException(nameof(plc), "PLC connection is not initialized");
         }
 
         Console.WriteLine("=== BASIC BATCH READ 20 VALUES EXAMPLE ===");
         Stopwatch stopwatch = new();
-        plc.AddUpdateTagItem<float[]>("R_Values", "DB1.DBD20", 20) // Configure 20 floats from DB1
+        _ = plc.AddUpdateTagItem<float[]>("R_Values", "DB1.DBD20", 20) // Configure 20 floats from DB1
             .SetTagPollIng(false); // Disable polling for this tag
         stopwatch.Restart();
-        var rValues = await plc.Value<float[]>("R_Values"); // Read the array of floats
+        var readValues = await plc.Value<float[]>("R_Values"); // Read the array of floats
         stopwatch.Stop();
-        Console.WriteLine($"Read {rValues?.Length ?? 0} values in {stopwatch.ElapsedMilliseconds} ms");
-        if (rValues?.Length > 0)
+        Console.WriteLine($"Read {readValues?.Length ?? 0} values in {stopwatch.ElapsedMilliseconds} ms");
+        if (readValues?.Length > 0)
         {
-            for (var i = 0; i < rValues.Length; i++)
+            for (var i = 0; i < readValues.Length; i++)
             {
-                Console.WriteLine($"R_Values[{i}]: {rValues[i]:F2}");
+                Console.WriteLine($"R_Values[{i}]: {readValues[i]:F2}");
             }
         }
         else
@@ -99,10 +106,10 @@ public static class AdvancedExamples
     public static async Task AdvancedBatchWriteExample(IRxS7 plc)
     {
         // Add tags for writing
-        plc.AddUpdateTagItem<float>("SetPoint1", "DB3.DBD0").SetTagPollIng(false);
-        plc.AddUpdateTagItem<float>("SetPoint2", "DB3.DBD4").SetTagPollIng(false);
-        plc.AddUpdateTagItem<bool>("EnableProcess", "DB3.DBX8.0").SetTagPollIng(false);
-        plc.AddUpdateTagItem<int>("RecipeNumber", "DB3.DBD10").SetTagPollIng(false);
+        _ = plc.AddUpdateTagItem<float>("SetPoint1", "DB3.DBD0").SetTagPollIng(false);
+        _ = plc.AddUpdateTagItem<float>("SetPoint2", "DB3.DBD4").SetTagPollIng(false);
+        _ = plc.AddUpdateTagItem<bool>("EnableProcess", "DB3.DBX8.0").SetTagPollIng(false);
+        _ = plc.AddUpdateTagItem<int>("RecipeNumber", "DB3.DBD10").SetTagPollIng(false);
 
         // Define values to write
         var writeValues = new Dictionary<string, object>
@@ -119,8 +126,8 @@ public static class AdvancedExamples
         // Perform batch write with verification and rollback protection
         var writeResult = await plc.WriteBatchOptimized<object>(
             writeValues,
-            verifyWrites: true,      // Read back to verify writes
-            enableRollback: true);   // Rollback on any failure
+            verifyWrites: true, // Read back to verify writes
+            enableRollback: true); // Rollback on any failure
 
         if (writeResult.OverallSuccess)
         {
@@ -141,10 +148,7 @@ public static class AdvancedExamples
         }
     }
 
-    /// <summary>
-    /// Demonstrates high-performance tag groups for related operations.
-    /// Optimizes batch operations for logically grouped tags.
-    /// </summary>
+    /// <summary>Demonstrates high-performance tag groups for related operations.</summary>
     /// <param name="plc">The PLC.</param>
     /// <returns>
     /// A <see cref="Task" /> representing the asynchronous operation.
@@ -154,16 +158,16 @@ public static class AdvancedExamples
         // Create specialized tag groups for different process areas
         var temperatureGroup = plc.CreateTagGroup<float>(
             "Temperatures",
-            "DB4.DBD0",   // Reactor temperature
-            "DB4.DBD4",   // Cooling temperature
-            "DB4.DBD8",   // Ambient temperature
-            "DB4.DBD12");   // Exhaust temperature
+            "DB4.DBD0", // Reactor temperature
+            "DB4.DBD4", // Cooling temperature
+            "DB4.DBD8", // Ambient temperature
+            "DB4.DBD12"); // Exhaust temperature
 
         var pressureGroup = plc.CreateTagGroup<float>(
             "Pressures",
-            "DB5.DBD0",   // System pressure
-            "DB5.DBD4",   // Line pressure
-            "DB5.DBD8");   // Vacuum pressure
+            "DB5.DBD0", // System pressure
+            "DB5.DBD4", // Line pressure
+            "DB5.DBD8"); // Vacuum pressure
 
         Console.WriteLine("=== HIGH-PERFORMANCE TAG GROUPS ===");
 
@@ -191,7 +195,7 @@ public static class AdvancedExamples
         });
 
         // Keep monitoring for 30 seconds
-        await Task.Delay(30000);
+        await Task.Delay(30_000);
         subscription.Dispose();
 
         // Clean up
@@ -210,9 +214,9 @@ public static class AdvancedExamples
     public static async Task IntelligentMonitoringExample(IRxS7 plc)
     {
         // Add monitoring tags
-        plc.AddUpdateTagItem<float>("ProcessValue", "DB6.DBD0");
-        plc.AddUpdateTagItem<float>("AnalogInput1", "DB6.DBD4");
-        plc.AddUpdateTagItem<bool>("AlarmStatus", "DB6.DBX8.0");
+        _ = plc.AddUpdateTagItem<float>("ProcessValue", "DB6.DBD0");
+        _ = plc.AddUpdateTagItem<float>("AnalogInput1", "DB6.DBD4");
+        _ = plc.AddUpdateTagItem<bool>("AlarmStatus", "DB6.DBX8.0");
 
         Console.WriteLine("=== INTELLIGENT MONITORING ===");
 
@@ -253,7 +257,7 @@ public static class AdvancedExamples
 
         // Run monitoring for 60 seconds
         Console.WriteLine("Monitoring for 60 seconds... (only significant changes will be shown)");
-        await Task.Delay(60000);
+        await Task.Delay(60_000);
 
         // Clean up
         monitoringSubscription.Dispose();
@@ -333,10 +337,7 @@ public static class AdvancedExamples
         Console.WriteLine();
 
         Console.WriteLine("Tag Change Frequencies:");
-        var topChangingTags = analysis.TagChangeFrequencies
-            .OrderByDescending(kvp => kvp.Value)
-            .Take(10);
-
+        var topChangingTags = GetTopChangingTags(analysis.TagChangeFrequencies, 10);
         foreach (var tag in topChangingTags)
         {
             var changesPerMinute = tag.Value / analysis.MonitoringDuration.TotalMinutes;
@@ -350,6 +351,38 @@ public static class AdvancedExamples
         {
             Console.WriteLine($"  🎯 {recommendation}");
         }
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, int>> GetTopChangingTags(
+        IReadOnlyDictionary<string, int> frequencies,
+        int maxCount)
+    {
+        var topChangingTags = new List<KeyValuePair<string, int>>(maxCount);
+        foreach (var frequency in frequencies)
+        {
+            var insertIndex = topChangingTags.Count;
+            for (var i = 0; i < topChangingTags.Count; i++)
+            {
+                if (frequency.Value > topChangingTags[i].Value)
+                {
+                    insertIndex = i;
+                    break;
+                }
+            }
+
+            if (insertIndex >= maxCount)
+            {
+                continue;
+            }
+
+            topChangingTags.Insert(insertIndex, frequency);
+            if (topChangingTags.Count > maxCount)
+            {
+                topChangingTags.RemoveAt(maxCount);
+            }
+        }
+
+        return topChangingTags;
     }
 
     /// <summary>
@@ -393,7 +426,7 @@ public static class AdvancedExamples
                 ["Pressure_SP"] = 2.1f, // Pressure setpoint
                 ["MixSpeed_SP"] = 150, // Mixer speed
                 ["ProcessTime"] = 3600, // Process time in seconds
-                ["RecipeID"] = 12345 // Recipe identifier
+                ["RecipeID"] = 12_345 // Recipe identifier
             };
 
             var dbIndex = 0;
@@ -403,7 +436,7 @@ public static class AdvancedExamples
             {
                 var address = $"DB9.DBD{dbIndex}"; // Simplified addressing
                 dbIndex += 4;
-                plc.AddUpdateTagItem(param.Value.GetType(), param.Key, address).SetTagPollIng(false);
+                _ = plc.AddUpdateTagItem(param.Value.GetType(), param.Key, address).SetTagPollIng(false);
             }
 
             var recipeResult = await plc.WriteBatchOptimized<object>(
@@ -451,15 +484,23 @@ public static class AdvancedExamples
 
             var alarmSubscription = alarmGroup.ObserveGroup().Subscribe(alarmData =>
             {
-                var activeAlarms = alarmData.Where(kvp => kvp.Value is bool b && b);
-                if (activeAlarms.Any())
+                var activeAlarms = new List<string>();
+                foreach (var alarm in alarmData)
                 {
-                    Console.WriteLine($"   🚨 ALARMS ACTIVE: {string.Join(", ", activeAlarms.Select(a => a.Key))}");
+                    if (alarm.Value is bool active && active)
+                    {
+                        activeAlarms.Add(alarm.Key);
+                    }
+                }
+
+                if (activeAlarms.Count > 0)
+                {
+                    Console.WriteLine($"   🚨 ALARMS ACTIVE: {string.Join(", ", activeAlarms)}");
                 }
             });
 
             // Monitor for 30 seconds
-            await Task.Delay(30000);
+            await Task.Delay(30_000);
 
             // 5. Performance Analysis
             Console.WriteLine();
@@ -516,7 +557,7 @@ public static class AdvancedExamples
         try
         {
             var step = 0;
-            var connection = cons.GetConnection;
+            var connection = cons.Connection;
             connection.IsConnected.Where(x => x).Subscribe(async _ =>
             {
                 await BasicBatchReadExample(connection);
@@ -529,7 +570,7 @@ public static class AdvancedExamples
                 await Task.Delay(1000); // Wait for all connections to initialize
             }
 
-            connection = cons.GetConnection;
+            connection = cons.Connection;
             connection.IsConnected.Where(x => x).Subscribe(async _ =>
             {
                 await AdvancedBatchWriteExample(connection);
@@ -542,7 +583,7 @@ public static class AdvancedExamples
                 await Task.Delay(1000); // Wait for all connections to initialize
             }
 
-            connection = cons.GetConnection;
+            connection = cons.Connection;
             connection.IsConnected.Where(x => x).Subscribe(async _ =>
             {
                 await HighPerformanceTagGroupExample(connection);
@@ -555,7 +596,7 @@ public static class AdvancedExamples
                 await Task.Delay(1000); // Wait for all connections to initialize
             }
 
-            connection = cons.GetConnection;
+            connection = cons.Connection;
             connection.IsConnected.Where(x => x).Subscribe(async _ =>
             {
                 await IntelligentMonitoringExample(connection);
@@ -568,7 +609,7 @@ public static class AdvancedExamples
                 await Task.Delay(1000); // Wait for all connections to initialize
             }
 
-            connection = cons.GetConnection;
+            connection = cons.Connection;
             connection.IsConnected.Where(x => x).Subscribe(async _ =>
             {
                 await PerformanceAnalysisExample(connection);
@@ -581,7 +622,7 @@ public static class AdvancedExamples
                 await Task.Delay(1000); // Wait for all connections to initialize
             }
 
-            connection = cons.GetConnection;
+            connection = cons.Connection;
             connection.IsConnected.Where(x => x).Subscribe(async _ =>
             {
                 await ProductionWorkflowExample(connection);

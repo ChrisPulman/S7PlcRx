@@ -1,11 +1,14 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Cache;
+#else
 namespace S7PlcRx.Cache;
+#endif
 
-/// <summary>
-/// Represents a value stored in the cache along with its timestamp and access count.
-/// </summary>
+/// <summary>Represents a value stored in the cache along with its timestamp and access count.</summary>
 /// <param name="value">The value to be cached. Can be null.</param>
 /// <param name="timestamp">The date and time when the value was cached, in UTC.</param>
 /// <param name="hitCount">The initial number of times the cached value has been accessed. Defaults to 0.</param>
