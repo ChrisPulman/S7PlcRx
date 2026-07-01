@@ -1,12 +1,14 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Production;
+#else
 namespace S7PlcRx.Production;
+#endif
 
-/// <summary>
-/// Represents the result of a system validation process, including timing, test results, and production readiness
-/// status.
-/// </summary>
+/// <summary>Represents the result of a system validation process, including timing, test results, and production readiness status.</summary>
 /// <remarks>Use this class to capture and inspect the outcome of a system validation run, such as for a PLC or
 /// similar automated system. It provides details about the validation period, individual test results, critical errors,
 /// and an overall score indicating system readiness for production.</remarks>

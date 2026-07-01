@@ -78,7 +78,7 @@ Repository/analyzer usage for the source generator:
 ## Quick start
 
 ```csharp
-using System.Reactive.Linq;
+using ReactiveUI.Primitives;
 using S7PlcRx;
 using S7PlcRx.Enums;
 
@@ -174,7 +174,7 @@ using var namedValue = plc.Observe<float>("Temperature")
 ## Reactive reading
 
 ```csharp
-using System.Reactive.Linq;
+using ReactiveUI.Primitives;
 
 using var highTemp = plc.Observe<float>("Temperature")
     .Where(x => x > 80.0f)
@@ -205,7 +205,7 @@ plc.ReadTime.Subscribe(ticks => Console.WriteLine($"Read ticks: {ticks}"));
 CPU information:
 
 ```csharp
-using System.Reactive.Linq;
+using ReactiveUI.Primitives;
 
 var cpuInfo = await plc.GetCpuInfo().FirstAsync();
 Console.WriteLine($"AS name: {cpuInfo[0]}, Module: {cpuInfo[1]}");
@@ -294,16 +294,22 @@ await plc.WriteValuesAsync(new Dictionary<string, float>
 .NET 8+ async observable helpers:
 
 ```csharp
-using ReactiveUI.Extensions.Async;
+using ReactiveUI.Primitives.Async;
+using ReactiveUI.Primitives.Async.Advanced;
 using S7PlcRx.Advanced;
 
-await using var sub = await plc.ObserveValueAsync<float>("Temperature")
+var observer = new CallbackWitnessAsync<float>(
+    async (value, cancellationToken) =>
+    {
+        Console.WriteLine($"Async temperature: {value}" );
+        await Task.CompletedTask;
+    },
+    static (error, cancellationToken) => ValueTask.FromException(error),
+    static result => ValueTask.CompletedTask);
+
+await using var sub = await plc.ObserveValue<float>("Temperature")
     .SubscribeAsync(
-        async (value, cancellationToken) =>
-        {
-            Console.WriteLine($"Async temperature: {value}" );
-            await Task.CompletedTask;
-        },
+        observer,
         CancellationToken.None);
 ```
 

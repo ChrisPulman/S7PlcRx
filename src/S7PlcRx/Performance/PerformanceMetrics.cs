@@ -1,11 +1,14 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Performance;
+#else
 namespace S7PlcRx.Performance;
+#endif
 
-/// <summary>
-/// Represents a set of performance metrics for a programmable logic controller (PLC) at a specific point in time.
-/// </summary>
+/// <summary>Represents a set of performance metrics for a programmable logic controller (PLC) at a specific point in time.</summary>
 /// <remarks>This class provides properties for tracking key operational statistics of a PLC, including connection
 /// status, tag activity, performance rates, and error metrics. It is typically used to monitor and analyze PLC
 /// performance in industrial automation scenarios. All properties are read-write, allowing metrics to be set or updated

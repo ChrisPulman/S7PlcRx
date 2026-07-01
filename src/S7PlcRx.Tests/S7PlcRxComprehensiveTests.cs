@@ -1,5 +1,6 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using MockS7Plc;
 using S7PlcRx.Enums;
@@ -18,12 +19,13 @@ public class S7PlcRxComprehensiveTests
     /// Test creation of all supported PLC types.
     /// </summary>
     /// <param name="cpuType">Type of the cpu.</param>
-    [TestCase(CpuType.S71500)]
-    [TestCase(CpuType.S7400)]
-    [TestCase(CpuType.S7300)]
-    [TestCase(CpuType.S71200)]
-    [TestCase(CpuType.S7200)]
-    [TestCase(CpuType.Logo0BA8)]
+    [Test]
+    [Arguments(CpuType.S71500)]
+    [Arguments(CpuType.S7400)]
+    [Arguments(CpuType.S7300)]
+    [Arguments(CpuType.S71200)]
+    [Arguments(CpuType.S7200)]
+    [Arguments(CpuType.Logo0BA8)]
     public void CreatePLC_AllSupportedTypes_ShouldSetCorrectProperties(CpuType cpuType)
     {
         // Arrange & Act

@@ -1,5 +1,6 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Collections;
 using S7PlcRx.PlcTypes;
@@ -17,9 +18,10 @@ public class BitTests
     /// <param name="value">The value.</param>
     /// <param name="bit">The bit.</param>
     /// <param name="expected">if set to <c>true</c> [expected].</param>
-    [TestCase(0b0000_0001, 0, true)]
-    [TestCase(0b0000_0001, 1, false)]
-    [TestCase(0b1000_0000, 7, true)]
+    [Test]
+    [Arguments(0b0000_0001, 0, true)]
+    [Arguments(0b0000_0001, 1, false)]
+    [Arguments(0b1000_0000, 7, true)]
     public void FromByte_ShouldReturnExpected(byte value, byte bit, bool expected)
     {
         Assert.That(Bit.FromByte(value, bit), Is.EqualTo(expected));
@@ -38,8 +40,9 @@ public class BitTests
     /// Ensures FromSpan validates bit index.
     /// </summary>
     /// <param name="bitIndex">Index of the bit.</param>
-    [TestCase(-1)]
-    [TestCase(8)]
+    [Test]
+    [Arguments(-1)]
+    [Arguments(8)]
     public void FromSpan_WhenBitIndexInvalid_ShouldThrow(int bitIndex)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => Bit.FromSpan(stackalloc byte[1], 0, bitIndex));

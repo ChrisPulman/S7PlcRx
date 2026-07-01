@@ -1,10 +1,20 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Core;
+#else
 using S7PlcRx.Core;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
 /// <summary>
 /// Provides static methods for converting between Siemens S7 DInt (32-bit signed integer) representations and .NET int
@@ -16,10 +26,7 @@ namespace S7PlcRx.PlcTypes;
 /// when working with S7 PLC data structures.</remarks>
 public static class DInt
 {
-    /// <summary>
-    /// Converts a 64-bit signed integer to a 32-bit signed integer, applying a custom transformation for values greater
-    /// than <see cref="int.MaxValue"/>.
-    /// </summary>
+    /// <summary>Converts a 64-bit signed integer to a 32-bit signed integer, applying a custom transformation for values greater than <see cref="int.MaxValue"/>.</summary>
     /// <remarks>If <paramref name="value"/> is greater than <see cref="int.MaxValue"/>, the method applies a
     /// specific transformation before casting to <see cref="int"/>. This is not a standard cast and may produce
     /// negative results for large input values.</remarks>
@@ -38,17 +45,13 @@ public static class DInt
         return (int)value;
     }
 
-    /// <summary>
-    /// Creates an integer value from the specified byte array.
-    /// </summary>
+    /// <summary>Creates an integer value from the specified byte array.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert to an integer. The array must contain at least the number of
     /// bytes required to represent an integer.</param>
     /// <returns>An integer value represented by the specified byte array.</returns>
     public static int FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
-    /// <summary>
-    /// Creates an integer value from a byte array starting at the specified index.
-    /// </summary>
+    /// <summary>Creates an integer value from a byte array starting at the specified index.</summary>
     /// <param name="bytes">The byte array containing the data to convert.</param>
     /// <param name="start">The zero-based index in the array at which to begin reading bytes.</param>
     /// <returns>The integer value represented by the bytes starting at the specified index.</returns>
@@ -83,9 +86,7 @@ public static class DInt
         return MemoryMarshal.Read<int>(bytes);
     }
 
-    /// <summary>
-    /// Creates a 32-bit signed integer from four bytes, using little-endian byte order.
-    /// </summary>
+    /// <summary>Creates a 32-bit signed integer from four bytes, using little-endian byte order.</summary>
     /// <remarks>The bytes are combined such that v1 is the least significant byte and v4 is the most
     /// significant byte. This method is useful for reconstructing an integer from a byte array, such as when reading
     /// binary data from a stream.</remarks>
@@ -97,16 +98,12 @@ public static class DInt
     public static int FromBytes(byte v1, byte v2, byte v3, byte v4) =>
         v1 | (v2 << 8) | (v3 << 16) | (v4 << 24);
 
-    /// <summary>
-    /// Converts a byte array to an array of 32-bit integers.
-    /// </summary>
+    /// <summary>Converts a byte array to an array of 32-bit integers.</summary>
     /// <param name="bytes">The byte array to convert. The length must be a multiple of 4.</param>
     /// <returns>An array of 32-bit integers representing the converted values from the input byte array.</returns>
     public static int[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts a read-only span of bytes to an array of 32-bit integers.
-    /// </summary>
+    /// <summary>Converts a read-only span of bytes to an array of 32-bit integers.</summary>
     /// <remarks>Each group of four consecutive bytes in the input span is interpreted as a single 32-bit
     /// integer. The conversion uses the byte order expected by the FromSpan method. If the length of the span is not a
     /// multiple of 4, any remaining bytes are ignored.</remarks>
@@ -126,9 +123,7 @@ public static class DInt
         return values;
     }
 
-    /// <summary>
-    /// Converts the specified 32-bit signed integer to a byte array in little-endian order.
-    /// </summary>
+    /// <summary>Converts the specified 32-bit signed integer to a byte array in little-endian order.</summary>
     /// <remarks>The returned array represents the integer in little-endian format, with the least significant
     /// byte at index 0. This method is useful for serialization or interoperability with systems that require
     /// byte-level representations of integers.</remarks>
@@ -141,9 +136,7 @@ public static class DInt
         return bytes.ToArray();
     }
 
-    /// <summary>
-    /// Writes the specified 32-bit integer value to the provided span in big-endian byte order.
-    /// </summary>
+    /// <summary>Writes the specified 32-bit integer value to the provided span in big-endian byte order.</summary>
     /// <remarks>This method writes the integer in big-endian format, regardless of the system's native
     /// endianness. The first four bytes of the destination span will be overwritten.</remarks>
     /// <param name="value">The 32-bit integer value to write to the span.</param>
@@ -157,15 +150,7 @@ public static class DInt
             throw new ArgumentException("Destination span must be at least 4 bytes", nameof(destination));
         }
 
-#pragma warning disable CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
-        MemoryMarshal.Write(destination, ref value);
-#pragma warning restore CS9191 // The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
-
-        // S7 uses big-endian, so reverse if we're on little-endian platform
-        if (BitConverter.IsLittleEndian)
-        {
-            destination.Slice(0, 4).Reverse();
-        }
+        BinaryPrimitives.WriteInt32BigEndian(destination, value);
     }
 
     /// <summary>
@@ -190,15 +175,13 @@ public static class DInt
         }
     }
 
-    /// <summary>
-    /// Converts an array of 32-bit integers to its equivalent byte array representation.
-    /// </summary>
+    /// <summary>Converts an array of 32-bit integers to its equivalent byte array representation.</summary>
     /// <param name="value">An array of 32-bit integers to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input integer array. The length of the returned array
     /// is four times the length of the input array.</returns>
     public static byte[] ToByteArray(int[] value)
     {
-        if (value == null)
+        if (value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }

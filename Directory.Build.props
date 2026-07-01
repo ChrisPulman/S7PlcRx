@@ -10,13 +10,14 @@
     <LangVersion>preview</LangVersion>
     <Configuration>$(TargetFramework)</Configuration>
     <Company>ChrisPulman</Company>
-    <NoWarn>CS1591;RCS1198;CA2208</NoWarn>
     <Nullable>enable</Nullable>
     <PackageIcon>S7PlcRx.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Compatability with Net 8 / 9 / 10 and net 4.6.2 / 4.7.2 / 4.8.1</PackageReleaseNotes>
+    <PackageReleaseNotes>Compatability with Net 8 / 9 / 10 / 11 and net 4.6.2 / 4.7.2 / 4.8.1</PackageReleaseNotes>
     <PackageTags>S7;Siemens;PLC;S7-200;S7-300;S7-400;S7-1200;S7-1500;rx;reactive;extensions;observable;LINQ;net;netstandard</PackageTags>
-    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+    <EnableStrictAnalyzers Condition="'$(MSBuildProjectName)' == 'S7PlcRx' or '$(MSBuildProjectName)' == 'S7PlcRx.Reactive' or '$(MSBuildProjectName)' == 'S7PlcRx.SourceGenerators'">true</EnableStrictAnalyzers>
+    <EnableNETAnalyzers Condition="'$(EnableStrictAnalyzers)' == 'true'">true</EnableNETAnalyzers>
+    <EnableNETAnalyzers Condition="'$(EnableStrictAnalyzers)' != 'true'">false</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
 
     <PackageProjectUrl>https://github.com/ChrisPulman/S7PlcRx</PackageProjectUrl>
@@ -41,7 +42,11 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(IsTestProject)' != 'true'">
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))">
+    <Features>$(Features);runtime-async=on</Features>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EnableStrictAnalyzers)' == 'true'">
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="All" />
   </ItemGroup>
 
@@ -51,10 +56,8 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
-  <ItemGroup>
-    <!--<Compile Update="**\*.cs" DependentUpon="I%(Filename).cs" />-->
-    <PackageReference Include="stylecop.analyzers" Version="1.2.0-beta.556" PrivateAssets="all" />
+  <ItemGroup Condition="'$(EnableStrictAnalyzers)' == 'true'">
+    <PackageReference Include="StyleSharp.Analyzers" Version="3.13.4" PrivateAssets="all"/>
     <PackageReference Include="Roslynator.Analyzers" Version="4.15.0" PrivateAssets="All" />
-    <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Link="stylecop.json" />
   </ItemGroup>
 </Project>

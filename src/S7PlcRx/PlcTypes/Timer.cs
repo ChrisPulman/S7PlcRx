@@ -1,28 +1,31 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Core;
+#else
 using S7PlcRx.Core;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Provides static methods for converting between S7 Timer byte representations and .NET numeric types.
-/// </summary>
+/// <summary>Provides static methods for converting between S7 Timer byte representations and .NET numeric types.</summary>
 /// <remarks>This class is intended for working with Siemens S7 PLC timer values, enabling conversion to and from
 /// the S7-specific byte format and standard .NET types such as double and ushort. All members are static and the class
 /// cannot be instantiated.</remarks>
 public static class Timer
 {
-    /// <summary>
-    /// Converts a byte array to a double-precision floating-point number.
-    /// </summary>
+    /// <summary>Converts a byte array to a double-precision floating-point number.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert. Must represent a valid double value in the expected byte order.</param>
     /// <returns>A double-precision floating-point number represented by the specified byte array.</returns>
     public static double FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts a read-only span of bytes to a double-precision floating-point number.
-    /// </summary>
+    /// <summary>Converts a read-only span of bytes to a double-precision floating-point number.</summary>
     /// <remarks>The conversion uses the platform's endianness. Ensure that the byte order in the span matches
     /// the expected endianness for correct results.</remarks>
     /// <param name="bytes">A read-only span of bytes containing the binary representation of the double value. The span must contain at
@@ -60,34 +63,40 @@ public static class Timer
 
         var value = (short)Word.FromBytes(bytes[start + 1], bytes[start]);
         var txt = value.ValToBinString();
-        var wert = txt.Substring(4, 4).BinStringToInt32() * 100.0;
-        wert += txt.Substring(8, 4).BinStringToInt32() * 10.0;
-        wert += txt.Substring(12, 4).BinStringToInt32();
-        switch (txt.Substring(2, 2))
+        var wert = txt[4..8].BinStringToInt32() * 100.0;
+        wert += txt[8..12].BinStringToInt32() * 10.0;
+        wert += txt[12..16].BinStringToInt32();
+        switch (txt[2..4])
         {
             case "00":
-                wert *= 0.01;
-                break;
+                {
+                    wert *= 0.01;
+                    break;
+                }
 
             case "01":
-                wert *= 0.1;
-                break;
+                {
+                    wert *= 0.1;
+                    break;
+                }
 
             case "10":
-                wert *= 1.0;
-                break;
+                {
+                    wert *= 1.0;
+                    break;
+                }
 
             case "11":
-                wert *= 10.0;
-                break;
+                {
+                    wert *= 10.0;
+                    break;
+                }
         }
 
         return wert;
     }
 
-    /// <summary>
-    /// Converts a byte array to an array of double-precision floating-point values.
-    /// </summary>
+    /// <summary>Converts a byte array to an array of double-precision floating-point values.</summary>
     /// <remarks>The method interprets each consecutive group of 8 bytes in the input array as a
     /// double-precision floating-point value, using the system's endianness. If the length of the input array is not a
     /// multiple of 8, an exception may be thrown.</remarks>
@@ -95,9 +104,7 @@ public static class Timer
     /// <returns>An array of double values created from the input byte array.</returns>
     public static double[] ToArray(byte[] bytes) => ToArray(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts a read-only span of bytes to an array of double-precision floating-point values.
-    /// </summary>
+    /// <summary>Converts a read-only span of bytes to an array of double-precision floating-point values.</summary>
     /// <remarks>The method interprets each consecutive pair of bytes in the input span as a double value. The
     /// length of the input span must be evenly divisible by 2; otherwise, any remaining bytes are ignored.</remarks>
     /// <param name="bytes">The read-only span of bytes to convert. The length must be a multiple of 2, with each pair of bytes representing
@@ -117,9 +124,7 @@ public static class Timer
         return values;
     }
 
-    /// <summary>
-    /// Converts the specified 16-bit unsigned integer to a byte array.
-    /// </summary>
+    /// <summary>Converts the specified 16-bit unsigned integer to a byte array.</summary>
     /// <param name="value">The 16-bit unsigned integer to convert to a byte array.</param>
     /// <returns>A byte array containing the two bytes of the specified value in platform endianness.</returns>
     public static byte[] ToByteArray(ushort value)
@@ -129,9 +134,7 @@ public static class Timer
         return bytes.ToArray();
     }
 
-    /// <summary>
-    /// Writes the specified 16-bit unsigned integer value to the provided span as two bytes in big-endian order.
-    /// </summary>
+    /// <summary>Writes the specified 16-bit unsigned integer value to the provided span as two bytes in big-endian order.</summary>
     /// <remarks>The value is written in big-endian byte order, with the most significant byte first. The
     /// method does not allocate memory and writes directly to the provided span.</remarks>
     /// <param name="value">The 16-bit unsigned integer value to write to the span.</param>
@@ -178,14 +181,12 @@ public static class Timer
         }
     }
 
-    /// <summary>
-    /// Converts an array of 16-bit unsigned integers to a byte array.
-    /// </summary>
+    /// <summary>Converts an array of 16-bit unsigned integers to a byte array.</summary>
     /// <param name="value">The array of 16-bit unsigned integers to convert. Cannot be null.</param>
     /// <returns>A byte array containing the binary representation of the input values.</returns>
     public static byte[] ToByteArray(ushort[] value)
     {
-        if (value == null)
+        if (value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }

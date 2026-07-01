@@ -2,26 +2,34 @@
 
   <PropertyGroup>
     <TargetFrameworks>net48;net8.0;net9.0;net10.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <PlatformTarget>x86</PlatformTarget>
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
   <PropertyGroup Condition="'$(CI)' == 'true'">
     <TargetFrameworks>net8.0</TargetFrameworks>
     <UseAppHost>false</UseAppHost>
     <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
-    <PackageReference Include="NUnit" Version="4.6.1" />
-    <PackageReference Include="NUnit3TestAdapter" Version="6.2.0" />
-    <PackageReference Include="TUnit.Assertions" Version="1.57.14" Aliases="TUnitAssertions" />
+    <PackageReference Include="ReactiveUI.Primitives" Version="5.8.0" />
+    <PackageReference Include="ReactiveUI.Primitives.Async" Version="5.8.0" />
+    <PackageReference Include="ReactiveUI.Primitives.Extensions" Version="5.8.0" />
+    <PackageReference Include="TUnit" Version="1.57.14" />
+    <PackageReference Include="TUnit.Assertions" Version="1.57.14" />
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
   </ItemGroup>
 
@@ -37,6 +45,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="NUnit.Framework" />
+    <Using Include="ReactiveUI.Primitives" />
+    <Using Include="ReactiveUI.Primitives.Async" />
+    <Using Include="ReactiveUI.Primitives.Extensions" />
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Signals.Signal" Alias="Observable" />
+    <Using Include="S7PlcRx.Tests.Testing.Assert" Alias="Assert" />
+    <Using Include="S7PlcRx.Tests.Testing.Contains" Alias="Contains" />
+    <Using Include="S7PlcRx.Tests.Testing.Does" Alias="Does" />
+    <Using Include="S7PlcRx.Tests.Testing.Has" Alias="Has" />
+    <Using Include="S7PlcRx.Tests.Testing.Is" Alias="Is" />
+    <Using Include="S7PlcRx.Tests.Testing.Throws" Alias="Throws" />
+    <Using Include="TUnit.Core" />
+    <Using Include="TUnit.Assertions.Extensions" />
   </ItemGroup>
 </Project>

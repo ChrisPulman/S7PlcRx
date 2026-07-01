@@ -1,10 +1,19 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Reflection;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Enums;
+#else
 using S7PlcRx.Enums;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
 /// <summary>
 /// Provides static methods for serializing and deserializing class and struct instances to and from byte arrays, as
@@ -37,13 +46,12 @@ public static class Class
     /// <exception cref="Exception">Thrown if an array property on <paramref name="instance"/> has a length less than or equal to zero.</exception>
     public static double GetClassSize(object instance, double numBytes = 0.0, bool isInnerProperty = false)
     {
-        if (instance == null)
+        if (instance is null)
         {
             throw new ArgumentNullException(nameof(instance));
         }
 
-        var properties = GetAccessableProperties(instance.GetType());
-        foreach (var property in properties)
+        foreach (var property in GetAccessableProperties(instance.GetType()))
         {
             if (property.PropertyType.IsArray)
             {
@@ -51,9 +59,9 @@ public static class Class
                 var array = (Array?)property.GetValue(instance, null) ??
                     throw new ArgumentException($"Property {property.Name} on {instance} must have a non-null value to get it's size.", nameof(instance));
 
-                if (array.Length <= 0)
+                if (array.Length == 0)
                 {
-                    throw new Exception("Cannot determine size of class, because an array is defined which has no fixed size greater than zero.");
+                    throw new InvalidOperationException("Cannot determine size of class because an array is defined with no fixed size greater than zero.");
                 }
 
                 IncrementToEven(ref numBytes);
@@ -100,18 +108,17 @@ public static class Class
     /// <exception cref="ArgumentException">Thrown if a property on sourceClass that is expected to be an array is not initialized.</exception>
     public static double FromBytes(object sourceClass, byte[] bytes, double numBytes = 0, bool isInnerClass = false)
     {
-        if (bytes == null)
+        if (bytes is null)
         {
             return numBytes;
         }
 
-        if (sourceClass == null)
+        if (sourceClass is null)
         {
             throw new ArgumentNullException(nameof(sourceClass));
         }
 
-        var properties = GetAccessableProperties(sourceClass.GetType());
-        foreach (var property in properties)
+        foreach (var property in GetAccessableProperties(sourceClass.GetType()))
         {
             if (property.PropertyType.IsArray)
             {
@@ -156,18 +163,17 @@ public static class Class
     /// <exception cref="ArgumentException">Thrown if any accessible property of <paramref name="sourceClass"/> is null.</exception>
     public static double ToBytes(object sourceClass, byte[] bytes, double numBytes = 0.0)
     {
-        if (sourceClass == null)
+        if (sourceClass is null)
         {
             throw new ArgumentNullException(nameof(sourceClass));
         }
 
-        if (bytes == null)
+        if (bytes is null)
         {
             throw new ArgumentNullException(nameof(bytes));
         }
 
-        var properties = GetAccessableProperties(sourceClass.GetType());
-        foreach (var property in properties)
+        foreach (var property in GetAccessableProperties(sourceClass.GetType()))
         {
             var value = property.GetValue(sourceClass, null) ??
                 throw new ArgumentException($"Property {property.Name} on sourceClass can't be null.", nameof(sourceClass));
@@ -190,20 +196,25 @@ public static class Class
         return numBytes;
     }
 
-    /// <summary>
-    /// Retrieves the public instance properties of the specified type that have accessible set methods.
-    /// </summary>
+    /// <summary>Retrieves the public instance properties of the specified type that have accessible set methods.</summary>
     /// <remarks>Only properties with public set methods are included. Properties with non-public or
     /// inaccessible setters are excluded.</remarks>
     /// <param name="classType">The type to inspect for public instance properties with accessible setters. Cannot be null.</param>
     /// <returns>An enumerable collection of PropertyInfo objects representing the public instance properties of the specified
     /// type that can be set. The collection will be empty if no such properties exist.</returns>
-    private static IEnumerable<PropertyInfo> GetAccessableProperties(Type classType) => classType
-            .GetProperties(
-                BindingFlags.SetProperty |
-                BindingFlags.Public |
-                BindingFlags.Instance)
-            .Where(p => p.GetSetMethod() != null);
+    private static IEnumerable<PropertyInfo> GetAccessableProperties(Type classType)
+    {
+        foreach (var property in classType.GetProperties(
+            BindingFlags.SetProperty |
+            BindingFlags.Public |
+            BindingFlags.Instance))
+        {
+            if (property.GetSetMethod() is not null)
+            {
+                yield return property;
+            }
+        }
+    }
 
     /// <summary>
     /// Calculates the increased number of bytes required to represent a value of the specified type, optionally
@@ -226,54 +237,72 @@ public static class Class
         switch (type.Name)
         {
             case "Boolean":
-                numBytes += 0.125;
-                break;
-            case "Byte":
-                numBytes = Math.Ceiling(numBytes);
-                numBytes++;
-                break;
-            case "Int16":
-            case "UInt16":
-                IncrementToEven(ref numBytes);
-                numBytes += 2;
-                break;
-            case "Int32":
-            case "UInt32":
-                IncrementToEven(ref numBytes);
-                numBytes += 4;
-                break;
-            case "Single":
-                IncrementToEven(ref numBytes);
-                numBytes += 4;
-                break;
-            case "Double":
-                IncrementToEven(ref numBytes);
-                numBytes += 8;
-                break;
-            case "String":
-                var attribute = propertyInfo?.GetCustomAttributes<S7StringAttribute>().SingleOrDefault();
-                if (attribute == default(S7StringAttribute))
                 {
-                    throw new ArgumentException("Please add S7StringAttribute to the string field");
+                    numBytes += 0.125;
+                    break;
                 }
 
-                IncrementToEven(ref numBytes);
-                numBytes += attribute.ReservedLengthInBytes;
-                break;
+            case "Byte":
+                {
+                    numBytes = Math.Ceiling(numBytes);
+                    numBytes++;
+                    break;
+                }
+
+            case "Int16" or "UInt16":
+                {
+                    IncrementToEven(ref numBytes);
+                    numBytes += 2;
+                    break;
+                }
+
+            case "Int32" or "UInt32":
+                {
+                    IncrementToEven(ref numBytes);
+                    numBytes += 4;
+                    break;
+                }
+
+            case "Single":
+                {
+                    IncrementToEven(ref numBytes);
+                    numBytes += 4;
+                    break;
+                }
+
+            case "Double":
+                {
+                    IncrementToEven(ref numBytes);
+                    numBytes += 8;
+                    break;
+                }
+
+            case "String":
+                {
+                    var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
+                    if (attribute == default(S7StringAttribute))
+                    {
+                        throw new ArgumentException("Please add S7StringAttribute to the string field");
+                    }
+
+                    IncrementToEven(ref numBytes);
+                    numBytes += attribute.ReservedLengthInBytes;
+                    break;
+                }
+
             default:
-                var propertyClass = Activator.CreateInstance(type) ??
-                    throw new ArgumentException($"Failed to create instance of type {type}.", nameof(type));
-                numBytes = GetClassSize(propertyClass, numBytes, true);
-                break;
+                {
+                    var propertyClass = Activator.CreateInstance(type) ??
+                        throw new ArgumentException($"Failed to create instance of type {type}.", nameof(type));
+                    numBytes = GetClassSize(propertyClass, numBytes, true);
+                    break;
+                }
         }
 
         return numBytes;
     }
 
-    /// <summary>
-    /// Retrieves the value of a property from a byte array, interpreting the bytes according to the specified property
-    /// type.
-    /// </summary>
+    /// <summary>Retrieves the value of a property from a byte array, interpreting the bytes according to the specified property type.</summary>
     /// <remarks>This method supports several primitive types, including Boolean, Byte, Int16, UInt16, Int32,
     /// UInt32, Single, Double, and String, as well as custom types. For string properties, an S7StringAttribute must be
     /// present to specify the string format and length. The method advances the numBytes reference to track the
@@ -296,95 +325,124 @@ public static class Class
         switch (propertyType.Name)
         {
             case "Boolean":
-                // get the value
-                var bytePos = (int)Math.Floor(numBytes);
-                var bitPos = (int)((numBytes - bytePos) / 0.125);
-                value = (bytes[bytePos] & (int)Math.Pow(2, bitPos)) != 0;
-                numBytes += 0.125;
-                break;
-            case "Byte":
-                numBytes = Math.Ceiling(numBytes);
-                value = bytes[(int)numBytes];
-                numBytes++;
-                break;
-            case "Int16":
-                IncrementToEven(ref numBytes);
-
-                // hier auswerten
-                var source = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
-                value = source.ConvertToShort();
-                numBytes += 2;
-                break;
-            case "UInt16":
-                IncrementToEven(ref numBytes);
-
-                // hier auswerten
-                value = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
-                numBytes += 2;
-                break;
-            case "Int32":
-                IncrementToEven(ref numBytes);
-                var wordBuffer = new byte[4];
-                Array.Copy(bytes, (int)numBytes, wordBuffer, 0, wordBuffer.Length);
-                var sourceUInt = DWord.FromByteArray(wordBuffer);
-                value = sourceUInt.ConvertToInt();
-                numBytes += 4;
-                break;
-            case "UInt32":
-                IncrementToEven(ref numBytes);
-                var wordBuffer2 = new byte[4];
-                Array.Copy(bytes, (int)numBytes, wordBuffer2, 0, wordBuffer2.Length);
-                value = DWord.FromByteArray(wordBuffer2);
-                numBytes += 4;
-                break;
-            case "Single":
-                IncrementToEven(ref numBytes);
-
-                // hier auswerten
-                value = Real.FromByteArray(
-                    [
-                        bytes[(int)numBytes],
-                        bytes[(int)numBytes + 1],
-                        bytes[(int)numBytes + 2],
-                        bytes[(int)numBytes + 3]]);
-                numBytes += 4;
-                break;
-            case "Double":
-                IncrementToEven(ref numBytes);
-                var buffer = new byte[8];
-                Array.Copy(bytes, (int)numBytes, buffer, 0, 8);
-
-                // hier auswerten
-                value = LReal.FromByteArray(buffer);
-                numBytes += 8;
-                break;
-            case "String":
-                var attribute = propertyInfo?.GetCustomAttributes<S7StringAttribute>().SingleOrDefault();
-                if (attribute == default(S7StringAttribute))
                 {
-                    throw new ArgumentException("Please add S7StringAttribute to the string field");
+                    // get the value
+                    var bytePos = (int)Math.Floor(numBytes);
+                    var bitPos = (int)((numBytes - bytePos) / 0.125);
+                    value = (bytes[bytePos] & (int)Math.Pow(2, bitPos)) != 0;
+                    numBytes += 0.125;
+                    break;
                 }
 
-                IncrementToEven(ref numBytes);
-
-                // get the value
-                var sData = new byte[attribute.ReservedLengthInBytes];
-                Array.Copy(bytes, (int)numBytes, sData, 0, sData.Length);
-                value = attribute.Type switch
+            case "Byte":
                 {
-                    S7StringType.S7String => S7String.FromByteArray(sData),
-                    S7StringType.S7WString => S7WString.FromByteArray(sData),
-                    _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
-                };
-                numBytes += sData.Length;
-                break;
-            default:
-                var propClass = Activator.CreateInstance(propertyType) ??
-                    throw new ArgumentException($"Failed to create instance of type {propertyType}.", nameof(propertyType));
+                    numBytes = Math.Ceiling(numBytes);
+                    value = bytes[(int)numBytes];
+                    numBytes++;
+                    break;
+                }
 
-                numBytes = FromBytes(propClass, bytes, numBytes);
-                value = propClass;
-                break;
+            case "Int16":
+                {
+                    IncrementToEven(ref numBytes);
+
+                    // hier auswerten
+                    var source = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
+                    value = source.ConvertToShort();
+                    numBytes += 2;
+                    break;
+                }
+
+            case "UInt16":
+                {
+                    IncrementToEven(ref numBytes);
+
+                    // hier auswerten
+                    value = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
+                    numBytes += 2;
+                    break;
+                }
+
+            case "Int32":
+                {
+                    IncrementToEven(ref numBytes);
+                    var wordBuffer = new byte[4];
+                    Array.Copy(bytes, (int)numBytes, wordBuffer, 0, wordBuffer.Length);
+                    var sourceUInt = DWord.FromByteArray(wordBuffer);
+                    value = sourceUInt.ConvertToInt();
+                    numBytes += 4;
+                    break;
+                }
+
+            case "UInt32":
+                {
+                    IncrementToEven(ref numBytes);
+                    var wordBuffer2 = new byte[4];
+                    Array.Copy(bytes, (int)numBytes, wordBuffer2, 0, wordBuffer2.Length);
+                    value = DWord.FromByteArray(wordBuffer2);
+                    numBytes += 4;
+                    break;
+                }
+
+            case "Single":
+                {
+                    IncrementToEven(ref numBytes);
+
+                    // hier auswerten
+                    value = Real.FromByteArray(
+                        [
+                            bytes[(int)numBytes],
+                            bytes[(int)numBytes + 1],
+                            bytes[(int)numBytes + 2],
+                            bytes[(int)numBytes + 3]]);
+                    numBytes += 4;
+                    break;
+                }
+
+            case "Double":
+                {
+                    IncrementToEven(ref numBytes);
+                    var buffer = new byte[8];
+                    Array.Copy(bytes, (int)numBytes, buffer, 0, 8);
+
+                    // hier auswerten
+                    value = LReal.FromByteArray(buffer);
+                    numBytes += 8;
+                    break;
+                }
+
+            case "String":
+                {
+                    var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
+                    if (attribute == default(S7StringAttribute))
+                    {
+                        throw new ArgumentException("Please add S7StringAttribute to the string field");
+                    }
+
+                    IncrementToEven(ref numBytes);
+
+                    // get the value
+                    var stringData = new byte[attribute.ReservedLengthInBytes];
+                    Array.Copy(bytes, (int)numBytes, stringData, 0, stringData.Length);
+                    value = attribute.Type switch
+                    {
+                        S7StringType.S7String => S7String.FromByteArray(stringData),
+                        S7StringType.S7WString => S7WString.FromByteArray(stringData),
+                        _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
+                    };
+                    numBytes += stringData.Length;
+                    break;
+                }
+
+            default:
+                {
+                    var propClass = Activator.CreateInstance(propertyType) ??
+                        throw new ArgumentException($"Failed to create instance of type {propertyType}.", nameof(propertyType));
+
+                    numBytes = FromBytes(propClass, bytes, numBytes);
+                    value = propClass;
+                    break;
+                }
         }
 
         return value;
@@ -418,64 +476,93 @@ public static class Class
         switch (propertyValue.GetType().Name)
         {
             case "Boolean":
-                // get the value
-                bytePos = (int)Math.Floor(numBytes);
-                var bitPos = (int)((numBytes - bytePos) / 0.125);
-                if ((bool)propertyValue)
                 {
-                    bytes[bytePos] |= (byte)Math.Pow(2, bitPos);            // is true
-                }
-                else
-                {
-                    bytes[bytePos] &= (byte)(~(byte)Math.Pow(2, bitPos));   // is false
+                    // get the value
+                    bytePos = (int)Math.Floor(numBytes);
+                    var bitPos = (int)((numBytes - bytePos) / 0.125);
+                    if ((bool)propertyValue)
+                    {
+                        bytes[bytePos] |= (byte)Math.Pow(2, bitPos); // is true
+                    }
+                    else
+                    {
+                        bytes[bytePos] &= (byte)(~(byte)Math.Pow(2, bitPos)); // is false
+                    }
+
+                    numBytes += 0.125;
+                    break;
                 }
 
-                numBytes += 0.125;
-                break;
             case "Byte":
-                numBytes = (int)Math.Ceiling(numBytes);
-                bytePos = (int)numBytes;
-                bytes[bytePos] = (byte)propertyValue;
-                numBytes++;
-                break;
-            case "Int16":
-                bytes2 = Int.ToByteArray((short)propertyValue);
-                break;
-            case "UInt16":
-                bytes2 = Word.ToByteArray((ushort)propertyValue);
-                break;
-            case "Int32":
-                bytes2 = DInt.ToByteArray((int)propertyValue);
-                break;
-            case "UInt32":
-                bytes2 = DWord.ToByteArray((uint)propertyValue);
-                break;
-            case "Single":
-                bytes2 = Real.ToByteArray((float)propertyValue);
-                break;
-            case "Double":
-                bytes2 = LReal.ToByteArray((double)propertyValue);
-                break;
-            case "String":
-                var attribute = propertyInfo?.GetCustomAttributes<S7StringAttribute>().SingleOrDefault();
-                if (attribute == default(S7StringAttribute))
                 {
-                    throw new ArgumentException("Please add S7StringAttribute to the string field");
+                    numBytes = (int)Math.Ceiling(numBytes);
+                    bytePos = (int)numBytes;
+                    bytes[bytePos] = (byte)propertyValue;
+                    numBytes++;
+                    break;
                 }
 
-                bytes2 = attribute.Type switch
+            case "Int16":
                 {
-                    S7StringType.S7String => S7String.ToByteArray((string)propertyValue, attribute.ReservedLength),
-                    S7StringType.S7WString => S7WString.ToByteArray((string)propertyValue, attribute.ReservedLength),
-                    _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
-                };
-                break;
+                    bytes2 = Int.ToByteArray((short)propertyValue);
+                    break;
+                }
+
+            case "UInt16":
+                {
+                    bytes2 = Word.ToByteArray((ushort)propertyValue);
+                    break;
+                }
+
+            case "Int32":
+                {
+                    bytes2 = DInt.ToByteArray((int)propertyValue);
+                    break;
+                }
+
+            case "UInt32":
+                {
+                    bytes2 = DWord.ToByteArray((uint)propertyValue);
+                    break;
+                }
+
+            case "Single":
+                {
+                    bytes2 = Real.ToByteArray((float)propertyValue);
+                    break;
+                }
+
+            case "Double":
+                {
+                    bytes2 = LReal.ToByteArray((double)propertyValue);
+                    break;
+                }
+
+            case "String":
+                {
+                    var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
+                    if (attribute == default(S7StringAttribute))
+                    {
+                        throw new ArgumentException("Please add S7StringAttribute to the string field");
+                    }
+
+                    bytes2 = attribute.Type switch
+                    {
+                        S7StringType.S7String => S7String.ToByteArray((string)propertyValue, attribute.ReservedLength),
+                        S7StringType.S7WString => S7WString.ToByteArray((string)propertyValue, attribute.ReservedLength),
+                        _ => throw new ArgumentException("Please use a valid string type for the S7StringAttribute")
+                    };
+                    break;
+                }
+
             default:
-                numBytes = ToBytes(propertyValue, bytes, numBytes);
-                break;
+                {
+                    numBytes = ToBytes(propertyValue, bytes, numBytes);
+                    break;
+                }
         }
 
-        if (bytes2 != null)
+        if (bytes2 is not null)
         {
             IncrementToEven(ref numBytes);
 
@@ -491,9 +578,7 @@ public static class Class
         return numBytes;
     }
 
-    /// <summary>
-    /// Rounds the specified value up to the nearest even integer.
-    /// </summary>
+    /// <summary>Rounds the specified value up to the nearest even integer.</summary>
     /// <remarks>This method first rounds the value up to the nearest integer, then increments it if the
     /// result is odd to ensure it is even. The input value is modified in place.</remarks>
     /// <param name="numBytes">A reference to the value to be rounded. The value will be updated to the next even integer greater than or equal
@@ -501,9 +586,30 @@ public static class Class
     private static void IncrementToEven(ref double numBytes)
     {
         numBytes = Math.Ceiling(numBytes);
-        if (numBytes % 2 > 0)
+        if (numBytes % 2 == 0)
         {
-            numBytes++;
+            return;
         }
+
+        numBytes++;
+    }
+
+    /// <summary>Gets the S7 string attribute for a member.</summary>
+    /// <param name="memberInfo">The member to inspect.</param>
+    /// <returns>The S7 string attribute, or null when one is not present.</returns>
+    private static S7StringAttribute? GetS7StringAttribute(MemberInfo memberInfo)
+    {
+        S7StringAttribute? result = null;
+        foreach (var attribute in memberInfo.GetCustomAttributes<S7StringAttribute>())
+        {
+            if (result is not null)
+            {
+                throw new InvalidOperationException($"Multiple {nameof(S7StringAttribute)} attributes were found on {memberInfo.Name}.");
+            }
+
+            result = attribute;
+        }
+
+        return result;
     }
 }

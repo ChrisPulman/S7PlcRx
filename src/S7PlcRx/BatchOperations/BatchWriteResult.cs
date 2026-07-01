@@ -1,9 +1,12 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
-
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.BatchOperations;
+#else
 namespace S7PlcRx.BatchOperations;
+#endif
 
 /// <summary>
 /// Represents the result of a batch write operation, including per-item success status, error messages, and overall
@@ -27,8 +30,26 @@ public class BatchWriteResult
     public bool RollbackPerformed { get; set; }
 
     /// <summary>Gets the count of successful writes.</summary>
-    public int SuccessCount => Success.Values.Count(s => s);
+    public int SuccessCount => CountValues(Success, true);
 
     /// <summary>Gets the count of failed writes.</summary>
-    public int ErrorCount => Success.Values.Count(s => !s);
+    public int ErrorCount => CountValues(Success, false);
+
+    /// <summary>Counts success dictionary values that match the expected state.</summary>
+    /// <param name="values">The values to count.</param>
+    /// <param name="expected">The expected success state.</param>
+    /// <returns>The number of matching values.</returns>
+    private static int CountValues(Dictionary<string, bool> values, bool expected)
+    {
+        var count = 0;
+        foreach (var value in values.Values)
+        {
+            if (value == expected)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
 }

@@ -1,11 +1,21 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Enums;
+using S7PlcRx.Reactive.PlcTypes;
+#else
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Core;
+#else
 namespace S7PlcRx.Core;
+#endif
 
 /// <summary>
 /// Provides static helper methods for constructing and parsing S7 protocol multi-variable read and write requests and
@@ -16,9 +26,12 @@ namespace S7PlcRx.Core;
 /// operations. All members are static and thread-safe.</remarks>
 internal static class S7MultiVar
 {
+    /// <summary>Stores the b ui ld re ad va rr eq ue s t value.</summary>
+    /// <param name="items">The i te m s value.</param>
+    /// <returns>The resulting value.</returns>
     internal static byte[] BuildReadVarRequest(IReadOnlyList<ReadItem> items)
     {
-        if (items == null)
+        if (items is null)
         {
             throw new ArgumentNullException(nameof(items));
         }
@@ -64,9 +77,7 @@ internal static class S7MultiVar
         return package.Array;
     }
 
-    /// <summary>
-    /// Parses a PLC 'Read Var' response frame and returns the results for each requested item.
-    /// </summary>
+    /// <summary>Parses a PLC 'Read Var' response frame and returns the results for each requested item.</summary>
     /// <remarks>The returned list contains one entry per item in <paramref name="items"/>, up to the number
     /// of results present in the response. If the response is incomplete or malformed, fewer results may be returned.
     /// Rented buffers in the results must be returned to the provided pool by the caller when no longer
@@ -83,12 +94,12 @@ internal static class S7MultiVar
         IReadOnlyList<ReadItem> items,
         ArrayPool<byte> pool)
     {
-        if (items == null)
+        if (items is null)
         {
             throw new ArgumentNullException(nameof(items));
         }
 
-        if (pool == null)
+        if (pool is null)
         {
             throw new ArgumentNullException(nameof(pool));
         }
@@ -103,7 +114,7 @@ internal static class S7MultiVar
         var dataStart = 17 + paramLength;
         if ((uint)dataStart >= (uint)response.Length)
         {
-            return Array.Empty<ReadResult>();
+            return [];
         }
 
         var results = new List<ReadResult>(items.Count);
@@ -111,48 +122,18 @@ internal static class S7MultiVar
 
         for (var i = 0; i < items.Count; i++)
         {
-            if (offset + 4 > response.Length)
+            if (!TryReadResult(response, items[i], pool, ref offset, out var result))
             {
                 break;
             }
 
-            var returnCode = response[offset];
-            var transportSize = response[offset + 1];
-            var bitLength = (response[offset + 2] << 8) | response[offset + 3];
-            offset += 4;
-
-            var byteLen = (bitLength + 7) / 8;
-            if (byteLen < 0 || offset + byteLen > response.Length)
-            {
-                break;
-            }
-
-            if (byteLen == 0)
-            {
-                results.Add(new ReadResult(items[i].TagName, returnCode, transportSize, null, 0));
-            }
-            else
-            {
-                var rented = pool.Rent(byteLen);
-                response.Slice(offset, byteLen).CopyTo(rented.AsSpan(0, byteLen));
-                results.Add(new ReadResult(items[i].TagName, returnCode, transportSize, rented, byteLen));
-            }
-
-            offset += byteLen;
-
-            // Data padded to even length.
-            if ((byteLen & 1) == 1)
-            {
-                offset++;
-            }
+            results.Add(result);
         }
 
         return results;
     }
 
-    /// <summary>
-    /// Builds a byte array representing an S7 WriteVar request for the specified collection of write items.
-    /// </summary>
+    /// <summary>Builds a byte array representing an S7 WriteVar request for the specified collection of write items.</summary>
     /// <remarks>The resulting byte array can be sent directly to an S7-compatible device to perform a
     /// multi-variable write operation. The S7 protocol limits each WriteVar request to a maximum of 255 items per
     /// protocol data unit (PDU).</remarks>
@@ -163,7 +144,7 @@ internal static class S7MultiVar
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="items"/> contains more than 255 elements.</exception>
     internal static byte[] BuildWriteVarRequest(IReadOnlyList<WriteItem> items)
     {
-        if (items == null)
+        if (items is null)
         {
             throw new ArgumentNullException(nameof(items));
         }
@@ -231,10 +212,7 @@ internal static class S7MultiVar
         return package.Array;
     }
 
-    /// <summary>
-    /// Parses a response buffer containing the results of a write variable operation and returns a list of write
-    /// results.
-    /// </summary>
+    /// <summary>Parses a response buffer containing the results of a write variable operation and returns a list of write results.</summary>
     /// <remarks>If the response buffer is too short or does not contain the expected number of items, the
     /// returned list may contain fewer results than requested. This method does not throw exceptions for malformed or
     /// incomplete responses.</remarks>
@@ -296,41 +274,107 @@ internal static class S7MultiVar
 
         switch (dataType)
         {
-            case DataType.Timer:
-            case DataType.Counter:
-                package.Add((byte)dataType);
-                break;
+            case DataType.Timer or DataType.Counter:
+                {
+                    package.Add((byte)dataType);
+                    break;
+                }
 
             default:
-                package.Add(2);
-                break;
+                {
+                    package.Add(2);
+                    break;
+                }
         }
 
         package.Add(Word.ToByteArray((ushort)count));
         package.Add(Word.ToByteArray((ushort)db));
         package.Add((byte)dataType);
 
-        var overflow = (int)(startByteAdr * 8 / 65535U);
+        var overflow = (int)(startByteAdr * 8 / 65_535U);
         package.Add((byte)overflow);
 
         switch (dataType)
         {
-            case DataType.Timer:
-            case DataType.Counter:
-                package.Add(Word.ToByteArray((ushort)startByteAdr));
-                break;
+            case DataType.Timer or DataType.Counter:
+                {
+                    package.Add(Word.ToByteArray((ushort)startByteAdr));
+                    break;
+                }
 
             default:
-                package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
-                break;
+                {
+                    package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
+                    break;
+                }
         }
 
         return package.Array;
     }
 
-    /// <summary>
-    /// Represents a request to read a specific range of data from a PLC data block or memory area.
-    /// </summary>
+    /// <summary>Attempts to parse a single read result from the response.</summary>
+    /// <param name="response">The response data.</param>
+    /// <param name="item">The requested read item.</param>
+    /// <param name="pool">The array pool used to rent result buffers.</param>
+    /// <param name="offset">The current response offset.</param>
+    /// <param name="result">The parsed read result.</param>
+    /// <returns>true when a result was parsed; otherwise, false.</returns>
+    private static bool TryReadResult(
+        ReadOnlySpan<byte> response,
+        ReadItem item,
+        ArrayPool<byte> pool,
+        ref int offset,
+        out ReadResult result)
+    {
+        result = default;
+        if (offset + 4 > response.Length)
+        {
+            return false;
+        }
+
+        var returnCode = response[offset];
+        var transportSize = response[offset + 1];
+        var bitLength = (response[offset + 2] << 8) | response[offset + 3];
+        offset += 4;
+
+        var byteLen = (bitLength + 7) / 8;
+        if (offset + byteLen > response.Length)
+        {
+            return false;
+        }
+
+        result = byteLen == 0
+            ? new ReadResult(item.TagName, returnCode, transportSize, null, 0)
+            : ReadResultWithBuffer(response, item.TagName, returnCode, transportSize, byteLen, offset, pool);
+
+        offset += byteLen + ((byteLen & 1) == 1 ? 1 : 0);
+        return true;
+    }
+
+    /// <summary>Creates a read result backed by a rented buffer.</summary>
+    /// <param name="response">The response data.</param>
+    /// <param name="tagName">The tag name.</param>
+    /// <param name="returnCode">The return code.</param>
+    /// <param name="transportSize">The transport size.</param>
+    /// <param name="byteLen">The result length in bytes.</param>
+    /// <param name="offset">The response data offset.</param>
+    /// <param name="pool">The array pool used to rent result buffers.</param>
+    /// <returns>The read result.</returns>
+    private static ReadResult ReadResultWithBuffer(
+        ReadOnlySpan<byte> response,
+        string tagName,
+        byte returnCode,
+        byte transportSize,
+        int byteLen,
+        int offset,
+        ArrayPool<byte> pool)
+    {
+        var rented = pool.Rent(byteLen);
+        response.Slice(offset, byteLen).CopyTo(rented.AsSpan(0, byteLen));
+        return new ReadResult(tagName, returnCode, transportSize, rented, byteLen);
+    }
+
+    /// <summary>Represents a request to read a specific range of data from a PLC data block or memory area.</summary>
     /// <param name="dataType">The type of data to read, specifying the memory area or data type (such as input, output, or data block).</param>
     /// <param name="db">The number of the data block to read from. Ignored for data types that do not use data blocks.</param>
     /// <param name="startByteAdr">The starting byte address within the specified data area or data block from which to begin reading.</param>
@@ -338,14 +382,19 @@ internal static class S7MultiVar
     /// <param name="tagName">The symbolic tag name associated with the read operation. Can be used for identification or logging purposes.</param>
     internal readonly struct ReadItem(DataType dataType, int db, int startByteAdr, int count, string tagName)
     {
+        /// <summary>Gets the data type value.</summary>
         public DataType DataType { get; } = dataType;
 
+        /// <summary>Gets the d b value.</summary>
         public int Db { get; } = db;
 
+        /// <summary>Gets the s ta rt by te a d r value.</summary>
         public int StartByteAdr { get; } = startByteAdr;
 
+        /// <summary>Gets the c ou n t value.</summary>
         public int Count { get; } = count;
 
+        /// <summary>Gets the t ag na m e value.</summary>
         public string TagName { get; } = tagName;
     }
 
@@ -360,22 +409,26 @@ internal static class S7MultiVar
     /// <param name="length">The number of bytes in the buffer that contain valid data.</param>
     internal readonly struct ReadResult(string tagName, byte returnCode, byte transportSize, byte[]? rentedBuffer, int length)
     {
+        /// <summary>Gets the t ag na m e value.</summary>
         public string TagName { get; } = tagName;
 
+        /// <summary>Gets the r et ur nc o d e value.</summary>
         public byte ReturnCode { get; } = returnCode;
 
+        /// <summary>Gets the t ra ns po rt si z e value.</summary>
         public byte TransportSize { get; } = transportSize;
 
+        /// <summary>Gets the r en te db uf f e r value.</summary>
         public byte[]? RentedBuffer { get; } = rentedBuffer;
 
+        /// <summary>Gets the l en g t h value.</summary>
         public int Length { get; } = length;
 
-        public ReadOnlyMemory<byte> Data => RentedBuffer == null || Length <= 0 ? ReadOnlyMemory<byte>.Empty : RentedBuffer.AsMemory(0, Length);
+        /// <summary>Gets the data value.</summary>
+        public ReadOnlyMemory<byte> Data => RentedBuffer is null || Length <= 0 ? ReadOnlyMemory<byte>.Empty : RentedBuffer.AsMemory(0, Length);
     }
 
-    /// <summary>
-    /// Represents a data item to be written to a PLC, including its type, address, size, and associated data buffer.
-    /// </summary>
+    /// <summary>Represents a data item to be written to a PLC, including its type, address, size, and associated data buffer.</summary>
     /// <param name="dataType">The data type of the item to write. Specifies how the data should be interpreted by the PLC.</param>
     /// <param name="db">The number of the data block (DB) in the PLC where the data will be written.</param>
     /// <param name="startByteAdr">The starting byte address within the data block where the write operation begins.</param>
@@ -385,30 +438,37 @@ internal static class S7MultiVar
     /// <param name="tagName">The symbolic tag name associated with the data item, used for identification or diagnostics.</param>
     internal readonly struct WriteItem(DataType dataType, int db, int startByteAdr, int count, byte transportSize, byte[] data, string tagName)
     {
+        /// <summary>Gets the data type value.</summary>
         public DataType DataType { get; } = dataType;
 
+        /// <summary>Gets the d b value.</summary>
         public int Db { get; } = db;
 
+        /// <summary>Gets the s ta rt by te a d r value.</summary>
         public int StartByteAdr { get; } = startByteAdr;
 
+        /// <summary>Gets the c ou n t value.</summary>
         public int Count { get; } = count;
 
+        /// <summary>Gets the t ra ns po rt si z e value.</summary>
         public byte TransportSize { get; } = transportSize;
 
+        /// <summary>Gets the d a t a value.</summary>
         public byte[] Data { get; } = data;
 
+        /// <summary>Gets the t ag na m e value.</summary>
         public string TagName { get; } = tagName;
     }
 
-    /// <summary>
-    /// Represents the result of a write operation, including the operation index and return code.
-    /// </summary>
+    /// <summary>Represents the result of a write operation, including the operation index and return code.</summary>
     /// <param name="index">The zero-based index associated with the write operation result.</param>
     /// <param name="returnCode">The return code indicating the outcome of the write operation.</param>
     internal readonly struct WriteResult(int index, byte returnCode)
     {
+        /// <summary>Gets the i nd e x value.</summary>
         public int Index { get; } = index;
 
+        /// <summary>Gets the r et ur nc o d e value.</summary>
         public byte ReturnCode { get; } = returnCode;
     }
 }

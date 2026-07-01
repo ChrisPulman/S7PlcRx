@@ -1,18 +1,19 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Collections;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Contains the conversion methods to convert Bit from S7 plc to C#.
-/// </summary>
+/// <summary>Contains the conversion methods to convert Bit from S7 plc to C#.</summary>
 public static class Bit
 {
-    /// <summary>
-    /// Determines whether the specified bit in a byte value is set.
-    /// </summary>
+    /// <summary>Determines whether the specified bit in a byte value is set.</summary>
     /// <remarks>If bitAdr is outside the range 0 to 7, the result may not be meaningful. This method does not
     /// validate the bit position.</remarks>
     /// <param name="v">The byte value to examine.</param>
@@ -20,9 +21,7 @@ public static class Bit
     /// <returns>true if the bit at the specified position is set; otherwise, false.</returns>
     public static bool FromByte(byte v, byte bitAdr) => (v & (1 << bitAdr)) != 0;
 
-    /// <summary>
-    /// Determines whether the specified bit is set in a byte within a read-only span of bytes.
-    /// </summary>
+    /// <summary>Determines whether the specified bit is set in a byte within a read-only span of bytes.</summary>
     /// <param name="bytes">A read-only span of bytes from which the target byte is selected.</param>
     /// <param name="byteIndex">The zero-based index of the byte within <paramref name="bytes"/> to examine. Must be less than the length of
     /// <paramref name="bytes"/>.</param>
@@ -45,27 +44,20 @@ public static class Bit
         return FromByte(bytes[byteIndex], (byte)bitIndex);
     }
 
-    /// <summary>
-    /// Converts the specified byte array to a BitArray, where each bit in the array represents a bit in the input
-    /// bytes.
-    /// </summary>
+    /// <summary>Converts the specified byte array to a BitArray, where each bit in the array represents a bit in the input bytes.</summary>
     /// <param name="bytes">The byte array to convert. Each byte is interpreted in order, with the least significant bit first in each byte.</param>
     /// <returns>A BitArray containing the bits from the input byte array. If the input array is null or empty, returns an empty
     /// BitArray.</returns>
     public static BitArray ToBitArray(byte[] bytes) => ToBitArray(bytes.AsSpan(), bytes?.Length * 8);
 
-    /// <summary>
-    /// Creates a new BitArray representing the bits contained in the specified read-only span of bytes.
-    /// </summary>
+    /// <summary>Creates a new BitArray representing the bits contained in the specified read-only span of bytes.</summary>
     /// <param name="bytes">A read-only span of bytes whose bits will be copied into the resulting BitArray. Each byte is interpreted in
     /// little-endian order, with the least significant bit first.</param>
     /// <returns>A BitArray containing the bits from the input span. The length of the BitArray will be equal to the total number
     /// of bits in the input.</returns>
     public static BitArray ToBitArray(ReadOnlySpan<byte> bytes) => ToBitArray(bytes, bytes.Length * 8);
 
-    /// <summary>
-    /// Converts the specified byte array to a BitArray, optionally limiting the number of bits included.
-    /// </summary>
+    /// <summary>Converts the specified byte array to a BitArray, optionally limiting the number of bits included.</summary>
     /// <param name="bytes">The array of bytes to convert to a BitArray. Cannot be null.</param>
     /// <param name="length">The optional number of bits to include in the BitArray. If specified, only the first length bits are included;
     /// otherwise, all bits from the byte array are used. Must be non-negative and not greater than the total number of
@@ -73,9 +65,7 @@ public static class Bit
     /// <returns>A BitArray containing the bits from the specified byte array, limited to the specified length if provided.</returns>
     public static BitArray ToBitArray(byte[] bytes, int? length) => ToBitArray(bytes.AsSpan(), length);
 
-    /// <summary>
-    /// Converts a span of bytes to a BitArray containing the specified number of bits.
-    /// </summary>
+    /// <summary>Converts a span of bytes to a BitArray containing the specified number of bits.</summary>
     /// <remarks>The returned BitArray contains bits in the same order as they appear in the input bytes,
     /// starting from the least significant bit of the first byte. This method is compatible with .NET Standard 2.0 by
     /// converting the span to an array before constructing the BitArray.</remarks>
@@ -88,7 +78,7 @@ public static class Bit
     /// <exception cref="ArgumentException">Thrown if bytes is empty or if length is greater than the total number of bits available in bytes.</exception>
     public static BitArray ToBitArray(ReadOnlySpan<byte> bytes, int? length)
     {
-        if (length == null)
+        if (length is null)
         {
             throw new ArgumentNullException(nameof(length));
         }
@@ -116,9 +106,7 @@ public static class Bit
         return new BitArray(bools);
     }
 
-    /// <summary>
-    /// Sets the value of a specific bit within a byte in the provided span.
-    /// </summary>
+    /// <summary>Sets the value of a specific bit within a byte in the provided span.</summary>
     /// <param name="bytes">A span of bytes in which the bit will be set or cleared.</param>
     /// <param name="byteIndex">The zero-based index of the byte within <paramref name="bytes"/> whose bit will be modified. Must be less than
     /// the length of <paramref name="bytes"/>.</param>
@@ -149,9 +137,7 @@ public static class Bit
         }
     }
 
-    /// <summary>
-    /// Extracts the values of specified bits from a sequence of bytes.
-    /// </summary>
+    /// <summary>Extracts the values of specified bits from a sequence of bytes.</summary>
     /// <remarks>If a specified bit position refers to an index outside the bounds of the input span, an
     /// exception may be thrown.</remarks>
     /// <param name="bytes">The span of bytes from which bits will be read.</param>
@@ -172,9 +158,7 @@ public static class Bit
         return results;
     }
 
-    /// <summary>
-    /// Sets the specified bits in the provided byte span according to the given updates.
-    /// </summary>
+    /// <summary>Sets the specified bits in the provided byte span according to the given updates.</summary>
     /// <remarks>Each tuple in <paramref name="bitUpdates"/> must reference a valid byte and bit index within
     /// <paramref name="bytes"/>. Modifying bits outside the bounds of <paramref name="bytes"/> may result in undefined
     /// behavior.</remarks>

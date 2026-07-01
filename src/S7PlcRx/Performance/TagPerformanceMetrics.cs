@@ -1,11 +1,14 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Performance;
+#else
 namespace S7PlcRx.Performance;
+#endif
 
-/// <summary>
-/// Represents performance metrics for a specific tag, including operation counts, timing statistics, and success rates.
-/// </summary>
+/// <summary>Represents performance metrics for a specific tag, including operation counts, timing statistics, and success rates.</summary>
 /// <remarks>Use this class to track and analyze the performance of tag-related operations, such as reads and
 /// writes, over time. The metrics provided can help identify bottlenecks, monitor reliability, and optimize system
 /// performance. All properties are intended to be updated as new operation data becomes available.</remarks>

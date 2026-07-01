@@ -1,7 +1,7 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx.PlcTypes;
 
@@ -14,7 +14,7 @@ namespace S7PlcRx.Tests;
 /// byte[], converts to a list of strings and compares, then writes modified data back and
 /// reads once more to confirm the round-trip is correct.
 /// </summary>
-[NonParallelizable]
+[NotInParallel]
 public class S7PlcRxLargeDataTests
 {
     // Each S7 string slot = 2 (header) + reservedLength bytes.
@@ -22,7 +22,17 @@ public class S7PlcRxLargeDataTests
     private const int StringSlotSize = 2 + StringReservedLength; // 22 bytes
 
     // Sizes exercised: sub-PDU, near-PDU, multi-chunk × 2.
-    private static readonly int[] DataSizes = [64, 960, 2000, 4000];
+    /// <summary>
+    /// Gets the large payload sizes covered by the round-trip test.
+    /// </summary>
+    /// <returns>The payload sizes in bytes.</returns>
+    public static IEnumerable<int> DataSizes()
+    {
+        yield return 64;
+        yield return 960;
+        yield return 2000;
+        yield return 4000;
+    }
 
     /// <summary>
     /// Verifies that a byte[] payload of the given total size can be written to the MockServer,
@@ -30,7 +40,8 @@ public class S7PlcRxLargeDataTests
     /// </summary>
     /// <param name="totalBytes">Total byte footprint to test.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    [TestCaseSource(nameof(DataSizes))]
+    [Test]
+    [MethodDataSource(nameof(DataSizes))]
     public async Task LargeStringBlock_SeedReadWriteRoundTrip_ShouldMatchAtAllSizes(int totalBytes)
     {
         // ── Build the seed payload ──────────────────────────────────────────────
@@ -57,7 +68,7 @@ public class S7PlcRxLargeDataTests
         using var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1, null, interval: 100);
         plc.AddUpdateTagItem<byte[]>("LargeBlock", "DB1.DBB0", actualTotalBytes).SetTagPollIng(false);
 
-        await plc.IsConnected.FirstAsync(x => x).Timeout(System.TimeSpan.FromSeconds(10));
+        await plc.IsConnected.Where(x => x).Timeout(System.TimeSpan.FromSeconds(10)).FirstAsync();
 
         // ── Seed via write-first (the only reliable way with MockServer) ────────
         plc.Value("LargeBlock", seedBytes);

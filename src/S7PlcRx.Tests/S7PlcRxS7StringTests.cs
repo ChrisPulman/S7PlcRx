@@ -1,5 +1,6 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using S7PlcRx;
 using S7PlcRx.PlcTypes;
@@ -28,9 +29,9 @@ public class S7PlcRxS7StringTests
     [Test]
     public void S7WString_Roundtrip_ShouldPreserveUnicodeValue()
     {
-        var bytes = S7WString.ToByteArray("Hé??ø", reservedLength: 10);
+        var bytes = S7WString.ToByteArray("Hï¿½??ï¿½", reservedLength: 10);
         var value = S7WString.FromByteArray(bytes);
-        Assert.That(value, Is.EqualTo("Hé??ø"));
+        Assert.That(value, Is.EqualTo("Hï¿½??ï¿½"));
     }
 
     /// <summary>

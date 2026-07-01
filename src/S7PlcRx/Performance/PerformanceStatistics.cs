@@ -1,7 +1,12 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Performance;
+#else
 namespace S7PlcRx.Performance;
+#endif
 
 /// <summary>
 /// Represents a set of performance statistics for a programmable logic controller (PLC) connection, including operation

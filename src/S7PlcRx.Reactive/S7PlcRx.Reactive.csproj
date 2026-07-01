@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net462;net472;net481;net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>S7PlcRx.Reactive</AssemblyName>
+    <RootNamespace>S7PlcRx.Reactive</RootNamespace>
+    <PackageId>S7PlcRx.Reactive</PackageId>
+    <DefineConstants>$(DefineConstants);REACTIVE_SHIM</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" $([System.String]::new('$(TargetFramework)').StartsWith('net4')) ">
+    <PackageReference Include="System.Text.Json" Version="10.0.9" />
+    <PackageReference Include="Polyfill" Version="10.11.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="System.Memory" Version="4.6.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ReactiveUI.Primitives.Reactive" Version="5.8.0" ExcludeAssets="analyzers" />
+    <PackageReference Include="ReactiveUI.Primitives.Async.Reactive" Version="5.8.0" ExcludeAssets="analyzers" />
+    <PackageReference Include="ReactiveUI.Primitives.Extensions.Reactive" Version="5.8.0" ExcludeAssets="analyzers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\S7PlcRx.SourceGenerators\S7PlcRx.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\S7PlcRx\**\*.cs" Exclude="..\S7PlcRx\bin\**;..\S7PlcRx\obj\**" Link="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="ReactiveUI.Primitives.Signals" />
+    <Using Include="ReactiveUI.Primitives.Reactive" />
+    <Using Include="ReactiveUI.Primitives.Extensions.Reactive" />
+    <Using Include="ReactiveUI.Primitives.Reactive.Signals" />
+    <Using Include="System.Threading" />
+    <Using Include="ReactiveUI.Primitives.Disposables.Scope" Alias="Disposable" />
+    <Using Include="ReactiveUI.Primitives.Disposables.MultipleDisposable" Alias="CompositeDisposable" />
+    <Using Include="ReactiveUI.Primitives.Disposables.SwapDisposable" Alias="SerialDisposable" />
+    <Using Include="ReactiveUI.Primitives.Disposables.OnceDisposable" Alias="SingleAssignmentDisposable" />
+    <Using Include="ReactiveUI.Primitives.Reactive.Signals.Signal" Alias="Observable" />
+    <Using Include="System.Reactive.Unit" Alias="Unit" />
+  </ItemGroup>
+
+</Project>
