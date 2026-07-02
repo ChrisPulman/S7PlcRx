@@ -8,15 +8,18 @@
 
 # S7PlcRx
 
-Reactive Siemens S7 PLC communication for .NET. S7PlcRx provides tag-based S7 reads/writes, Rx observables, optimized batch helpers, caching, diagnostics, production reliability helpers, high-availability helpers, PLC byte conversion utilities, and source-generator assisted property bindings.
+Reactive Siemens S7 PLC communication for .NET. S7PlcRx provides tag-based S7 reads/writes, Primitives-based observable streams, optimized batch helpers, caching, diagnostics, production reliability helpers, high-availability helpers, PLC byte conversion utilities, and source-generator assisted property bindings. Version 3 moves the core package to ReactiveUI.Primitives and adds a companion `S7PlcRx.Reactive` package for System.Reactive-compatible applications.
 
 > Siemens and S7 are trademarks of Siemens AG. This project is independent and is not affiliated with or endorsed by Siemens AG. Test all automation code against a simulator or safe test rig before using production equipment.
 
 ## Contents
 
+- [V3 release highlights and breaking changes](#v3-release-highlights-and-breaking-changes)
 - [Supported PLCs and frameworks](#supported-plcs-and-frameworks)
 - [PLC prerequisites](#plc-prerequisites)
 - [Installation](#installation)
+- [Choosing S7PlcRx or S7PlcRx.Reactive](#choosing-s7plcrx-or-s7plcrxreactive)
+- [R3 ReactiveUI.Primitives bridge](#r3-reactiveuiprimitives-bridge)
 - [Quick start](#quick-start)
 - [Addressing and data types](#addressing-and-data-types)
 - [Core tag API](#core-tag-api)
@@ -28,8 +31,28 @@ Reactive Siemens S7 PLC communication for .NET. S7PlcRx provides tag-based S7 re
 - [Enterprise features](#enterprise-features)
 - [Production reliability and diagnostics](#production-reliability-and-diagnostics)
 - [PLC type conversion helpers](#plc-type-conversion-helpers)
+- [Error handling](#error-handling)
+- [Full API examples and documentation map](#full-api-examples-and-documentation-map)
 - [Public API reference](#public-api-reference)
 - [Build and test](#build-and-test)
+
+## V3 release highlights and breaking changes
+
+V3 is a reactive dependency migration release. The PLC API surface remains tag-oriented, but the package model is now explicit:
+
+- `S7PlcRx` is the lean package for new code. It uses `ReactiveUI.Primitives`, `ReactiveUI.Primitives.Async`, and `ReactiveUI.Primitives.Extensions`; it no longer depends on `System.Reactive` or `ReactiveUI.Extensions`.
+- `S7PlcRx.Reactive` is the System.Reactive-compatible package for existing Rx consumers. It shares the same implementation sources, compiles them with `REACTIVE_SHIM`, and publishes the API under `S7PlcRx.Reactive.*` namespaces.
+- The source generator supports both namespace families. Generated attributes are emitted under `S7PlcRx.SourceGeneration` for the core package and `S7PlcRx.Reactive.SourceGeneration` for the reactive package.
+- The core package uses Primitives conventions such as `ReactiveUI.Primitives.RxVoid` and `ISequencer`. The reactive package uses the `.Reactive` package variants and intentionally exposes System.Reactive conventions such as `System.Reactive.Unit`.
+- Both runtime packages now target `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`.
+- Analyzer coverage is stricter in V3. StyleSharp.Analyzers and the existing analyzer set are expected to run cleanly without `NoWarn` suppressions for fixable issues.
+
+Breaking changes to check during migration:
+
+- Replace `ReactiveUI.Extensions` package references in consuming projects with the relevant `ReactiveUI.Primitives.Extensions` package family.
+- If application code imports `System.Reactive.Linq`, `System.Reactive.Disposables`, `System.Reactive.Subjects`, `System.Reactive.Concurrency`, or depends on `System.Reactive.Unit`, reference `S7PlcRx.Reactive` and update namespaces to `S7PlcRx.Reactive.*`.
+- If application code only consumes `IObservable<T>` streams and Primitives extension methods, reference `S7PlcRx` and use `ReactiveUI.Primitives` / `ReactiveUI.Primitives.Extensions` imports.
+- Do not mix `S7PlcRx` and `S7PlcRx.Reactive` objects in the same object graph. They are compiled as separate assemblies with parallel namespaces.
 
 ## Supported PLCs and frameworks
 
@@ -42,7 +65,7 @@ Reactive Siemens S7 PLC communication for .NET. S7PlcRx provides tag-based S7 re
 | S7-200 | `CpuType.S7200`, `S7200.Create(...)` |
 | Logo 0BA8 | enum support where supported by the protocol path |
 
-`S7PlcRx` targets `net462`, `net472`, `net481`, `net8.0`, `net9.0`, and `net10.0`.
+`S7PlcRx` and `S7PlcRx.Reactive` target `net462`, `net472`, `net481`, `net8.0`, `net9.0`, `net10.0`, and `net11.0`.
 
 `S7PlcRx.SourceGenerators` targets `netstandard2.0` and runs as a Roslyn analyzer/source generator.
 
@@ -58,12 +81,24 @@ For absolute DB addressing such as `DB1.DBD0` on modern Siemens CPUs:
 
 ## Installation
 
+Core Primitives package:
+
 ```powershell
 Install-Package S7PlcRx
 ```
 
 ```bash
 dotnet add package S7PlcRx
+```
+
+System.Reactive-compatible package:
+
+```powershell
+Install-Package S7PlcRx.Reactive
+```
+
+```bash
+dotnet add package S7PlcRx.Reactive
 ```
 
 Repository/analyzer usage for the source generator:
@@ -74,6 +109,143 @@ Repository/analyzer usage for the source generator:
                   ReferenceOutputAssembly="false"
                   PrivateAssets="all" />
 ```
+
+Use this package split deliberately:
+
+| Package | Main namespaces | Reactive model | Choose when |
+|---|---|---|---|
+| `S7PlcRx` | `S7PlcRx`, `S7PlcRx.Advanced`, `S7PlcRx.PlcTypes` | Lean ReactiveUI.Primitives over `System.IObservable<T>` | New applications, libraries that should avoid a `System.Reactive` runtime dependency, or code already using Primitives operators. |
+| `S7PlcRx.Reactive` | `S7PlcRx.Reactive`, `S7PlcRx.Reactive.Advanced`, `S7PlcRx.Reactive.PlcTypes` | ReactiveUI.Primitives `.Reactive` packages and System.Reactive conventions | Existing Rx applications that need System.Reactive `Unit`, scheduler conventions, or minimal migration churn. |
+
+If an application also uses R3, reference `R3` plus the relevant Primitives package. Do not add `ReactiveUI.Primitives.R3Bridge.Generator` directly; the bridge generator is packed by `ReactiveUI.Primitives` and `ReactiveUI.Primitives.Async`.
+
+```bash
+dotnet add package R3
+# Required only for the R3Async bridge example.
+dotnet add package R3Async
+dotnet add package ReactiveUI.Primitives
+dotnet add package ReactiveUI.Primitives.Async
+```
+
+## Choosing S7PlcRx or S7PlcRx.Reactive
+
+Use the core package when the application can standardize on ReactiveUI.Primitives:
+
+```csharp
+using ReactiveUI.Primitives;
+using ReactiveUI.Primitives.Extensions;
+using S7PlcRx;
+using S7PlcRx.Enums;
+
+using var plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+
+using var subscription = plc.Observe<float>("Temperature")
+    .Where(value => value.HasValue)
+    .Subscribe(value => Console.WriteLine(value));
+```
+
+Use the reactive package when the consuming application is still System.Reactive-first:
+
+```csharp
+using ReactiveUI.Primitives.Extensions.Reactive;
+using ReactiveUI.Primitives.Reactive;
+using S7PlcRx.Reactive;
+using S7PlcRx.Reactive.Enums;
+
+using var plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+
+using var subscription = plc.Observe<float>("Temperature")
+    .Where(value => value.HasValue)
+    .Subscribe(value => Console.WriteLine(value));
+```
+
+The two packages expose the same PLC concepts and helper methods. The differences are assembly identity, namespace prefix, and reactive dependency conventions.
+
+| Concern | `S7PlcRx` | `S7PlcRx.Reactive` |
+|---|---|---|
+| Assembly/package | `S7PlcRx` | `S7PlcRx.Reactive` |
+| Root namespace | `S7PlcRx` | `S7PlcRx.Reactive` |
+| Extension namespaces | `S7PlcRx.Advanced`, `S7PlcRx.Optimization`, `S7PlcRx.Production` | `S7PlcRx.Reactive.Advanced`, `S7PlcRx.Reactive.Optimization`, `S7PlcRx.Reactive.Production` |
+| Reactive packages | `ReactiveUI.Primitives`, `.Async`, `.Extensions` | `ReactiveUI.Primitives.Reactive`, `.Async.Reactive`, `.Extensions.Reactive` |
+| Unit convention | `ReactiveUI.Primitives.RxVoid` | `System.Reactive.Unit` |
+| Scheduler/sequencer convention | `ReactiveUI.Primitives.Concurrency.ISequencer` | System.Reactive scheduler-compatible `.Reactive` conventions |
+| Best fit | New or migrated Primitives applications | Existing System.Reactive applications |
+
+## R3 ReactiveUI.Primitives bridge
+
+The R3 bridge is generated into the consuming assembly when the required R3 symbols are referenced. Add `using ReactiveUI.Primitives.R3Bridge;` and bridge at application boundaries only. Keep PLC code in one reactive model after conversion.
+
+Core `S7PlcRx` stream to R3:
+
+```csharp
+using R3;
+using ReactiveUI.Primitives;
+using ReactiveUI.Primitives.R3Bridge;
+using S7PlcRx;
+using S7PlcRx.Enums;
+
+using var plc = new RxS7(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1, interval: 100);
+
+plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
+
+System.IObservable<float?> primitivesTemperature = plc.Observe<float>("Temperature");
+Observable<float?> r3Temperature = primitivesTemperature.AsR3Observable();
+
+using var subscription = r3Temperature.Subscribe(value =>
+{
+    Console.WriteLine($"R3 temperature: {value}");
+});
+```
+
+R3 stream back to Primitives:
+
+```csharp
+using R3;
+using ReactiveUI.Primitives.R3Bridge;
+
+Observable<float?> r3Temperature = Observable.Interval(TimeSpan.FromSeconds(1))
+    .Select(_ => 72.5f);
+
+System.IObservable<float?> primitivesTemperature = r3Temperature.AsPrimitivesSignal();
+```
+
+Async observable bridge:
+
+```csharp
+using R3;
+using ReactiveUI.Primitives.Async;
+using ReactiveUI.Primitives.R3Bridge;
+using S7PlcRx.Advanced;
+
+IObservableAsync<float?> asyncTemperature = plc.ObserveValue<float>("Temperature");
+Observable<float?> r3Temperature = asyncTemperature.AsR3Observable();
+IObservableAsync<float?> backToAsync = r3Temperature.AsPrimitivesAsyncObservable();
+```
+
+R3Async bridge:
+
+```csharp
+using R3Async;
+using ReactiveUI.Primitives.Async;
+using ReactiveUI.Primitives.R3Bridge;
+using S7PlcRx.Advanced;
+
+IObservableAsync<float?> asyncTemperature = plc.ObserveValue<float>("Temperature");
+AsyncObservable<float?> r3AsyncTemperature = asyncTemperature.AsR3AsyncObservable();
+IObservableAsync<float?> backToPrimitives = r3AsyncTemperature.AsPrimitivesAsyncObservable();
+```
+
+Generated bridge methods:
+
+| Available symbols | Generated methods |
+|---|---|
+| `R3.Observable<T>` and `System.IObservable<T>` | `AsR3Observable<T>(this System.IObservable<T>)`, `AsPrimitivesSignal<T>(this R3.Observable<T>)` |
+| `R3.Observable<T>` and `ReactiveUI.Primitives.Async.IObservableAsync<T>` | `AsR3Observable<T>(this IObservableAsync<T>)`, `AsPrimitivesAsyncObservable<T>(this R3.Observable<T>)` |
+| `R3Async.AsyncObservable<T>` and `IObservableAsync<T>` | `AsR3AsyncObservable<T>(this IObservableAsync<T>)`, `AsPrimitivesAsyncObservable<T>(this R3Async.AsyncObservable<T>)` |
 
 ## Quick start
 
@@ -94,7 +266,7 @@ using var connected = plc.IsConnected
 
 using var temperature = plc.Observe<float>("Temperature")
     .Where(x => x.HasValue)
-    .Subscribe(x => Console.WriteLine($"Temperature: {x:F1} °C"));
+    .Subscribe(x => Console.WriteLine($"Temperature: {x:F1} deg C"));
 
 plc.Value("TemperatureSetPoint", 72.5f);
 ```
@@ -374,6 +546,24 @@ using var binding = tags.Bind(plc);
 tags.SetPoint = 72.5f; // queues a PLC write
 ```
 
+Reactive package source-generator usage is the same shape with reactive namespaces:
+
+```csharp
+using S7PlcRx.Reactive;
+using S7PlcRx.Reactive.SourceGeneration;
+
+[S7PlcBinding]
+public partial class ReactiveMachineTags
+{
+    [S7Tag("DB1.DBD0", PollIntervalMs = 100)]
+    public partial float Temperature { get; set; }
+}
+
+using var plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+var tags = new ReactiveMachineTags();
+using var binding = tags.Bind(plc);
+```
+
 ### Generator rules and behavior
 
 - The class must be `partial` and marked with `[S7PlcBinding]`.
@@ -613,17 +803,175 @@ plc.LastErrorCode.Subscribe(code => Console.WriteLine(code));
 - `TagAddressOutOfRangeException` is thrown for invalid tag addresses.
 - Production error handling adds retries and circuit-breaker behavior.
 
+## Full API examples and documentation map
+
+The examples above cover the public API groups used by most applications. Use this map to find the detailed member reference and a working C# pattern for each group.
+
+| API group | Main namespaces | Example section |
+|---|---|---|
+| PLC factories, `IRxS7`, `RxS7`, tags, lifecycle | `S7PlcRx` | [Quick start](#quick-start), [Core tag API](#core-tag-api), lifecycle example below |
+| Reactive streams and diagnostics | `S7PlcRx`, `ReactiveUI.Primitives` | [Reactive reading](#reactive-reading), [R3 ReactiveUI.Primitives bridge](#r3-reactiveuiprimitives-bridge) |
+| Manual reads, writes, cancellation | `S7PlcRx` | [Manual reads and writes](#manual-reads-and-writes), lifecycle example below |
+| Batch and async observables | `S7PlcRx.Advanced`, `ReactiveUI.Primitives.Async` | [Batch, async, and optimized APIs](#batch-async-and-optimized-apis) |
+| Source generator and runtime binding | `S7PlcRx.SourceGeneration`, `S7PlcRx.Binding` | [Source generator property binding](#source-generator-property-binding) |
+| Optimization and cache | `S7PlcRx.Optimization`, `S7PlcRx.Cache`, `S7PlcRx.Performance` | [Performance and cache features](#performance-and-cache-features), optimization config example below |
+| Enterprise, symbols, failover, pooling | `S7PlcRx.Enterprise`, `S7PlcRx.Core` | [Enterprise features](#enterprise-features), connection pool example below |
+| Production reliability | `S7PlcRx.Production` | [Production reliability and diagnostics](#production-reliability-and-diagnostics) |
+| PLC type conversion | `S7PlcRx.PlcTypes` | [PLC type conversion helpers](#plc-type-conversion-helpers) |
+| Reactive shim package | `S7PlcRx.Reactive.*` | [Choosing S7PlcRx or S7PlcRx.Reactive](#choosing-s7plcrx-or-s7plcrxreactive) |
+
+Lifecycle and cancellation:
+
+```csharp
+using ReactiveUI.Primitives;
+using S7PlcRx;
+
+IRxS7 plc = S71500.Create("192.168.1.100", rack: 0, slot: 1, interval: 100);
+
+try
+{
+    using var status = plc.Status.Subscribe(Console.WriteLine);
+    using var errors = plc.LastError.Subscribe(error => Console.WriteLine($"PLC error: {error}"));
+
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+    float? temperature = await plc.ValueAsync<float>("Temperature", cts.Token);
+
+    Console.WriteLine($"Temperature: {temperature}");
+    Console.WriteLine($"Disposed before cleanup: {plc.IsDisposed}");
+}
+finally
+{
+    plc.Dispose();
+    Console.WriteLine($"Disposed after cleanup: {plc.IsDisposed}");
+}
+```
+
+Direct connection pool:
+
+```csharp
+using S7PlcRx;
+using S7PlcRx.Core;
+using S7PlcRx.Enterprise;
+using S7PlcRx.Enums;
+
+using var pool = new ConnectionPool(
+    new[]
+    {
+        new PlcConnectionConfig
+        {
+            PLCType = CpuType.S71500,
+            IPAddress = "192.168.1.100",
+            Rack = 0,
+            Slot = 1,
+            ConnectionName = "Line1",
+        },
+        new PlcConnectionConfig
+        {
+            PLCType = CpuType.S71500,
+            IPAddress = "192.168.1.101",
+            Rack = 0,
+            Slot = 1,
+            ConnectionName = "Line2",
+        },
+    },
+    new ConnectionPoolConfig
+    {
+        MaxConnections = 2,
+        EnableLoadBalancing = true,
+        EnableConnectionReuse = true,
+        ConnectionTimeout = TimeSpan.FromSeconds(10),
+    });
+
+IRxS7 selected = pool.Connection;
+Console.WriteLine($"Pool active: {pool.ActiveConnections}/{pool.MaxConnections}");
+```
+
+Optimized read/write configuration:
+
+```csharp
+using S7PlcRx.Optimization;
+using S7PlcRx.Performance;
+
+var readConfig = new ReadOptimizationConfig
+{
+    EnableParallelReads = true,
+    MaxConcurrentReads = 4,
+    ReadTimeoutMs = 3000,
+    InterGroupDelayMs = 10,
+};
+
+var values = await plc.ReadOptimized<float>(
+    new[] { "Temperature", "Pressure", "Flow" },
+    readConfig);
+
+var writeConfig = new WriteOptimizationConfig
+{
+    EnableParallelWrites = true,
+    VerifyWrites = true,
+    MaxConcurrentWrites = 2,
+    WriteTimeoutMs = 3000,
+    InterGroupDelayMs = 25,
+};
+
+var writeResult = await plc.WriteOptimized(
+    new Dictionary<string, float>
+    {
+        ["SetPoint1"] = 72.5f,
+        ["SetPoint2"] = 73.0f,
+    },
+    writeConfig);
+
+Console.WriteLine($"Wrote {writeResult.SuccessfulWrites.Count} tags in {writeResult.TotalDuration.TotalMilliseconds:F0} ms");
+```
+
+Diagnostics through public APIs:
+
+```csharp
+using S7PlcRx.Advanced;
+using S7PlcRx.Production;
+
+var diagnostics = await plc.GetDiagnostics();
+
+Console.WriteLine($"Connected: {diagnostics.IsConnected}");
+Console.WriteLine($"Latency: {diagnostics.ConnectionLatencyMs:F1} ms");
+
+foreach (var recommendation in diagnostics.Recommendations)
+{
+    Console.WriteLine(recommendation);
+}
+```
+
+Low-level socket transport is internal implementation detail. Use `IRxS7` connection streams, performance metrics, production diagnostics, and connection pools for public monitoring and reliability code.
+
 ## Public API reference
 
-This section is generated from the public C# surface in `src/S7PlcRx` and `src/S7PlcRx.SourceGenerators`, then paired with the usage guidance above. It is intended to make this README a single documentation source for the repository.
+This section is generated from the public C# surface in `src/S7PlcRx` and `src/S7PlcRx.SourceGenerators`, then paired with the usage guidance above. It lists the core package type names; `S7PlcRx.Reactive` shares the same implementation and publishes the equivalent surface under `S7PlcRx.Reactive.*` namespaces.
+
+Reactive namespace equivalents:
+
+| Core namespace | Reactive package namespace |
+|---|---|
+| `S7PlcRx` | `S7PlcRx.Reactive` |
+| `S7PlcRx.Advanced` | `S7PlcRx.Reactive.Advanced` |
+| `S7PlcRx.BatchOperations` | `S7PlcRx.Reactive.BatchOperations` |
+| `S7PlcRx.Binding` | `S7PlcRx.Reactive.Binding` |
+| `S7PlcRx.Cache` | `S7PlcRx.Reactive.Cache` |
+| `S7PlcRx.Core` | `S7PlcRx.Reactive.Core` |
+| `S7PlcRx.Enterprise` | `S7PlcRx.Reactive.Enterprise` |
+| `S7PlcRx.Enums` | `S7PlcRx.Reactive.Enums` |
+| `S7PlcRx.Optimization` | `S7PlcRx.Reactive.Optimization` |
+| `S7PlcRx.Performance` | `S7PlcRx.Reactive.Performance` |
+| `S7PlcRx.PlcTypes` | `S7PlcRx.Reactive.PlcTypes` |
+| `S7PlcRx.Production` | `S7PlcRx.Reactive.Production` |
+| `S7PlcRx.SourceGeneration` | `S7PlcRx.Reactive.SourceGeneration` |
 
 ### Source generator generated API
 
 The source generator emits these compile-time-only types into consumer projects:
 
-- `S7PlcRx.SourceGeneration.S7PlcBindingAttribute` — marks a `partial class` for PLC property binding generation.
-- `S7PlcRx.SourceGeneration.S7TagAttribute` — marks a `partial` property with an S7 address; properties: `Address`, `PollIntervalMs`, `Direction`, `ArrayLength`.
-- `S7PlcRx.SourceGeneration.S7TagDirection` — `ReadWrite`, `ReadOnly`, `WriteOnly`.
+- `S7PlcRx.SourceGeneration.S7PlcBindingAttribute` / `S7PlcRx.Reactive.SourceGeneration.S7PlcBindingAttribute` - marks a `partial class` for PLC property binding generation.
+- `S7PlcRx.SourceGeneration.S7TagAttribute` / `S7PlcRx.Reactive.SourceGeneration.S7TagAttribute` - marks a `partial` property with an S7 address; properties: `Address`, `PollIntervalMs`, `Direction`, `ArrayLength`.
+- `S7PlcRx.SourceGeneration.S7TagDirection` / `S7PlcRx.Reactive.SourceGeneration.S7TagDirection` - `ReadWrite`, `ReadOnly`, `WriteOnly`.
 - Generated instance method: `public IDisposable Bind(IRxS7 plc)` on each `[S7PlcBinding]` class.
 
 ### Runtime public surface
@@ -858,8 +1206,8 @@ Provides additional async-first helpers for reading, writing, and observing PLC 
 | `public static ValueTask<Dictionary<string, T?>> ReadValuesAsync<T>(this IRxS7 plc, params string[] variables) => ...` | Reads multiple PLC values using a <see cref="ValueTask{TResult}"/>, preferring cached values and the optimized multi-variable read path where available. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to read.</param> <returns>A <see cref="ValueTask{TResult}"/> that resolves to a dictionary of tag values keyed by tag name.</returns> |
 | `public static ValueTask<Dictionary<string, T?>> ReadValuesAsync<T>(this IRxS7 plc, IReadOnlyList<string> variables, CancellationToken cancellationToken = default)` | Reads multiple PLC values using a <see cref="ValueTask{TResult}"/>, honoring cancellation for deferred reads. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to read.</param> <param name="cancellationToken">The cancellation token for deferred reads.</param> <returns>A <see cref="ValueTask{TResult}"/> that resolves to a dictionary of tag values keyed by tag name.</returns> |
 | `public static ValueTask WriteValuesAsync<T>(this IRxS7 plc, IReadOnlyDictionary<string, T> values, CancellationToken cancellationToken = default)` | Writes multiple PLC values using a <see cref="ValueTask"/>, preferring the optimized multi-variable write path where available. <typeparam name="T">The PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="values">The tag values to write.</param> <param name="cancellationToken">The cancellation token.</param> <returns>A completed <see cref="ValueTask"/> when the writes have been issued.</returns> |
-| `public static IObservableAsync<T?> ObserveValueAsync<T>(this IRxS7 plc, string? variable)` | Exposes a PLC variable as an async observable sequence. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variable">The tag name to observe.</param> <returns>An <see cref="IObservableAsync{T}"/> that emits tag value updates asynchronously.</returns> |
-| `public static IObservableAsync<Dictionary<string, T?>> ObserveValuesAsync<T>(this IRxS7 plc, params string[] variables)` | Exposes a batch PLC observation as an async observable sequence. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to observe.</param> <returns>An <see cref="IObservableAsync{T}"/> that emits dictionaries of tag values asynchronously.</returns> |
+| `public static IObservableAsync<T?> ObserveValue<T>(this IRxS7 plc, string? variable)` | Exposes a PLC variable as an async observable sequence. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variable">The tag name to observe.</param> <returns>An <see cref="IObservableAsync{T}"/> that emits tag value updates asynchronously.</returns> |
+| `public static IObservableAsync<Dictionary<string, T?>> ObserveValues<T>(this IRxS7 plc, params string[] variables)` | Exposes a batch PLC observation as an async observable sequence. <typeparam name="T">The expected PLC value type.</typeparam> <param name="plc">The PLC instance.</param> <param name="variables">The tag names to observe.</param> <returns>An <see cref="IObservableAsync{T}"/> that emits dictionaries of tag values asynchronously.</returns> |
 
 ##### `S7PlcRx.Advanced.DictionaryEqualityComparer<TKey, TValue>`
 Source: `Advanced/DictionaryEqualityComparer.cs:15`
@@ -1894,15 +2242,18 @@ Source: `S7TagBindingSourceGenerator.cs:17`
 ## Build and test
 
 ```bash
+dotnet build src/S7PlcRx.sln
 dotnet build src/S7PlcRx/S7PlcRx.csproj
+dotnet build src/S7PlcRx.Reactive/S7PlcRx.Reactive.csproj
 dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj --framework net8.0
 ```
 
 From WSL when only Windows .NET is installed:
 
 ```bash
-'/mnt/c/Program Files/dotnet/dotnet.exe' build src/S7PlcRx/S7PlcRx.csproj
-'/mnt/c/Program Files/dotnet/dotnet.exe' test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj --framework net8.0
+"/mnt/c/Program Files/dotnet/dotnet.exe" build src/S7PlcRx.sln
+"/mnt/c/Program Files/dotnet/dotnet.exe" build src/S7PlcRx.Reactive/S7PlcRx.Reactive.csproj
+"/mnt/c/Program Files/dotnet/dotnet.exe" test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj --framework net8.0
 ```
 
 ## License
@@ -1913,3 +2264,4 @@ MIT. See [LICENSE](LICENSE).
 
 - Issues: <https://github.com/ChrisPulman/S7PlcRx/issues>
 - NuGet: <https://www.nuget.org/packages/S7PlcRx>
+- NuGet reactive package: <https://www.nuget.org/packages/S7PlcRx.Reactive>
