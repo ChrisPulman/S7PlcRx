@@ -1,7 +1,12 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Cache;
+#else
 namespace S7PlcRx.Cache;
+#endif
 
 /// <summary>
 /// Provides statistical information about the state and performance of a cache, including entry counts, hit rates, and
@@ -27,25 +32,19 @@ public sealed class CacheStatistics
     /// <summary>Gets or sets the timestamp of the newest cache entry.</summary>
     public DateTime NewestEntry { get; set; }
 
-    /// <summary>
-    /// Gets the cached value count.
-    /// </summary>
+    /// <summary>Gets the cached value count.</summary>
     /// <value>
     /// The cached value count.
     /// </value>
     public int CachedValueCount { get; internal set; }
 
-    /// <summary>
-    /// Gets the pending request count.
-    /// </summary>
+    /// <summary>Gets the pending request count.</summary>
     /// <value>
     /// The pending request count.
     /// </value>
     public int PendingRequestCount { get; internal set; }
 
-    /// <summary>
-    /// Gets the cache hit ratio.
-    /// </summary>
+    /// <summary>Gets the cache hit ratio.</summary>
     /// <value>
     /// The cache hit ratio.
     /// </value>

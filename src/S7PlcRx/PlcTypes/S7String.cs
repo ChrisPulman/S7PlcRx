@@ -1,24 +1,30 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Text;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Enums;
+#else
 using S7PlcRx.Enums;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Provides methods for encoding and decoding S7 string values to and from byte arrays using the S7 protocol format.
-/// </summary>
+/// <summary>Provides methods for encoding and decoding S7 string values to and from byte arrays using the S7 protocol format.</summary>
 /// <remarks>This static class supports conversion between .NET strings and the S7 string format used in Siemens
 /// PLCs, which includes a 2-byte header indicating the reserved and actual string lengths. The encoding used for string
 /// conversion can be configured via the StringEncoding property. All methods are thread-safe.</remarks>
 public static class S7String
 {
-    private static Encoding stringEncoding = Encoding.ASCII;
+    /// <summary>Stores the s tr in ge nc od i n g value.</summary>
+    private static Encoding _stringEncoding = Encoding.ASCII;
 
-    /// <summary>
-    /// Gets or sets the Encoding used when serializing and deserializing S7String (Encoding.ASCII by default).
-    /// </summary>
+    /// <summary>Gets or sets the Encoding used when serializing and deserializing S7String (Encoding.ASCII by default).</summary>
     /// <value>
     /// The string encoding.
     /// </value>
@@ -26,16 +32,14 @@ public static class S7String
     /// <exception cref="ArgumentNullException">StringEncoding must not be null.</exception>
     public static Encoding StringEncoding
     {
-        get => stringEncoding;
-        set => stringEncoding = value ?? throw new ArgumentNullException(nameof(StringEncoding));
+        get => _stringEncoding;
+        set => _stringEncoding = value ?? throw new ArgumentNullException(nameof(StringEncoding));
     }
 
-    /// <summary>
-    /// Converts S7 bytes to a string.
-    /// </summary>
+    /// <summary>Converts S7 bytes to a string.</summary>
     /// <param name="bytes">The bytes.</param>
     /// <returns>A string.</returns>
-    /// <exception cref="S7PlcRx.PlcException">
+    /// <exception cref="PlcException">
     /// Malformed S7 String / too short
     /// or
     /// Malformed S7 String / length larger than capacity
@@ -44,12 +48,10 @@ public static class S7String
     /// </exception>
     public static string FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts S7 bytes from span to a string.
-    /// </summary>
+    /// <summary>Converts S7 bytes from span to a string.</summary>
     /// <param name="bytes">The bytes span.</param>
     /// <returns>A string.</returns>
-    /// <exception cref="S7PlcRx.PlcException">
+    /// <exception cref="PlcException">
     /// Malformed S7 String / too short
     /// or
     /// Malformed S7 String / length larger than capacity
@@ -90,9 +92,7 @@ public static class S7String
         }
     }
 
-    /// <summary>
-    /// Converts a <see cref="T:string"/> to S7 string with 2-byte header.
-    /// </summary>
+    /// <summary>Converts a <see cref="T:string"/> to S7 string with 2-byte header.</summary>
     /// <param name="value">The string to convert to byte array.</param>
     /// <param name="reservedLength">The length (in characters) allocated in PLC for the string.</param>
     /// <returns>A <see cref="T:byte[]" /> containing the string header and string value with a maximum length of <paramref name="reservedLength"/> + 2.</returns>
@@ -103,9 +103,7 @@ public static class S7String
         return buffer.Slice(0, bytesWritten).ToArray();
     }
 
-    /// <summary>
-    /// Converts a string to S7 string format in the specified span.
-    /// </summary>
+    /// <summary>Converts a string to S7 string format in the specified span.</summary>
     /// <param name="value">The string to convert.</param>
     /// <param name="reservedLength">The length allocated in PLC for the string.</param>
     /// <param name="destination">The destination span.</param>
@@ -155,9 +153,7 @@ public static class S7String
         return 2 + reservedLength;
     }
 
-    /// <summary>
-    /// Tries to convert a string to S7 string format in the specified span.
-    /// </summary>
+    /// <summary>Tries to convert a string to S7 string format in the specified span.</summary>
     /// <param name="value">The string to convert.</param>
     /// <param name="reservedLength">The length allocated in PLC for the string.</param>
     /// <param name="destination">The destination span.</param>
@@ -182,9 +178,7 @@ public static class S7String
         return true;
     }
 
-    /// <summary>
-    /// Gets the total byte length for an S7 string with the specified reserved length.
-    /// </summary>
+    /// <summary>Gets the total byte length for an S7 string with the specified reserved length.</summary>
     /// <param name="reservedLength">The reserved length for the string.</param>
     /// <returns>The total byte length including header.</returns>
     public static int GetByteLength(int reservedLength) => 2 + reservedLength;

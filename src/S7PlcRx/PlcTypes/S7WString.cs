@@ -1,22 +1,27 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Text;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Enums;
+#else
 using S7PlcRx.Enums;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Provides static methods for converting between S7 WString byte arrays and .NET strings.
-/// </summary>
+/// <summary>Provides static methods for converting between S7 WString byte arrays and .NET strings.</summary>
 /// <remarks>The S7WString class supports encoding and decoding of S7 WString values, which are commonly used in
 /// Siemens S7 PLCs. All methods are static and thread-safe. The S7 WString format includes a 4-byte header specifying
 /// the reserved and actual string lengths, followed by the UTF-16 encoded string data.</remarks>
 public static class S7WString
 {
-    /// <summary>
-    /// Converts a byte array containing an S7 WString value to its corresponding .NET string representation.
-    /// </summary>
+    /// <summary>Converts a byte array containing an S7 WString value to its corresponding .NET string representation.</summary>
     /// <remarks>The input array must follow the S7 WString format, where the first two bytes specify the
     /// maximum capacity, the next two bytes specify the actual string length, and the remaining bytes contain the
     /// UTF-16 encoded string data in big-endian order.</remarks>
@@ -52,9 +57,7 @@ public static class S7WString
         }
     }
 
-    /// <summary>
-    /// Converts the specified string to a big-endian Unicode byte array with a reserved length prefix.
-    /// </summary>
+    /// <summary>Converts the specified string to a big-endian Unicode byte array with a reserved length prefix.</summary>
     /// <remarks>The returned byte array begins with a 4-byte header: the first two bytes represent the
     /// reserved length, and the next two bytes represent the actual string length, both in big-endian order. The string
     /// is encoded using big-endian Unicode (UTF-16BE).</remarks>
@@ -73,7 +76,7 @@ public static class S7WString
             throw new ArgumentNullException(nameof(value));
         }
 
-        if (reservedLength > 16382)
+        if (reservedLength > 16_382)
         {
             throw new ArgumentException("The maximum string length supported is 16382.");
         }

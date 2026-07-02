@@ -34,10 +34,10 @@ partial class Build : NukeBuild
 
     public static int Main() => Execute<Build>(x => x.Compile);
 
-    [GitRepository] readonly GitRepository Repository;
-    [Solution(GenerateProjects = true)] readonly Solution Solution;
-    [NerdbankGitVersioning] readonly NerdbankGitVersioning NerdbankVersioning;
-    [Parameter][Secret] readonly string NuGetApiKey;
+    [GitRepository] readonly GitRepository Repository = null!;
+    [Solution(GenerateProjects = true)] readonly Solution Solution = null!;
+    [NerdbankGitVersioning] readonly NerdbankGitVersioning NerdbankVersioning = null!;
+    [Parameter][Secret] readonly string NuGetApiKey = null!;
     [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
     readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
 

@@ -1,11 +1,14 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Production;
+#else
 namespace S7PlcRx.Production;
+#endif
 
-/// <summary>
-/// Represents configuration settings for validating production system performance and reliability.
-/// </summary>
+/// <summary>Represents configuration settings for validating production system performance and reliability.</summary>
 /// <remarks>Use this class to specify thresholds and criteria for production validation checks, such as
 /// acceptable response times, reliability rates, and minimum production scores. These settings can be adjusted to match
 /// the requirements of different production environments.</remarks>

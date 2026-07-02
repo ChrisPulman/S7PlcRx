@@ -1,30 +1,40 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers.Binary;
-using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx;
 
 using var server = new MockServer();
-server.DefaultDb1Size = 10088;
-var rc = server.Start();
 
+server.DefaultDb1Size = 10088;
+
+var rc = server.Start();
+if (rc != 0)
+{
+    Console.Error.WriteLine($"MockServer.Start failed: {rc}");
+    return;
+}
 // ── Connect PLC and register tag ───────────────────────────────────────
 using var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1, null, interval: 100);
+
 plc.AddUpdateTagItem<byte[]>("GlobalVariables", "DB1.DBB0", 10088).SetTagPollIng(false);
 
 // ── Wait for connection and read tag ───────────────────────────────────────
-await plc.IsConnected.FirstAsync(x => x).Timeout(System.TimeSpan.FromSeconds(10));
+await plc.IsConnected.Where(static x => x).Timeout(System.TimeSpan.FromSeconds(10)).FirstAsync();
 
 // Seed the tag with some data to read back
 var seedData = BuildGlobalVariablesSeedData(server.DefaultDb1Size, plc);
+
 plc.Value("GlobalVariables", seedData);
 
 using var simulationCancellationTokenSource = new CancellationTokenSource();
+
 var simulationTask = SimulateGlobalVariablesAsync(plc, simulationCancellationTokenSource.Token);
 
 Console.WriteLine("Mock PLC DB1 simulation is running. Press any key to stop.");
+
 Console.ReadKey(intercept: true);
 
 simulationCancellationTokenSource.Cancel();
@@ -36,146 +46,6 @@ try
 catch (OperationCanceledException)
 {
 }
-
-////await AdvancedExamples.RunAllExamples();
-
-////Console.WriteLine("Press any key to start the S7PlcRx example...");
-////Console.ReadLine();
-
-////var plc = S71500.Create("172.16.13.1", interval: 5);
-////plc.LastError.Subscribe(Console.WriteLine);
-////plc.Status.Subscribe(Console.WriteLine);
-////const string StartLogging = nameof(StartLogging);
-////const string PlcData = nameof(PlcData);
-////const string TestItems = nameof(TestItems);
-////const string TagNames1 = nameof(TagNames1);
-////const string TagNames2 = nameof(TagNames2);
-////const string TagValues = nameof(TagValues);
-
-////plc.AddUpdateTagItem<byte>(StartLogging, "DB100.DBB3")
-////    .AddUpdateTagItem<byte[]>(PlcData, "DB100.DBB0", 64).SetTagPollIng(false)
-////    .AddUpdateTagItem<byte[]>(TestItems, "DB101.DBB0", 520).SetTagPollIng(false)
-////    ////.AddUpdateTagItem<byte[]>(TagNames1, "DB102.DBB0", 4096).SetTagPollIng(false)
-////    .AddUpdateTagItem<float[]>(TagValues, "DB103.DBD4", 98).SetTagPollIng(false);
-
-////plc.IsConnected
-////    .Where(x => x)
-////    .Take(1)
-////    .Subscribe(async _ =>
-////    {
-////        Console.WriteLine("Connected");
-////        var info = await plc.GetCpuInfo();
-////        foreach (var item in info)
-////        {
-////            Console.WriteLine(item);
-////        }
-
-////        await Task.Delay(2000);
-////        plc.IsPaused.Subscribe(x => Console.WriteLine($"Paused: {x}"));
-////        var setupComplete = false;
-////        plc.Observe<byte>(StartLogging)
-////            .Select(v => v == 2)
-////            .Where(log => log && !setupComplete)
-////            .Do(v =>
-////            {
-////                Console.WriteLine($"Start Logging value: {v}");
-////                plc?.GetTag(StartLogging).SetTagPollIng(false);
-////            })
-////            .Subscribe(async _ =>
-////            {
-////                Console.WriteLine("Setup started");
-////                Console.WriteLine("Reading PlcData");
-////                var bytesPlcData = await plc?.Value<byte[]>(PlcData)!;
-////                Console.WriteLine($"bytesPlcData: {bytesPlcData?.Length}");
-////                await Task.Delay(500);
-////                Console.WriteLine("Reading TestItems");
-////                var bytesTestItems = await plc?.Value<byte[]>(TestItems)!;
-////                Console.WriteLine($"bytesTestItems: {bytesTestItems?.Length}");
-////                await Task.Delay(500);
-////                Console.WriteLine("Reading TagNames");
-////                var bytesTagNames1 = await DecodeTagNames(plc); ////plc?.Value<byte[]>(TagNames1)!;
-////                Console.WriteLine($"bytesTagNames1: {bytesTagNames1}");
-////                await Task.Delay(500);
-////                var dummy = await plc?.Value<byte>(StartLogging)!;
-////                Console.WriteLine($"dummy: {dummy}");
-////                await Task.Delay(500);
-////                Console.WriteLine("Setup complete");
-////                plc?.GetTag(TagValues).SetTagPollIng(true);
-////                setupComplete = true;
-////            });
-////        plc.Observe<float[]>(TagValues)
-////                    .Where(_ => setupComplete)
-////                    .Subscribe(values =>
-////                    {
-////                        try
-////                        {
-////                            var tagValues = values?.Take(14).ToArray();
-////                            Console.WriteLine($"TagValues: {string.Join(", ", tagValues!)}");
-////                        }
-////                        catch (Exception ex)
-////                        {
-////                            Console.WriteLine(ex);
-////                        }
-////                    });
-////    });
-
-////Console.WriteLine("Press any key to exit...");
-////Console.ReadKey();
-
-////static bool IsSTX(byte[]? bytes) => bytes?.Length > 3 && bytes[0] == 'S' && bytes[1] == 'T' && bytes[2] == 'X';
-
-////static async Task<IEnumerable<string>> DecodeTagNames(IRxS7 plc)
-////{
-////    try
-////    {
-////        const int bytesPerTagName = 32;
-////        var noOfBytes = Convert.ToInt32(bytesPerTagName * 64);
-
-////        plc?.AddUpdateTagItem<byte[]>(TagNames1, "DB102.DBB0", 2048 + 4).SetTagPollIng(false);
-////        var bytes = default(byte[]);
-////        var count = 0;
-////        while (!IsSTX(bytes) || bytes?[5] == 0)
-////        {
-////            if (count++ > 10)
-////            {
-////                return [];
-////            }
-
-////            bytes = await plc!.Value<byte[]>(TagNames1);
-////            await Task.Delay(50);
-////        }
-
-////        if (noOfBytes > bytes?.Length)
-////        {
-////            return [];
-////        }
-
-////        var tagNames = GetTagNames(bytes, bytesPerTagName, noOfBytes);
-
-////        await Task.Delay(500);
-
-////        return tagNames;
-////    }
-////    catch
-////    {
-////    }
-
-////    return [];
-////}
-
-////static IEnumerable<string> GetTagNames(byte[]? bytes, int bytesPerTagName, int? noOfBytes)
-////{
-////    if (!(bytes?.Length != 0 && noOfBytes.HasValue && IsSTX(bytes)))
-////    {
-////        yield break;
-////    }
-
-////    for (var i = 4; i < noOfBytes; i += bytesPerTagName)
-////    {
-////        var itemLen = bytes![i + 1];
-////        yield return GetItemBytesToString(bytes, i + 2, itemLen);
-////    }
-////}
 
 static byte[] BuildGlobalVariablesSeedData(int size, RxS7 plc)
 {
@@ -525,7 +395,6 @@ static byte[] BuildGlobalVariablesSeedData(int size, RxS7 plc)
         offset += value.Length;
     }
 }
-
 static async Task SimulateGlobalVariablesAsync(RxS7 plc, CancellationToken cancellationToken)
 {
     ArgumentNullException.ThrowIfNull(plc);
@@ -575,22 +444,3 @@ static async Task SimulateGlobalVariablesAsync(RxS7 plc, CancellationToken cance
         await Task.Delay(System.TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
     }
 }
-
-////static string GetItemBytesToString(byte[]? bytes, int sourceIndex, int length)
-////{
-////    if (bytes?.Length == 0)
-////    {
-////        return string.Empty;
-////    }
-
-////    try
-////    {
-////        var itemBytes = new byte[length];
-////        Array.Copy(bytes!, sourceIndex, itemBytes, 0, length);
-////        return Encoding.ASCII.GetString(itemBytes.TakeWhile(x => x != 0).ToArray());
-////    }
-////    catch (Exception)
-////    {
-////        return string.Empty;
-////    }
-////}

@@ -1,124 +1,115 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace MockS7Plc;
 
-/// <summary>
-/// S7Server.
-/// </summary>
+/// <summary>Hosts a Snap7-based mock PLC server for tests.</summary>
 public class MockServer : IDisposable
 {
-    /// <summary>
-    /// The localhost.
-    /// </summary>
+    /// <summary>The loopback address used for local server binding.</summary>
     public const string Localhost = "127.0.0.1";
-    /// <summary>
-    /// The SRV area pe.
-    /// </summary>
+
+    /// <summary>The Snap7 code for the PE input area.</summary>
     public static readonly int SrvAreaPe;
-    /// <summary>
-    /// The SRV area pa.
-    /// </summary>
+
+    /// <summary>The Snap7 code for the PA output area.</summary>
     public static readonly int SrvAreaPa = 1;
-    /// <summary>
-    /// The SRV area mk.
-    /// </summary>
+
+    /// <summary>The Snap7 code for the MK memory area.</summary>
     public static readonly int SrvAreaMk = 2;
-    /// <summary>
-    /// The SRV area ct.
-    /// </summary>
+
+    /// <summary>The Snap7 code for the CT counter area.</summary>
     public static readonly int SrvAreaCt = 3;
-    /// <summary>
-    /// The SRV area tm.
-    /// </summary>
+
+    /// <summary>The Snap7 code for the TM timer area.</summary>
     public static readonly int SrvAreaTm = 4;
-    /// <summary>
-    /// The SRV area database.
-    /// </summary>
+
+    /// <summary>The Snap7 code for the DB area.</summary>
     public static readonly int SrvAreaDB = 5;
 
-    /// <summary>
-    /// The evc pd uincoming.
-    /// </summary>
+    /// <summary>Event mask for incoming PDU notifications.</summary>
     public static readonly uint EvcPdUincoming = 0x00010000;
-    /// <summary>
-    /// The evc data read.
-    /// </summary>
+
+    /// <summary>Event mask for data read notifications.</summary>
     public static readonly uint EvcDataRead = 0x00020000;
-    /// <summary>
-    /// The evc data write.
-    /// </summary>
+
+    /// <summary>Event mask for data write notifications.</summary>
     public static readonly uint EvcDataWrite = 0x00040000;
-    /// <summary>
-    /// The evc negotiate pdu.
-    /// </summary>
+
+    /// <summary>Event mask for PDU negotiation notifications.</summary>
     public static readonly uint EvcNegotiatePdu = 0x00080000;
-    /// <summary>
-    /// The evc read SZL.
-    /// </summary>
+
+    /// <summary>Event mask for SZL read notifications.</summary>
     public static readonly uint EvcReadSzl = 0x00100000;
-    /// <summary>
-    /// The evc clock.
-    /// </summary>
+
+    /// <summary>Event mask for clock access notifications.</summary>
     public static readonly uint EvcClock = 0x00200000;
-    /// <summary>
-    /// The evc upload.
-    /// </summary>
+
+    /// <summary>Event mask for upload notifications.</summary>
     public static readonly uint EvcUpload = 0x00400000;
-    /// <summary>
-    /// The evc download.
-    /// </summary>
+
+    /// <summary>Event mask for download notifications.</summary>
     public static readonly uint EvcDownload = 0x00800000;
-    /// <summary>
-    /// The evc directory.
-    /// </summary>
+
+    /// <summary>Event mask for directory access notifications.</summary>
     public static readonly uint EvcDirectory = 0x01000000;
-    /// <summary>
-    /// The evc security.
-    /// </summary>
+
+    /// <summary>Event mask for security notifications.</summary>
     public static readonly uint EvcSecurity = 0x02000000;
-    /// <summary>
-    /// The evc control.
-    /// </summary>
+
+    /// <summary>Event mask for control notifications.</summary>
     public static readonly uint EvcControl = 0x04000000;
 
-    private const int MsgTextLen = 1024;
-    private const int MkEvent = 0;
-    private const int MkLog = 1;
+    /// <summary>The Snap7 event-mask selector.</summary>
+    private const int EventMaskKind = 0;
 
-    private readonly Dictionary<int, GCHandle> _hArea;
+    /// <summary>The Snap7 log-mask selector.</summary>
+    private const int LogMaskKind = 1;
+
+    /// <summary>Holds the pinned handles for registered server areas.</summary>
+    private readonly Dictionary<int, GCHandle> _areaHandles;
+
+    /// <summary>Stores the default DB1 backing area.</summary>
     private byte[]? _defaultDb1;
+
+    /// <summary>Stores the default PE backing area.</summary>
     private byte[]? _defaultPe;
+
+    /// <summary>Stores the default PA backing area.</summary>
     private byte[]? _defaultPa;
+
+    /// <summary>Stores the default MK backing area.</summary>
     private byte[]? _defaultMk;
+
+    /// <summary>Stores the default CT backing area.</summary>
     private byte[]? _defaultCt;
+
+    /// <summary>Stores the default TM backing area.</summary>
     private byte[]? _defaultTm;
+
+    /// <summary>Holds the native Snap7 server handle.</summary>
     private nint _server;
+
+    /// <summary>Tracks whether disposal has already run.</summary>
     private bool _disposedValue;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MockServer"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="MockServer"/> class.</summary>
     public MockServer()
     {
         _server = NativeMethods.Srv_Create();
-        _hArea = [];
+        _areaHandles = [];
     }
 
-    /// <summary>
-    /// Finalizes an instance of the <see cref="MockServer"/> class.
-    /// </summary>
+    /// <summary>Finalizes an instance of the <see cref="MockServer"/> class.</summary>
     ~MockServer()
     {
         Dispose(false);
     }
 
-    /// <summary>
-    /// Gets or sets the log mask.
-    /// </summary>
+    /// <summary>Gets or sets the log mask.</summary>
     /// <value>
     /// The log mask.
     /// </value>
@@ -127,20 +118,13 @@ public class MockServer : IDisposable
         get
         {
             var mask = default(uint);
-            if (NativeMethods.Srv_GetMask(_server, MkLog, ref mask) == 0)
-            {
-                return mask;
-            }
-
-            return 0;
+            return NativeMethods.Srv_GetMask(_server, LogMaskKind, ref mask) == 0 ? mask : 0;
         }
 
-        set => _ = NativeMethods.Srv_SetMask(_server, MkLog, value);
+        set => _ = NativeMethods.Srv_SetMask(_server, LogMaskKind, value);
     }
 
-    /// <summary>
-    /// Gets or sets the event mask.
-    /// </summary>
+    /// <summary>Gets or sets the event mask.</summary>
     /// <value>
     /// The event mask.
     /// </value>
@@ -149,206 +133,133 @@ public class MockServer : IDisposable
         get
         {
             var mask = default(uint);
-            if (NativeMethods.Srv_GetMask(_server, MkEvent, ref mask) == 0)
-            {
-                return mask;
-            }
-
-            return 0;
+            return NativeMethods.Srv_GetMask(_server, EventMaskKind, ref mask) == 0 ? mask : 0;
         }
-        set => _ = NativeMethods.Srv_SetMask(_server, MkEvent, value);
+        set => _ = NativeMethods.Srv_SetMask(_server, EventMaskKind, value);
     }
 
-    /// <summary>
-    /// Gets the default Data Block 1 backing store (byte-addressable).
-    /// </summary>
+    /// <summary>Gets the default Data Block 1 backing store (byte-addressable).</summary>
     public byte[]? DefaultDb1 => _defaultDb1;
 
-    /// <summary>
-    /// Gets or sets the size (in bytes) of the default DB1 area registered on start.
-    /// </summary>
+    /// <summary>Gets or sets the size (in bytes) of the default DB1 area registered on start.</summary>
     public int DefaultDb1Size { get; set; } = 4096;
 
-    /// <summary>
-    /// Gets or sets the size (in bytes) of the default PE (Inputs) area registered on start.
-    /// </summary>
+    /// <summary>Gets or sets the size (in bytes) of the default PE (Inputs) area registered on start.</summary>
     public int DefaultPeSize { get; set; } = 4096;
 
-    /// <summary>
-    /// Gets or sets the size (in bytes) of the default PA (Outputs) area registered on start.
-    /// </summary>
+    /// <summary>Gets or sets the size (in bytes) of the default PA (Outputs) area registered on start.</summary>
     public int DefaultPaSize { get; set; } = 4096;
 
-    /// <summary>
-    /// Gets or sets the size (in bytes) of the default MK (Memory) area registered on start.
-    /// </summary>
+    /// <summary>Gets or sets the size (in bytes) of the default MK (Memory) area registered on start.</summary>
     public int DefaultMkSize { get; set; } = 4096;
 
-    /// <summary>
-    /// Gets or sets the size (in bytes) of the default CT (Counters) area registered on start.
-    /// </summary>
+    /// <summary>Gets or sets the size (in bytes) of the default CT (Counters) area registered on start.</summary>
     public int DefaultCtSize { get; set; } = 512;
 
-    /// <summary>
-    /// Gets or sets the size (in bytes) of the default TM (Timers) area registered on start.
-    /// </summary>
+    /// <summary>Gets or sets the size (in bytes) of the default TM (Timers) area registered on start.</summary>
     public int DefaultTmSize { get; set; } = 512;
 
-    /// <summary>
-    /// Gets or sets the cpu status.
-    /// </summary>
-    /// <value>
-    /// The cpu status.
-    /// </value>
+    /// <summary>Gets or sets the virtual CPU status.</summary>
     public int CpuStatus
     {
-        // Property Virtual CPU status R/W
         get
         {
-            var cStatus = default(int);
-            var sStatus = default(int);
-            var cCount = default(int);
+            var cpuStatus = default(int);
+            var serverStatus = default(int);
+            var clientCount = default(int);
 
-            if (NativeMethods.Srv_GetStatus(_server, ref sStatus, ref cStatus, ref cCount) == 0)
-            {
-                return cStatus;
-            }
-
-            return -1;
+            return NativeMethods.Srv_GetStatus(_server, ref serverStatus, ref cpuStatus, ref clientCount) == 0 ? cpuStatus : -1;
         }
+
         set => _ = NativeMethods.Srv_SetCpuStatus(_server, value);
     }
 
-    /// <summary>
-    /// Gets the server status.
-    /// </summary>
-    /// <value>
-    /// The server status.
-    /// </value>
+    /// <summary>Gets the current server status.</summary>
     public int ServerStatus
     {
-        // Property Server Status Read Only
         get
         {
-            var cStatus = default(int);
-            var sStatus = default(int);
-            var cCount = default(int);
-            if (NativeMethods.Srv_GetStatus(_server, ref sStatus, ref cStatus, ref cCount) == 0)
-            {
-                return sStatus;
-            }
+            var cpuStatus = default(int);
+            var serverStatus = default(int);
+            var clientCount = default(int);
 
-            return -1;
+            return NativeMethods.Srv_GetStatus(_server, ref serverStatus, ref cpuStatus, ref clientCount) == 0 ? serverStatus : -1;
         }
     }
 
-    /// <summary>
-    /// Gets the clients count.
-    /// </summary>
-    /// <value>
-    /// The clients count.
-    /// </value>
+    /// <summary>Gets the number of connected clients.</summary>
     public int ClientsCount
     {
-        // Property Clients Count Read Only
         get
         {
-            var cStatus = default(int);
-            var sStatus = default(int);
-            var cCount = default(int);
-            if (NativeMethods.Srv_GetStatus(_server, ref cStatus, ref sStatus, ref cCount) == 0)
-            {
-                return cCount;
-            }
+            var serverStatus = default(int);
+            var cpuStatus = default(int);
+            var clientCount = default(int);
 
-            return -1;
+            return NativeMethods.Srv_GetStatus(_server, ref serverStatus, ref cpuStatus, ref clientCount) == 0 ? clientCount : -1;
         }
     }
 
-    /// <summary>
-    /// Events the text.
-    /// </summary>
+    /// <summary>Converts an event to the Snap7 display text.</summary>
     /// <param name="event">The event.</param>
-    /// <returns>Result.</returns>
-    public static string EventText(ref USrvEvent @event)
-    {
-        var message = new StringBuilder(MsgTextLen);
-        _ = NativeMethods.Srv_EventText(ref @event, message, MsgTextLen);
-        return message.ToString();
-    }
+    /// <returns>The formatted event text.</returns>
+    public static string EventText(ref USrvEvent @event) => NativeMethods.GetEventText(ref @event);
 
-    /// <summary>
-    /// Evts the time to date time.
-    /// </summary>
-    /// <param name="timeStamp">The time stamp.</param>
-    /// <returns>Result.</returns>
+    /// <summary>Converts a native event timestamp to a <see cref="DateTime"/>.</summary>
+    /// <param name="timeStamp">The native timestamp value.</param>
+    /// <returns>The converted <see cref="DateTime"/>.</returns>
     public static DateTime EvtTimeToDateTime(nint timeStamp)
     {
         var unixStartEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0);
         return unixStartEpoch.AddSeconds(Convert.ToDouble(timeStamp));
     }
 
-    /// <summary>
-    /// Errors the text.
-    /// </summary>
+    /// <summary>Converts an error code to the Snap7 display text.</summary>
     /// <param name="error">The error.</param>
-    /// <returns>Result.</returns>
-    public static string ErrorText(int error)
-    {
-        var message = new StringBuilder(MsgTextLen);
-        _ = NativeMethods.Srv_ErrorText(error, message, MsgTextLen);
-        return message.ToString();
-    }
+    /// <returns>The formatted error text.</returns>
+    public static string ErrorText(int error) => NativeMethods.GetErrorText(error);
 
-    /// <summary>
-    /// Starts to.
-    /// </summary>
+    /// <summary>Starts the server on the specified address.</summary>
     /// <param name="address">The address.</param>
-    /// <returns>Result.</returns>
+    /// <returns>The Snap7 result code.</returns>
     public int StartTo(string address)
     {
         EnsureDefaultAreasRegistered();
         return NativeMethods.Srv_StartTo(_server, address);
     }
 
-    /// <summary>
-    /// Starts this instance.
-    /// </summary>
-    /// <returns>Result.</returns>
+    /// <summary>Starts the server using the default address configuration.</summary>
+    /// <returns>The Snap7 result code.</returns>
     public int Start()
     {
         EnsureDefaultAreasRegistered();
         return NativeMethods.Srv_Start(_server);
     }
 
-    /// <summary>
-    /// Stops this instance.
-    /// </summary>
-    /// <returns>Result.</returns>
+    /// <summary>Stops the server.</summary>
+    /// <returns>The Snap7 result code.</returns>
     public int Stop() => NativeMethods.Srv_Stop(_server);
 
-    /// <summary>
-    /// Registers the area.
-    /// </summary>
-    /// <typeparam name="T">The Type.</typeparam>
+    /// <summary>Registers a structured backing store with the server.</summary>
+    /// <typeparam name="T">The backing store type.</typeparam>
     /// <param name="areaCode">The area code.</param>
     /// <param name="index">The index.</param>
-    /// <param name="pUsrData">The p usr data.</param>
+    /// <param name="userData">The pinned backing store.</param>
     /// <param name="size">The size.</param>
-    /// <returns>Result.</returns>
-    public int RegisterArea<T>(int areaCode, int index, ref T pUsrData, int size)
+    /// <returns>The Snap7 result code.</returns>
+    public int RegisterArea<T>(int areaCode, int index, ref T userData, int size)
     {
         if (typeof(T) == typeof(byte))
         {
-            throw new ArgumentException("Use RegisterArea(int areaCode, int index, byte[] pUsrData, int size) for byte areas.", nameof(pUsrData));
+            throw new ArgumentException("Use RegisterArea(int areaCode, int index, byte[] userData, int size) for byte areas.", nameof(userData));
         }
 
         var areaUid = (areaCode << 16) + index;
-        var handle = GCHandle.Alloc(pUsrData, GCHandleType.Pinned);
+        var handle = GCHandle.Alloc(userData, GCHandleType.Pinned);
         var result = NativeMethods.Srv_RegisterArea(_server, areaCode, index, handle.AddrOfPinnedObject(), size);
         if (result == 0)
         {
-            _hArea.Add(areaUid, handle);
+            _areaHandles.Add(areaUid, handle);
         }
         else
         {
@@ -358,27 +269,25 @@ public class MockServer : IDisposable
         return result;
     }
 
-    /// <summary>
-    /// Registers the area using a byte-array backing store.
-    /// </summary>
+    /// <summary>Registers the area using a byte-array backing store.</summary>
     /// <param name="areaCode">The area code.</param>
     /// <param name="index">The index.</param>
-    /// <param name="pUsrData">The area backing buffer.</param>
+    /// <param name="userData">The area backing buffer.</param>
     /// <param name="size">The size.</param>
-    /// <returns>Result.</returns>
-    public int RegisterArea(int areaCode, int index, byte[] pUsrData, int size)
+    /// <returns>The Snap7 result code.</returns>
+    public int RegisterArea(int areaCode, int index, byte[] userData, int size)
     {
-        if (pUsrData is null)
+        if (userData is null)
         {
-            throw new ArgumentNullException(nameof(pUsrData));
+            throw new ArgumentNullException(nameof(userData));
         }
 
         var areaUid = (areaCode << 16) + index;
-        var handle = GCHandle.Alloc(pUsrData, GCHandleType.Pinned);
+        var handle = GCHandle.Alloc(userData, GCHandleType.Pinned);
         var result = NativeMethods.Srv_RegisterArea(_server, areaCode, index, handle.AddrOfPinnedObject(), size);
         if (result == 0)
         {
-            _hArea.Add(areaUid, handle);
+            _areaHandles.Add(areaUid, handle);
         }
         else
         {
@@ -388,139 +297,113 @@ public class MockServer : IDisposable
         return result;
     }
 
-    /// <summary>
-    /// Unregisters the area.
-    /// </summary>
+    /// <summary>Unregisters an area from the server.</summary>
     /// <param name="areaCode">The area code.</param>
     /// <param name="index">The index.</param>
-    /// <returns>Result.</returns>
+    /// <returns>The Snap7 result code.</returns>
     public int UnregisterArea(int areaCode, int index)
     {
         var result = NativeMethods.Srv_UnregisterArea(_server, areaCode, index);
         if (result == 0)
         {
             var areaUid = (areaCode << 16) + index;
-            if (_hArea.TryGetValue(areaUid, out var handle))
+            if (_areaHandles.TryGetValue(areaUid, out var handle))
             {
-                // should be always true
                 if (handle.IsAllocated)
                 {
-                    // Free the handle
                     handle.Free();
                 }
 
-                _ = _hArea.Remove(areaUid);
+                _ = _areaHandles.Remove(areaUid);
             }
         }
 
         return result;
     }
 
-    /// <summary>
-    /// Locks the area.
-    /// </summary>
+    /// <summary>Locks a registered area.</summary>
     /// <param name="areaCode">The area code.</param>
     /// <param name="index">The index.</param>
-    /// <returns>Result.</returns>
+    /// <returns>The Snap7 result code.</returns>
     public int LockArea(int areaCode, int index) => NativeMethods.Srv_LockArea(_server, areaCode, index);
 
-    /// <summary>
-    /// Unlocks the area.
-    /// </summary>
+    /// <summary>Unlocks a registered area.</summary>
     /// <param name="areaCode">The area code.</param>
     /// <param name="index">The index.</param>
-    /// <returns>Result.</returns>
+    /// <returns>The Snap7 result code.</returns>
     public int UnlockArea(int areaCode, int index) => NativeMethods.Srv_UnlockArea(_server, areaCode, index);
 
-    /// <summary>
-    /// Sets the events call back.
-    /// </summary>
+    /// <summary>Sets the event callback.</summary>
     /// <param name="callback">The callback.</param>
-    /// <param name="usrPtr">The usr PTR.</param>
-    /// <returns>Result.</returns>
+    /// <param name="usrPtr">The user pointer.</param>
+    /// <returns>The Snap7 result code.</returns>
     public int SetEventsCallBack(SrvCallback callback, nint usrPtr) => NativeMethods.Srv_SetEventsCallback(_server, callback, usrPtr);
 
-    /// <summary>
-    /// Sets the read events call back.
-    /// </summary>
+    /// <summary>Sets the read-event callback.</summary>
     /// <param name="callback">The callback.</param>
-    /// <param name="usrPtr">The usr PTR.</param>
-    /// <returns>Result.</returns>
+    /// <param name="usrPtr">The user pointer.</param>
+    /// <returns>The Snap7 result code.</returns>
     public int SetReadEventsCallBack(SrvCallback callback, nint usrPtr) => NativeMethods.Srv_SetReadEventsCallback(_server, callback, usrPtr);
 
-    /// <summary>
-    /// Sets the rw area call back.
-    /// </summary>
+    /// <summary>Sets the read/write area callback.</summary>
     /// <param name="callback">The callback.</param>
-    /// <param name="usrPtr">The usr PTR.</param>
-    /// <returns>Result.</returns>
+    /// <param name="usrPtr">The user pointer.</param>
+    /// <returns>The Snap7 result code.</returns>
     public int SetRwAreaCallBack(SrvRwAreaCallback callback, nint usrPtr) => NativeMethods.Srv_SetRWAreaCallback(_server, callback, usrPtr);
 
-    /// <summary>
-    /// Picks the event.
-    /// </summary>
+    /// <summary>Retrieves the next queued event.</summary>
     /// <param name="event">The event.</param>
-    /// <returns>Result.</returns>
+    /// <returns><see langword="true"/> when an event was returned.</returns>
     public bool PickEvent(ref USrvEvent @event)
     {
         var evtReady = default(int);
-        if (NativeMethods.Srv_PickEvent(_server, ref @event, ref evtReady) == 0)
-        {
-            return evtReady != 0;
-        }
-
-        return false;
+        return NativeMethods.Srv_PickEvent(_server, ref @event, ref evtReady) != 0 ? false : evtReady != 0;
     }
 
-    /// <summary>
-    /// Clears the events.
-    /// </summary>
-    /// <returns>Result.</returns>
+    /// <summary>Clears the pending server events.</summary>
+    /// <returns>The Snap7 result code.</returns>
     public int ClearEvents() => NativeMethods.Srv_ClearEvents(_server);
 
-    /// <summary>
-    /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-    /// </summary>
+    /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
     public void Dispose()
     {
-        // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Releases unmanaged and - optionally - managed resources.
-    /// </summary>
+    /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
     /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
     protected virtual void Dispose(bool disposing)
     {
-        if (!_disposedValue)
+        if (_disposedValue)
         {
-            if (disposing)
-            {
-                ClearEvents();
-                Stop();
-            }
-
-            foreach (var item in _hArea)
-            {
-                var handle = item.Value;
-                if (handle.IsAllocated)
-                {
-                    // Free the handle
-                    handle.Free();
-                }
-            }
-
-            _ = NativeMethods.Srv_Destroy(ref _server);
-
-            _disposedValue = true;
+            return;
         }
+
+        if (disposing)
+        {
+            _ = ClearEvents();
+            _ = Stop();
+        }
+
+        foreach (var item in _areaHandles)
+        {
+            var handle = item.Value;
+            if (handle.IsAllocated)
+            {
+                handle.Free();
+            }
+        }
+
+        _ = NativeMethods.Srv_Destroy(ref _server);
+
+        _disposedValue = true;
     }
 
+    /// <summary>Creates the default areas required for standard PLC address access.</summary>
     private void EnsureDefaultAreasRegistered()
     {
-        if (_defaultDb1 != null)
+        if (_defaultDb1 is not null)
         {
             return;
         }

@@ -1,15 +1,19 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Performance;
+#else
 namespace S7PlcRx.Performance;
+#endif
 
-/// <summary>
-/// Provides metrics related to a connection, including reconnection count and uptime.
-/// </summary>
+/// <summary>Provides metrics related to a connection, including reconnection count and uptime.</summary>
 /// <remarks>This class is intended for internal use to track basic connection statistics. It is not
 /// thread-safe.</remarks>
 internal sealed class SimpleConnectionMetrics
 {
+    /// <summary>Stores the s ta rt ti m e used by this instance.</summary>
     private readonly DateTime _startTime = DateTime.UtcNow;
 
     /// <summary>Gets the number of reconnections.</summary>

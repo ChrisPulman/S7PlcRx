@@ -1,12 +1,9 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers.Binary;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using MockS7Plc;
-using ReactiveUI.Extensions.Async;
 using S7PlcRx.Advanced;
 using S7PlcRx.Enums;
 
@@ -15,6 +12,7 @@ namespace S7PlcRx.Tests;
 /// <summary>
 /// Tests the async extension surface added on top of <see cref="IRxS7"/>.
 /// </summary>
+[NotInParallel]
 public class S7PlcRxAsyncExtensionsTests
 {
     /// <summary>
@@ -169,7 +167,7 @@ public class S7PlcRxAsyncExtensionsTests
         plc.AddUpdateTagItem<ushort>("A", "DB1.DBW0").SetTagPollIng(false);
         plc.AddUpdateTagItem<ushort>("B", "DB1.DBW2").SetTagPollIng(false);
 
-        await plc.IsConnected.FirstAsync(x => x).Timeout(TimeSpan.FromSeconds(10));
+        await plc.IsConnected.Where(x => x).Timeout(TimeSpan.FromSeconds(10)).FirstAsync();
         var values = await plc.ReadValuesAsync<ushort>("A", "B").AsTask();
 
         Assert.That(values["A"], Is.EqualTo((ushort)100));
@@ -254,7 +252,7 @@ public class S7PlcRxAsyncExtensionsTests
         plc.AddUpdateTagItem<ushort>("A", "DB1.DBW0").SetTagPollIng(false);
         plc.AddUpdateTagItem<ushort>("B", "DB1.DBW2").SetTagPollIng(false);
 
-        await plc.IsConnected.FirstAsync(x => x).Timeout(TimeSpan.FromSeconds(10));
+        await plc.IsConnected.Where(x => x).Timeout(TimeSpan.FromSeconds(10)).FirstAsync();
         await plc.WriteValuesAsync(new Dictionary<string, ushort> { ["A"] = 321, ["B"] = 654 }).AsTask();
         await Task.Delay(100);
 
@@ -297,23 +295,23 @@ public class S7PlcRxAsyncExtensionsTests
     /// </summary>
     /// <returns>A task representing the test operation.</returns>
     [Test]
-    public async Task ObserveValueAsync_WhenTagChanges_EmitsUpdatedValue()
+    public async Task ObserveValue_WhenTagChanges_EmitsUpdatedValue()
     {
         var plc = new TestPlc();
         plc.TagList.Add(new Tag("A", "DB1.DBW0", typeof(ushort)));
 
         var completion = new TaskCompletionSource<ushort>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var subscription = await plc.ObserveValueAsync<ushort>("A")
+        await using var subscription = await plc.ObserveValue<ushort>("A")
             .SubscribeAsync(
-                async (value, cancellationToken) =>
+                new DelegatingObserverAsync<ushort>((value, cancellationToken) =>
                 {
                     if (value == 123)
                     {
                         completion.TrySetResult(value);
                     }
 
-                    await Task.CompletedTask;
-                },
+                    return ValueTask.CompletedTask;
+                }),
                 CancellationToken.None);
 
         plc.PublishObservedValue("A", (ushort)123, typeof(ushort));
@@ -327,11 +325,11 @@ public class S7PlcRxAsyncExtensionsTests
     /// Verifies async observable single-value wrappers reject blank variable names.
     /// </summary>
     [Test]
-    public void ObserveValueAsync_WhenVariableBlank_ThrowsArgumentNullException()
+    public void ObserveValue_WhenVariableBlank_ThrowsArgumentNullException()
     {
         var plc = new TestPlc();
 
-        Assert.Throws<ArgumentNullException>(() => plc.ObserveValueAsync<ushort>(string.Empty));
+        Assert.Throws<ArgumentNullException>(() => plc.ObserveValue<ushort>(string.Empty));
     }
 
     /// <summary>
@@ -339,23 +337,23 @@ public class S7PlcRxAsyncExtensionsTests
     /// </summary>
     /// <returns>A task representing the test operation.</returns>
     [Test]
-    public async Task ObserveValuesAsync_WhenTagsChange_EmitsUpdatedDictionary()
+    public async Task ObserveValues_WhenTagsChange_EmitsUpdatedDictionary()
     {
         var plc = new TestPlc();
         plc.TagList.Add(new Tag("A", "DB1.DBW0", typeof(ushort)));
 
         var completion = new TaskCompletionSource<Dictionary<string, ushort>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var subscription = await plc.ObserveValuesAsync<ushort>("A")
+        await using var subscription = await plc.ObserveValues<ushort>("A")
             .SubscribeAsync(
-                async (values, cancellationToken) =>
+                new DelegatingObserverAsync<Dictionary<string, ushort>>((values, cancellationToken) =>
                 {
                     if (values.TryGetValue("A", out var a) && a == 10)
                     {
                         completion.TrySetResult(values);
                     }
 
-                    await Task.CompletedTask;
-                },
+                    return ValueTask.CompletedTask;
+                }),
                 CancellationToken.None);
 
         plc.PublishObservedValue("A", (ushort)10, typeof(ushort));
@@ -369,22 +367,37 @@ public class S7PlcRxAsyncExtensionsTests
     /// Verifies async observable batch wrappers reject empty variable lists.
     /// </summary>
     [Test]
-    public void ObserveValuesAsync_WhenVariablesEmpty_ThrowsArgumentException()
+    public void ObserveValues_WhenVariablesEmpty_ThrowsArgumentException()
     {
         var plc = new TestPlc();
 
-        Assert.Throws<ArgumentException>(() => plc.ObserveValuesAsync<ushort>());
+        Assert.Throws<ArgumentException>(() => plc.ObserveValues<ushort>());
     }
 
     /// <summary>
     /// Verifies async observable batch wrappers reject null variable arrays.
     /// </summary>
     [Test]
-    public void ObserveValuesAsync_WhenVariablesNull_ThrowsArgumentNullException()
+    public void ObserveValues_WhenVariablesNull_ThrowsArgumentNullException()
     {
         var plc = new TestPlc();
 
-        Assert.Throws<ArgumentNullException>(() => plc.ObserveValuesAsync<ushort>(null!));
+        Assert.Throws<ArgumentNullException>(() => plc.ObserveValues<ushort>(null!));
+    }
+
+    private sealed class DelegatingObserverAsync<T>(Func<T, CancellationToken, ValueTask> onNext) : IObserverAsync<T>
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public ValueTask OnCompletedAsync(Result result) => ValueTask.CompletedTask;
+
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
+        {
+            throw error;
+        }
+
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) =>
+            onNext(value, cancellationToken);
     }
 #endif
 
@@ -392,7 +405,7 @@ public class S7PlcRxAsyncExtensionsTests
     {
         private readonly Dictionary<string, object?> _asyncValues = new(StringComparer.InvariantCultureIgnoreCase);
         private readonly Dictionary<string, Func<CancellationToken, Task<object?>>> _asyncValueFactories = new(StringComparer.InvariantCultureIgnoreCase);
-        private readonly Subject<Tag?> _observeAllSubject = new();
+        private readonly Signal<Tag?> _observeAllSubject = new();
         private readonly Dictionary<string, object?> _syncValues = new(StringComparer.InvariantCultureIgnoreCase);
 
         public string IP => MockServer.Localhost;
@@ -513,7 +526,8 @@ public class S7PlcRxAsyncExtensionsTests
                 throw new ArgumentNullException(nameof(variable));
             }
 
-            return values.TryGetValue(variable, out var value) && value is T typed ? typed : default;
+            var variableName = variable!;
+            return values.TryGetValue(variableName, out var value) && value is T typed ? typed : default;
         }
     }
 }

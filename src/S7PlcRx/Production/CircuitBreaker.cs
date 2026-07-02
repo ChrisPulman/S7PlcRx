@@ -1,7 +1,12 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Production;
+#else
 namespace S7PlcRx.Production;
+#endif
 
 /// <summary>
 /// Provides a thread-safe implementation of the circuit breaker pattern to prevent repeated execution of failing
@@ -16,36 +21,35 @@ namespace S7PlcRx.Production;
 /// <param name="config">The configuration settings that control circuit breaker thresholds, retry behavior, and timeouts.</param>
 public sealed class CircuitBreaker(ProductionErrorConfig config)
 {
+    /// <summary>Stores the lock used to protect circuit state transitions and counters.</summary>
+#if NET8_0
     private readonly object _lock = new();
+#else
+    private readonly Lock _lock = new();
+#endif
+
+    /// <summary>Stores the c on se cu ti ve fa il ur e s used by this instance.</summary>
     private int _consecutiveFailures;
+
+    /// <summary>Stores the l as tf ai lu re ti m e used by this instance.</summary>
     private DateTime _lastFailureTime;
 
-    /// <summary>
-    /// Gets the current state of the circuit breaker.
-    /// </summary>
+    /// <summary>Gets the current state of the circuit breaker.</summary>
     /// <remarks>The state indicates whether the circuit breaker is allowing operations to proceed (Closed),
     /// temporarily blocking operations due to failures (Open), or testing if operations can resume
     /// (HalfOpen).</remarks>
     public CircuitBreakerState State { get; private set; } = CircuitBreakerState.Closed;
 
-    /// <summary>
-    /// Gets the total number of operations that have been performed.
-    /// </summary>
+    /// <summary>Gets the total number of operations that have been performed.</summary>
     public long TotalOperations { get; private set; }
 
-    /// <summary>
-    /// Gets the total number of operations that have completed successfully.
-    /// </summary>
+    /// <summary>Gets the total number of operations that have completed successfully.</summary>
     public long SuccessfulOperations { get; private set; }
 
-    /// <summary>
-    /// Gets the total number of operations that have failed.
-    /// </summary>
+    /// <summary>Gets the total number of operations that have failed.</summary>
     public long FailedOperations { get; private set; }
 
-    /// <summary>
-    /// Gets the percentage of operations that completed successfully.
-    /// </summary>
+    /// <summary>Gets the percentage of operations that completed successfully.</summary>
     public double SuccessRate => TotalOperations > 0 ? (double)SuccessfulOperations / TotalOperations * 100 : 0;
 
     /// <summary>
@@ -64,7 +68,7 @@ public sealed class CircuitBreaker(ProductionErrorConfig config)
     /// being executed.</exception>
     public async Task<T> ExecuteAsync<T>(Func<Task<T>> operation)
     {
-        if (operation == null)
+        if (operation is null)
         {
             throw new ArgumentNullException(nameof(operation), "Operation cannot be null");
         }
@@ -115,9 +119,7 @@ public sealed class CircuitBreaker(ProductionErrorConfig config)
         }
     }
 
-    /// <summary>
-    /// Executes the specified asynchronous operation with automatic retries according to the configured retry policy.
-    /// </summary>
+    /// <summary>Executes the specified asynchronous operation with automatic retries according to the configured retry policy.</summary>
     /// <remarks>The method retries the operation if it throws an exception, up to the maximum number of retry
     /// attempts specified in the configuration. If all attempts fail, the last encountered exception is thrown. The
     /// delay between retries is determined by the configuration and may use exponential backoff.</remarks>

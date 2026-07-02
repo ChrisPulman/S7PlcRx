@@ -1,9 +1,14 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Collections;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive;
+#else
 namespace S7PlcRx;
+#endif
 
 /// <summary>
 /// Represents a thread-safe collection of tag objects, providing methods for adding, retrieving, and managing tags by
@@ -17,31 +22,20 @@ namespace S7PlcRx;
 [Serializable]
 public class Tags : Hashtable
 {
+    /// <summary>Stores the lock used to protect collection mutations.</summary>
+#if NET8_0
     private readonly object _lockObject = new();
+#else
+    private readonly Lock _lockObject = new();
+#endif
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Tags"/> class.
-    /// </summary>
-    public Tags()
-    {
-    }
-
-    /// <summary>
-    /// Gets or sets the value associated with the specified key. Supports an optional flag to indicate whether the key
-    /// represents the end of a range or sequence.
-    /// </summary>
-    /// <remarks>Access to this indexer is thread-safe for set operations. The behavior of the indexer may
-    /// depend on the value of <paramref name="isEnd"/> if the underlying implementation distinguishes between start and
-    /// end keys.</remarks>
+    /// <summary>Gets or sets the value associated with the specified key.</summary>
+    /// <remarks>Access to this indexer is thread-safe for set operations.</remarks>
     /// <param name="key">The key whose value to get or set. Cannot be null.</param>
-    /// <param name="isEnd">A value indicating whether the key represents the end of a range or sequence. The default is <see
-    /// langword="false"/>.</param>
     /// <returns>The value associated with the specified key, or <see langword="null"/> if the key does not exist.</returns>
-#pragma warning disable RCS1163 // Unused parameter.
-    public object? this[object key, bool isEnd = false]
-#pragma warning restore RCS1163 // Unused parameter.
+    public new object? this[object key]
     {
-        get => base[key];
+        get => key is Tag tag ? Get(tag) : base[key];
         set
         {
             lock (_lockObject)
@@ -51,25 +45,17 @@ public class Tags : Hashtable
         }
     }
 
-    /// <summary>
-    /// Gets the tag with the specified name, if it exists.
-    /// </summary>
+    /// <summary>Gets the tag with the specified name, if it exists.</summary>
     /// <param name="name">The name of the tag to retrieve. The comparison may be case-sensitive depending on the implementation.</param>
     /// <returns>The tag associated with the specified name, or null if no tag with that name exists.</returns>
     public Tag? this[string name] => (Tag?)base[name];
 
-    /// <summary>
-    /// Gets the tag from the collection that matches the specified tag's name, if present.
-    /// </summary>
-    /// <remarks>This indexer performs a lookup based on the name of the provided tag. If the specified tag is
-    /// null, the result is null.</remarks>
+    /// <summary>Gets the tag from the collection that matches the specified tag's name, if present.</summary>
     /// <param name="tag">The tag whose name is used to locate the corresponding tag in the collection. Can be null.</param>
     /// <returns>The tag from the collection that has the same name as the specified tag, or null if no such tag exists.</returns>
-    public Tag? this[Tag? tag] => (Tag?)base[tag?.Name!];
+    public Tag? Get(Tag? tag) => tag is null ? null : (Tag?)base[tag.Name!];
 
-    /// <summary>
-    /// Adds an element with the specified key and value to the collection in a thread-safe manner.
-    /// </summary>
+    /// <summary>Adds an element with the specified key and value to the collection in a thread-safe manner.</summary>
     /// <remarks>This method ensures that the add operation is thread-safe. If an element with the same key
     /// already exists, an exception is thrown.</remarks>
     /// <param name="key">The key of the element to add. Cannot be null.</param>
@@ -82,9 +68,7 @@ public class Tags : Hashtable
         }
     }
 
-    /// <summary>
-    /// Adds the specified tag to the collection with the associated key.
-    /// </summary>
+    /// <summary>Adds the specified tag to the collection with the associated key.</summary>
     /// <remarks>If the collection already contains an element with the same key, an exception may be thrown
     /// depending on the underlying implementation. This method is thread-safe.</remarks>
     /// <param name="key">The key with which the specified tag is to be associated. Cannot be null.</param>
@@ -97,9 +81,7 @@ public class Tags : Hashtable
         }
     }
 
-    /// <summary>
-    /// Adds the specified tag to the collection.
-    /// </summary>
+    /// <summary>Adds the specified tag to the collection.</summary>
     /// <param name="tag">The tag to add to the collection. Cannot be null.</param>
     public void Add(Tag tag)
     {
@@ -109,9 +91,7 @@ public class Tags : Hashtable
         }
     }
 
-    /// <summary>
-    /// Adds the specified key and associated tags to the collection.
-    /// </summary>
+    /// <summary>Adds the specified key and associated tags to the collection.</summary>
     /// <param name="key">The key with which the specified tags are to be associated. Cannot be null.</param>
     /// <param name="tags">The tags to associate with the specified key. Cannot be null.</param>
     public void Add(object key, Tags tags)
@@ -122,14 +102,12 @@ public class Tags : Hashtable
         }
     }
 
-    /// <summary>
-    /// Adds a collection of tags to the current instance, including only those tags whose values are not null.
-    /// </summary>
+    /// <summary>Adds a collection of tags to the current instance, including only those tags whose values are not null.</summary>
     /// <param name="tags">The collection of <see cref="Tag"/> objects to add. Only tags with non-null values are added.</param>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="tags"/> is null.</exception>
     public void AddRange(IEnumerable<Tag> tags)
     {
-        if (tags == null)
+        if (tags is null)
         {
             throw new ArgumentNullException(nameof(tags));
         }
@@ -138,7 +116,7 @@ public class Tags : Hashtable
         {
             foreach (var tag in tags)
             {
-                if (tag.Value != null)
+                if (tag.Value is not null)
                 {
                     base.Add(tag.Name!, tag);
                 }
@@ -146,22 +124,24 @@ public class Tags : Hashtable
         }
     }
 
-    /// <summary>
-    /// Retrieves a collection of tags that have non-null values.
-    /// </summary>
+    /// <summary>Retrieves a collection of tags that have non-null values.</summary>
     /// <returns>A <see cref="Tags"/> collection containing all tags with non-null values. The collection will be empty if no
     /// such tags exist.</returns>
     public Tags GetTags()
     {
         var tags = new Tags();
-        tags.AddRange(ToList().Where(x => x.Value != null));
+        foreach (var tag in ToList())
+        {
+            if (tag.Value is not null)
+            {
+                tags.Add(tag);
+            }
+        }
 
         return tags;
     }
 
-    /// <summary>
-    /// Returns a list containing all tags in the collection.
-    /// </summary>
+    /// <summary>Returns a list containing all tags in the collection.</summary>
     /// <remarks>The returned list is a snapshot of the collection at the time of the call. Subsequent
     /// modifications to the collection are not reflected in the returned list. This method is thread-safe.</remarks>
     /// <returns>A list of <see cref="Tag"/> objects representing the tags in the collection. The list is empty if the collection
@@ -180,7 +160,13 @@ public class Tags : Hashtable
             {
                 // make a copy of the hashtable to avoid modifying it while iterating
                 var hashtableCopy = new Hashtable(this);
-                result = [.. hashtableCopy.Values.OfType<Tag>()];
+                foreach (var value in hashtableCopy.Values)
+                {
+                    if (value is Tag tag)
+                    {
+                        result.Add(tag);
+                    }
+                }
             }
             catch
             {

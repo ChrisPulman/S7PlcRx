@@ -1,36 +1,33 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive;
+#else
 namespace S7PlcRx;
+#endif
 
-/// <summary>
-/// Represents errors that occur during S7 protocol operations.
-/// </summary>
+/// <summary>Represents errors that occur during S7 protocol operations.</summary>
 /// <remarks>Use this exception to handle errors specific to S7 communication scenarios. This exception is
 /// typically thrown when an S7 operation fails due to protocol errors, invalid responses, or communication
 /// issues.</remarks>
 [Serializable]
 public class S7Exception : Exception
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="S7Exception"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="S7Exception"/> class.</summary>
     public S7Exception()
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="S7Exception"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="S7Exception"/> class.</summary>
     /// <param name="message">The message that describes the error.</param>
     public S7Exception(string message)
         : base(message)
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="S7Exception"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="S7Exception"/> class.</summary>
     /// <param name="message">The error message that explains the reason for the exception.</param>
     /// <param name="innerException">The exception that is the cause of the current exception, or a null reference (<see langword="Nothing" /> in Visual Basic) if no inner exception is specified.</param>
     public S7Exception(string message, Exception innerException)

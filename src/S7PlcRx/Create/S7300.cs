@@ -1,16 +1,17 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive;
+#else
 namespace S7PlcRx;
+#endif
 
-/// <summary>
-/// Provides factory methods for creating connections to Siemens S7-300 PLC devices.
-/// </summary>
+/// <summary>Provides factory methods for creating connections to Siemens S7-300 PLC devices.</summary>
 public static class S7300
 {
-    /// <summary>
-    /// Creates a new instance of an S7 PLC connection with the specified configuration parameters.
-    /// </summary>
+    /// <summary>Creates a new instance of an S7 PLC connection with the specified configuration parameters.</summary>
     /// <param name="ip">The IP address of the S7 PLC to connect to.</param>
     /// <param name="rack">The rack number of the PLC. Must be between 0 and 7, inclusive.</param>
     /// <param name="slot">The slot number of the PLC. Must be between 1 and 31, inclusive.</param>

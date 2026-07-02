@@ -1,13 +1,20 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Enums;
+#else
 using S7PlcRx.Enums;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Specifies metadata for mapping a field or property to an S7 string type with a defined reserved length.
-/// </summary>
+/// <summary>Specifies metadata for mapping a field or property to an S7 string type with a defined reserved length.</summary>
 /// <remarks>Apply this attribute to a field or property to indicate how it should be represented as an S7 string
 /// in communication with Siemens S7 PLCs. The attribute defines both the S7 string type and the reserved length, which
 /// are used for serialization and deserialization. Only one instance of this attribute can be applied to a given field
@@ -15,15 +22,13 @@ namespace S7PlcRx.PlcTypes;
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false)]
 public sealed class S7StringAttribute : Attribute
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="S7StringAttribute"/> class with the specified string type and reserved length.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="S7StringAttribute"/> class with the specified string type and reserved length.</summary>
     /// <param name="type">The type of S7 string to use. Must be a defined value of the S7StringType enumeration.</param>
     /// <param name="reservedLength">The reserved length for the string. Specifies the maximum number of characters the string can hold.</param>
     /// <exception cref="ArgumentException">Thrown if the specified type is not a valid value of the S7StringType enumeration.</exception>
     public S7StringAttribute(S7StringType type, int reservedLength)
     {
-        if (!Enum.IsDefined(typeof(S7StringType), type))
+        if (type == S7StringType.None || !Enum.IsDefined(type))
         {
             throw new ArgumentException("Please use a valid value for the string type");
         }
@@ -32,19 +37,13 @@ public sealed class S7StringAttribute : Attribute
         ReservedLength = reservedLength;
     }
 
-    /// <summary>
-    /// Gets the type of the S7 string represented by this instance.
-    /// </summary>
+    /// <summary>Gets the type of the S7 string represented by this instance.</summary>
     public S7StringType Type { get; }
 
-    /// <summary>
-    /// Gets the number of characters reserved for the value.
-    /// </summary>
+    /// <summary>Gets the number of characters reserved for the value.</summary>
     public int ReservedLength { get; }
 
-    /// <summary>
-    /// Gets the total number of bytes reserved for the string, including any protocol-specific header or length fields.
-    /// </summary>
+    /// <summary>Gets the total number of bytes reserved for the string, including any protocol-specific header or length fields.</summary>
     /// <remarks>The reserved length in bytes depends on the string type. For S7String, the value includes 2
     /// bytes for header information; for S7WString, it includes 4 bytes for header information and accounts for UTF-16
     /// encoding. This value is typically used to allocate buffers or validate data boundaries when working with S7

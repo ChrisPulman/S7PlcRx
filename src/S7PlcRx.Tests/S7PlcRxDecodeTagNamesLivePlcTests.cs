@@ -1,7 +1,7 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
 using System.Text;
 
 namespace S7PlcRx.Tests;
@@ -14,7 +14,7 @@ namespace S7PlcRx.Tests;
 /// </summary>
 [Explicit]
 [Category("LivePLC")]
-[NonParallelizable]
+[NotInParallel]
 public class S7PlcRxDecodeTagNamesLivePlcTests
 {
     private const string PlcIp = "172.16.13.1";

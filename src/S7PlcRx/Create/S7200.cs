@@ -1,17 +1,17 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive;
+#else
 namespace S7PlcRx;
+#endif
 
-/// <summary>
-/// Provides factory methods for creating connections to Siemens S7-200 PLC devices.
-/// </summary>
+/// <summary>Provides factory methods for creating connections to Siemens S7-200 PLC devices.</summary>
 public static class S7200
 {
-    /// <summary>
-    /// Creates a new instance of an S7-200 PLC client for communication over TCP/IP with optional watchdog
-    /// monitoring.
-    /// </summary>
+    /// <summary>Creates a new instance of an S7-200 PLC client for communication over TCP/IP with optional watchdog monitoring.</summary>
     /// <remarks>If a watchdog address is specified, the client will periodically write the specified
     /// value to the PLC at the given interval to support connection monitoring or fail-safe logic. Ensure that the
     /// PLC is configured to handle the watchdog mechanism as expected.</remarks>

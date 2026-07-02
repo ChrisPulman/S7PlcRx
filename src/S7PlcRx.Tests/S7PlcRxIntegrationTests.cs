@@ -1,7 +1,7 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx.Enums;
 
@@ -11,7 +11,7 @@ namespace S7PlcRx.Tests;
 /// Integration tests for S7PlcRx functionality.
 /// These tests validate core S7PlcRx features with controlled scenarios.
 /// </summary>
-[NonParallelizable]
+[NotInParallel]
 public class S7PlcRxIntegrationTests
 {
     /// <summary>
@@ -359,11 +359,12 @@ public class S7PlcRxIntegrationTests
     /// Test comprehensive PLC type coverage.
     /// </summary>
     /// <param name="cpuType">Type of the cpu.</param>
-    [TestCase(CpuType.S71500)]
-    [TestCase(CpuType.S7400)]
-    [TestCase(CpuType.S7300)]
-    [TestCase(CpuType.S71200)]
-    [TestCase(CpuType.S7200)]
+    [Test]
+    [Arguments(CpuType.S71500)]
+    [Arguments(CpuType.S7400)]
+    [Arguments(CpuType.S7300)]
+    [Arguments(CpuType.S71200)]
+    [Arguments(CpuType.S7200)]
     public void PLCTypeSupport_ShouldCoverAllTypes(CpuType cpuType)
     {
         // Arrange & Act
@@ -412,19 +413,19 @@ public class S7PlcRxIntegrationTests
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Wait for initial connection
-        await plc.IsConnected.FirstAsync(x => x);
+        await plc.IsConnected.Where(x => x).FirstAsync();
 
         // Act - Simulate cable unplug by stopping server
         server.Stop();
 
         // Wait for disconnection
-        await plc.IsConnected.FirstAsync(x => !x);
+        await plc.IsConnected.Where(x => !x).FirstAsync();
 
         // Restart server to simulate cable plug back
         server.Start();
 
         // Wait for reconnection
-        await plc.IsConnected.FirstAsync(x => x);
+        await plc.IsConnected.Where(x => x).FirstAsync();
 
         // Assert
         Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after cable is plugged back");
@@ -443,19 +444,19 @@ public class S7PlcRxIntegrationTests
         using var plc = S71500.Create(MockServer.Localhost, 0, 1, null, 100);
 
         // Wait for initial connection
-        await plc.IsConnected.FirstAsync(x => x);
+        await plc.IsConnected.Where(x => x).FirstAsync();
 
         // Act - Simulate PLC stop by stopping server
         server.Stop();
 
         // Wait for disconnection
-        await plc.IsConnected.FirstAsync(x => !x);
+        await plc.IsConnected.Where(x => !x).FirstAsync();
 
         // Simulate PLC run by starting server
         server.Start();
 
         // Wait for reconnection
-        await plc.IsConnected.FirstAsync(x => x);
+        await plc.IsConnected.Where(x => x).FirstAsync();
 
         // Assert
         Assert.That(plc.IsConnectedValue, Is.True, "PLC should reconnect after PLC is run again");

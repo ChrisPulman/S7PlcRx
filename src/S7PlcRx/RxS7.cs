@@ -1,23 +1,30 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
 using System.Collections;
 using System.Data;
 using System.Diagnostics;
 using System.Globalization;
-using System.Reactive;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Core;
+using S7PlcRx.Reactive.Enums;
+using S7PlcRx.Reactive.PlcTypes;
+#else
 using S7PlcRx.Core;
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
+#endif
 
 using DateTime = System.DateTime;
 using TimeSpan = System.TimeSpan;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive;
+#else
 namespace S7PlcRx;
+#endif
 
 /// <summary>
 /// Provides an observable, reactive interface for reading from and writing to Siemens S7 PLCs, supporting tag-based
@@ -31,20 +38,53 @@ namespace S7PlcRx;
 /// resources and terminate background operations.</remarks>
 public class RxS7 : IRxS7
 {
+    /// <summary>Stores the s oc ke t r x used by this instance.</summary>
     private readonly S7SocketRx _socketRx;
-    private readonly Subject<Tag?> _dataRead = new();
+
+    /// <summary>Stores the d at ar e a d used by this instance.</summary>
+    private readonly Signal<Tag?> _dataRead = new();
+
+    /// <summary>Stores the d is po sa bl e s used by this instance.</summary>
     private readonly CompositeDisposable _disposables = [];
-    private readonly Subject<string> _lastError = new();
-    private readonly Subject<ErrorCode> _lastErrorCode = new();
-    private readonly Subject<PLCRequest> _pLCRequestSubject = new();
-    private readonly Subject<string> _status = new();
-    private readonly Subject<long> _readTime = new();
+
+    /// <summary>Stores the l as te rr o r used by this instance.</summary>
+    private readonly Signal<string> _lastError = new();
+
+    /// <summary>Stores the l as te rr or co d e used by this instance.</summary>
+    private readonly Signal<ErrorCode> _lastErrorCode = new();
+
+    /// <summary>Stores the p lc re qu es ts ub je c t used by this instance.</summary>
+    private readonly Signal<PLCRequest> _plcRequestSubject = new();
+
+    /// <summary>Stores the s ta t u s used by this instance.</summary>
+    private readonly Signal<string> _status = new();
+
+    /// <summary>Stores the r ea dt i m e used by this instance.</summary>
+    private readonly Signal<long> _readTime = new();
+
+    /// <summary>Stores the l o c k used by this instance.</summary>
     private readonly SemaphoreSlim _lock = new(1);
+
+    /// <summary>Stores the l oc kt ag li s t used by this instance.</summary>
     private readonly SemaphoreSlim _lockTagList = new(1);
+
+    /// <summary>Stores the lock used to serialize direct socket interactions.</summary>
+#if NET8_0
     private readonly object _socketLock = new();
+#else
+    private readonly Lock _socketLock = new();
+#endif
+
+    /// <summary>Stores the s to pw at c h used by this instance.</summary>
     private readonly Stopwatch _stopwatch = new();
-    private readonly Subject<bool> _paused = new();
+
+    /// <summary>Stores the p au s e d used by this instance.</summary>
+    private readonly Signal<bool> _paused = new();
+
+    /// <summary>Stores the l as tc on ne ct ed at u t c used by this instance.</summary>
     private DateTime _lastConnectedAtUtc = DateTime.MinValue;
+
+    /// <summary>Stores the p au s e used by this instance.</summary>
     private bool _pause;
 
     /// <summary>
@@ -91,7 +131,7 @@ public class RxS7 : IRxS7
 
         if (!string.IsNullOrWhiteSpace(watchDogAddress))
         {
-            if (watchDogAddress?.Contains("DBW") == false)
+            if (!watchDogAddress.Contains("DBW", StringComparison.Ordinal))
             {
                 throw new ArgumentException("WatchDogAddress must be a DBW address.", nameof(watchDogAddress));
             }
@@ -109,11 +149,11 @@ public class RxS7 : IRxS7
 
         _disposables.Add(TagReaderObservable(interval).Subscribe());
 
-        _disposables.Add(_pLCRequestSubject.Subscribe(request =>
+        _disposables.Add(_plcRequestSubject.Subscribe(request =>
         {
             if (request.Request == PLCRequestType.Write)
             {
-                WriteString(request.Tag);
+                _ = WriteString(request.Tag);
             }
 
             GetTagValue(request.Tag);
@@ -121,113 +161,76 @@ public class RxS7 : IRxS7
         }));
     }
 
-    /// <summary>
-    /// Gets an observable sequence that emits all tag updates as they occur.
-    /// </summary>
+    /// <summary>Gets an observable sequence that emits all tag updates as they occur.</summary>
     /// <remarks>Each observer receives tag updates in real time as they are published. The sequence is shared
     /// among all subscribers, and subscriptions are managed automatically. Observers may receive null values if a tag
     /// is removed or unavailable.</remarks>
     public IObservable<Tag?> ObserveAll =>
         _dataRead
-            .AsObservable()
             .Publish()
             .RefCount();
 
-    /// <summary>
-    /// Gets an observable sequence that indicates whether the operation is currently paused.
-    /// </summary>
+    /// <summary>Gets an observable sequence that indicates whether the operation is currently paused.</summary>
     /// <remarks>The returned observable emits a value of <see langword="true"/> when the operation enters a
     /// paused state, and <see langword="false"/> when it resumes. Subscribers receive updates only when the paused
     /// state changes. The sequence is shared among all subscribers.</remarks>
     public IObservable<bool> IsPaused => _paused.DistinctUntilChanged().Publish().RefCount();
 
-    /// <summary>
-    /// Gets the IP address associated with the current instance.
-    /// </summary>
+    /// <summary>Gets the IP address associated with the current instance.</summary>
     public string IP { get; }
 
-    /// <summary>
-    /// Gets an observable sequence that indicates whether the connection is currently established.
-    /// </summary>
+    /// <summary>Gets an observable sequence that indicates whether the connection is currently established.</summary>
     /// <remarks>Subscribers receive updates whenever the connection state changes. The sequence emits <see
     /// langword="true"/> when connected and <see langword="false"/> when disconnected.</remarks>
     public IObservable<bool> IsConnected { get; }
 
-    /// <summary>
-    /// Gets a value indicating whether the connection is currently established.
-    /// </summary>
+    /// <summary>Gets a value indicating whether the connection is currently established.</summary>
     public bool IsConnectedValue { get; private set; }
 
-    /// <summary>
-    /// Gets an observable sequence that provides the most recent error messages encountered by the component.
-    /// </summary>
+    /// <summary>Gets an observable sequence that provides the most recent error messages encountered by the component.</summary>
     /// <remarks>Subscribers receive error messages as they occur. The sequence is shared among all
     /// subscribers, and each subscriber receives messages from the point of subscription onward.</remarks>
     public IObservable<string> LastError => _lastError.Publish().RefCount();
 
-    /// <summary>
-    /// Gets an observable sequence that emits the most recent error code reported by the system.
-    /// </summary>
+    /// <summary>Gets an observable sequence that emits the most recent error code reported by the system.</summary>
     /// <remarks>Subscribers receive updates whenever a new error code is reported. The sequence is shared
     /// among all subscribers and only remains active while there is at least one active subscription.</remarks>
     public IObservable<ErrorCode> LastErrorCode => _lastErrorCode.Publish().RefCount();
 
-    /// <summary>
-    /// Gets the type of PLC (Programmable Logic Controller) associated with this instance.
-    /// </summary>
+    /// <summary>Gets the type of PLC (Programmable Logic Controller) associated with this instance.</summary>
     public CpuType PLCType { get; }
 
-    /// <summary>
-    /// Gets the rack number associated with the device or component.
-    /// </summary>
+    /// <summary>Gets the rack number associated with the device or component.</summary>
     public short Rack { get; }
 
-    /// <summary>
-    /// Gets or sets a value indicating whether WatchDog writing output is displayed.
-    /// </summary>
+    /// <summary>Gets or sets a value indicating whether WatchDog writing output is displayed.</summary>
     public bool ShowWatchDogWriting { get; set; }
 
-    /// <summary>
-    /// Gets the slot number associated with this instance.
-    /// </summary>
+    /// <summary>Gets the slot number associated with this instance.</summary>
     public short Slot { get; }
 
-    /// <summary>
-    /// Gets an observable sequence that provides status updates as strings.
-    /// </summary>
+    /// <summary>Gets an observable sequence that provides status updates as strings.</summary>
     /// <remarks>Subscribers receive status updates as they occur. The observable sequence is shared among all
     /// subscribers, and subscriptions are managed automatically. Status updates are pushed to observers in real
     /// time.</remarks>
     public IObservable<string> Status => _status.Publish().RefCount();
 
-    /// <summary>
-    /// Gets the collection of tags associated with the current instance.
-    /// </summary>
+    /// <summary>Gets the collection of tags associated with the current instance.</summary>
     public Tags TagList { get; } = [];
 
-    /// <summary>
-    /// Gets the network address of the WatchDog service, if configured.
-    /// </summary>
+    /// <summary>Gets the network address of the WatchDog service, if configured.</summary>
     public string? WatchDogAddress { get; }
 
-    /// <summary>
-    /// Gets or sets the value to be written to the watchdog timer.
-    /// </summary>
+    /// <summary>Gets or sets the value to be written to the watchdog timer.</summary>
     public ushort WatchDogValueToWrite { get; set; } = 4500;
 
-    /// <summary>
-    /// Gets the interval, in seconds, that the watchdog uses when writing status updates.
-    /// </summary>
+    /// <summary>Gets the interval, in seconds, that the watchdog uses when writing status updates.</summary>
     public int WatchDogWritingTime { get; } = 10;
 
-    /// <summary>
-    /// Gets a value indicating whether gets a value that indicates whether the object is disposed.
-    /// </summary>
+    /// <summary>Gets a value indicating whether gets a value that indicates whether the object is disposed.</summary>
     public bool IsDisposed { get; private set; }
 
-    /// <summary>
-    /// Gets an observable sequence that emits the current read time in ticks whenever a read operation occurs.
-    /// </summary>
+    /// <summary>Gets an observable sequence that emits the current read time in ticks whenever a read operation occurs.</summary>
     /// <remarks>The observable sequence is shared among all subscribers. Each subscriber receives
     /// notifications when a read operation is performed, with the value representing the read time in ticks. The
     /// sequence completes when the underlying source completes.</remarks>
@@ -248,13 +251,11 @@ public class RxS7 : IRxS7
         ObserveAll
             .Where(t => TagValueIsValid<T>(t, variable))
             .Select(t => (T?)t?.Value)
-            .Retry()
+            .OnErrorRetry()
             .Publish()
             .RefCount();
 
-    /// <summary>
-    /// Asynchronously retrieves the value of the specified variable, cast to the specified type, if available.
-    /// </summary>
+    /// <summary>Asynchronously retrieves the value of the specified variable, cast to the specified type, if available.</summary>
     /// <remarks>If the variable's type is not known, it is set to the requested type <typeparamref name="T"/>
     /// before retrieving the value. The method waits for an internal pause condition to be met before
     /// proceeding.</remarks>
@@ -293,9 +294,7 @@ public class RxS7 : IRxS7
         }
     }
 
-    /// <summary>
-    /// Asynchronously retrieves the value of the specified variable, pausing polling operations during the read.
-    /// </summary>
+    /// <summary>Asynchronously retrieves the value of the specified variable, pausing polling operations during the read.</summary>
     /// <remarks>Polling is temporarily paused while the value is being read to ensure consistency. If no
     /// polling is active, the method may wait briefly before proceeding. The method is cancellation-friendly and will
     /// respond promptly to cancellation requests.</remarks>
@@ -309,7 +308,7 @@ public class RxS7 : IRxS7
     /// <exception cref="OperationCanceledException">Thrown if the operation is canceled via the cancellation token.</exception>
     public async Task<T?> ValueAsync<T>(string? variable, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(variable))
+        if (HasNoText(variable))
         {
             throw new ArgumentNullException(nameof(variable));
         }
@@ -323,7 +322,11 @@ public class RxS7 : IRxS7
             try
             {
                 var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+#if NET8_0_OR_GREATER
+                await using var reg = cancellationToken.Register(() => tcs.TrySetCanceled());
+#else
                 using var reg = cancellationToken.Register(() => tcs.TrySetCanceled());
+#endif
                 using var sub = _paused.Where(x => x).Take(1).Subscribe(_ => tcs.TrySetResult(true), ex => tcs.TrySetException(ex));
                 await tcs.Task.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -336,9 +339,9 @@ public class RxS7 : IRxS7
             {
                 throw;
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore: allow direct read fallback
+                Debug.WriteLine($"Pause wait failed; direct read fallback will be used. {ex}");
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -369,9 +372,7 @@ public class RxS7 : IRxS7
         }
     }
 
-    /// <summary>
-    /// Sets the value of the specified variable if it exists and the value is compatible with the variable's type.
-    /// </summary>
+    /// <summary>Sets the value of the specified variable if it exists and the value is compatible with the variable's type.</summary>
     /// <remarks>If the variable does not exist or the value is null, this method does nothing. The value is
     /// only set if its type matches the variable's expected type or if the type parameter is object.</remarks>
     /// <typeparam name="T">The type of the value to assign to the variable.</typeparam>
@@ -380,25 +381,23 @@ public class RxS7 : IRxS7
     public void Value<T>(string? variable, T? value)
     {
         var tag = TagList[variable!];
-        if (tag != null && value != null && (typeof(object) == typeof(T) || tag.Type == typeof(T)))
+        if (tag is null || value is null || (typeof(object) != typeof(T) && tag.Type != typeof(T)))
         {
-            tag.NewValue = value;
-            Write(tag);
+            return;
         }
+
+        tag.NewValue = value;
+        Write(tag);
     }
 
-    /// <summary>
-    /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-    /// </summary>
+    /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
     public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Retrieves detailed information about the connected CPU as an observable sequence.
-    /// </summary>
+    /// <summary>Retrieves detailed information about the connected CPU as an observable sequence.</summary>
     /// <remarks>The method waits until a connection is established before retrieving CPU information. If the
     /// required data is not immediately available, the method will retry until successful or until the subscription is
     /// disposed. The order and content of the returned string array correspond to specific CPU information fields. This
@@ -410,62 +409,64 @@ public class RxS7 : IRxS7
     public IObservable<string[]> GetCpuInfo() =>
         Observable.Create<string[]>(obs =>
         {
-            var d = new CompositeDisposable();
-            d.Add(IsConnected.Where(x => x).Take(1).Subscribe(async _ =>
+            SingleAssignmentDisposable? d = null;
+            d = new SingleAssignmentDisposable
             {
-            errorCpuData:
-                var cpuData = _socketRx.GetSZLData(28);
-                if (cpuData.data.Length == 0 && !d.IsDisposed)
+                Disposable = IsConnected.Where(x => x).Take(1).Subscribe(async _ =>
                 {
-                    await Task.Delay(10).ConfigureAwait(true);
-                    goto errorCpuData;
-                }
-
-            errororder:
-                var orderCode = _socketRx.GetSZLData(17);
-                if (orderCode.data.Length == 0 && !d.IsDisposed)
-                {
-                    await Task.Delay(10).ConfigureAwait(true);
-                    goto errororder;
-                }
-
-                if (cpuData.data.Length >= 204 && orderCode.data.Length >= 25)
-                {
-                    var l = new List<string>
+                    errorCpuData:
+                    var cpuData = _socketRx.GetSZLData(28);
+                    if (cpuData.data.Length == 0 && !d!.IsDisposed)
                     {
-                        PlcTypes.String.FromByteArray(cpuData.data, 2, 24).Replace("\0", string.Empty), // AS Name
-                        PlcTypes.String.FromByteArray(cpuData.data, 36, 24).Replace("\0", string.Empty), // Module Name
-                        PlcTypes.String.FromByteArray(cpuData.data, 104, 26).Replace("\0", string.Empty), // Copyright
-                        PlcTypes.String.FromByteArray(cpuData.data, 138, 24).Replace("\0", string.Empty), // Serial Number
-                        PlcTypes.String.FromByteArray(cpuData.data, 172, 32).Replace("\0", string.Empty), // Module Type Name
-                        PlcTypes.String.FromByteArray(orderCode.data, 2, 20).Replace("\0", string.Empty), // Order Code
-                        $"V1: {orderCode.data[orderCode.size - 3]}", // Version 1
-                        $"V2: {orderCode.data[orderCode.size - 2]}", // Version 2
-                        $"V3: {orderCode.data[orderCode.size - 1]}", // Version 3
-                    };
-                    obs.OnNext([.. l]);
-                    obs.OnCompleted();
-                }
-                else
-                {
+                        await Task.Delay(10).ConfigureAwait(true);
+                        goto errorCpuData;
+                    }
+
+                    errororder:
+                    var orderCode = _socketRx.GetSZLData(17);
+                    if (orderCode.data.Length == 0 && !d!.IsDisposed)
+                    {
+                        await Task.Delay(10).ConfigureAwait(true);
+                        goto errororder;
+                    }
+
+                    if (cpuData.data.Length >= 204 && orderCode.data.Length >= 25)
+                    {
+                        var l = new List<string>
+                        {
+                            PlcTypes.String.FromByteArray(cpuData.data, 2, 24).Replace("\0", string.Empty), // AS Name
+                            PlcTypes.String.FromByteArray(cpuData.data, 36, 24).Replace("\0", string.Empty), // Module Name
+                            PlcTypes.String.FromByteArray(cpuData.data, 104, 26).Replace("\0", string.Empty), // Copyright
+                            PlcTypes.String.FromByteArray(cpuData.data, 138, 24).Replace("\0", string.Empty), // Serial Number
+                            PlcTypes.String.FromByteArray(cpuData.data, 172, 32).Replace("\0", string.Empty), // Module Type Name
+                            PlcTypes.String.FromByteArray(orderCode.data, 2, 20).Replace("\0", string.Empty), // Order Code
+                            $"V1: {orderCode.data[orderCode.size - 3]}", // Version 1
+                            $"V2: {orderCode.data[orderCode.size - 2]}", // Version 2
+                            $"V3: {orderCode.data[orderCode.size - 1]}", // Version 3
+                        };
+                        obs.OnNext([.. l]);
+                        obs.OnCompleted();
+                        return;
+                    }
+
                     if (cpuData.data.Length < 204)
                     {
                         goto errorCpuData;
                     }
 
-                    if (orderCode.data.Length < 25)
+                    if (orderCode.data.Length >= 25)
                     {
-                        goto errororder;
+                        return;
                     }
-                }
-            }));
+
+                    goto errororder;
+                })
+            };
 
             return d;
         });
 
-    /// <summary>
-    /// Writes the serialized representation of a class object to the specified data block at the given byte address.
-    /// </summary>
+    /// <summary>Writes the serialized representation of a class object to the specified data block at the given byte address.</summary>
     /// <param name="tag">The tag that identifies the target location for the write operation.</param>
     /// <param name="classValue">The class object to serialize and write. Cannot be null.</param>
     /// <param name="db">The number of the data block to which the class data will be written.</param>
@@ -473,40 +474,39 @@ public class RxS7 : IRxS7
     /// <returns>true if the class data was successfully written; otherwise, false.</returns>
     internal bool WriteClass(Tag tag, object classValue, int db, int startByteAdr = 0)
     {
-        if (classValue == null)
+        if (classValue is null)
         {
             return false;
         }
 
         var bytes = new byte[(int)Class.GetClassSize(classValue)];
-        Class.ToBytes(classValue, bytes);
+        _ = Class.ToBytes(classValue, bytes);
         return WriteMultipleBytes(tag, [.. bytes], db, startByteAdr);
     }
 
-    /// <summary>
-    /// Adds a new tag to the collection or updates an existing tag with the same name.
-    /// </summary>
+    /// <summary>Adds a new tag to the collection or updates an existing tag with the same name.</summary>
     /// <param name="tag">The tag to add or update. The tag's Address property must not be null, empty, or consist only of white-space
     /// characters.</param>
     /// <exception cref="TagAddressOutOfRangeException">Thrown if the tag's Address property is null, empty, or consists only of white-space characters.</exception>
     internal void AddUpdateTagItemInternal(Tag tag)
     {
-        if (string.IsNullOrWhiteSpace(tag?.Name))
+        if (tag is null || string.IsNullOrWhiteSpace(tag.Name))
         {
             throw new ArgumentNullException(nameof(tag));
         }
 
-        if (string.IsNullOrWhiteSpace(tag?.Address))
+        if (string.IsNullOrWhiteSpace(tag.Address))
         {
             throw new TagAddressOutOfRangeException(tag);
         }
 
+        var tagName = tag.Name!;
         _lockTagList.Wait();
         try
         {
-            if (TagList[tag.Name!] is Tag tagExists)
+            if (TagList[tagName] is Tag tagExists)
             {
-                tagExists.Name = tag.Name;
+                tagExists.Name = tagName;
                 tagExists.Value = tag.Value;
                 tagExists.Address = tag.Address;
                 tagExists.Type = tag.Type;
@@ -519,18 +519,16 @@ public class RxS7 : IRxS7
         }
         finally
         {
-            _lockTagList.Release();
+            _ = _lockTagList.Release();
         }
     }
 
-    /// <summary>
-    /// Removes the tag item with the specified name from the collection, if it exists.
-    /// </summary>
+    /// <summary>Removes the tag item with the specified name from the collection, if it exists.</summary>
     /// <param name="tagName">The name of the tag item to remove. Cannot be null, empty, or consist only of white-space characters.</param>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="tagName"/> is null, empty, or consists only of white-space characters.</exception>
     internal void RemoveTagItemInternal(string tagName)
     {
-        if (string.IsNullOrWhiteSpace(tagName))
+        if (HasNoText(tagName))
         {
             throw new ArgumentNullException(nameof(tagName));
         }
@@ -545,13 +543,11 @@ public class RxS7 : IRxS7
         }
         finally
         {
-            _lockTagList.Release();
+            _ = _lockTagList.Release();
         }
     }
 
-    /// <summary>
-    /// Reads multiple variables from the PLC in a single operation and returns their values as a dictionary.
-    /// </summary>
+    /// <summary>Reads multiple variables from the PLC in a single operation and returns their values as a dictionary.</summary>
     /// <remarks>The returned dictionary uses case-insensitive keys based on the tag names. If a variable
     /// cannot be read, its value in the dictionary will be <see langword="null"/>. The method returns <see
     /// langword="null"/> if the input list is null, empty, or contains invalid tags. This method is not thread-safe and
@@ -562,7 +558,7 @@ public class RxS7 : IRxS7
     /// fails or if the input is invalid.</returns>
     internal Dictionary<string, object?>? ReadMultiVar(IReadOnlyList<Tag> tags)
     {
-        if (tags == null || tags.Count == 0)
+        if (tags is null || tags.Count == 0)
         {
             return null;
         }
@@ -570,71 +566,23 @@ public class RxS7 : IRxS7
         lock (_socketLock)
         {
             var pool = ArrayPool<byte>.Shared;
-            var bReceive = pool.Rent(_socketRx.DataReadLength + 256);
+            var receiveBuffer = pool.Rent(_socketRx.DataReadLength + 256);
             var parsed = new List<S7MultiVar.ReadResult>();
             try
             {
-                var items = new List<S7MultiVar.ReadItem>(tags.Count);
-                var varTypes = new VarType[tags.Count];
-                var arrayLengths = new int[tags.Count];
-
-                for (var i = 0; i < tags.Count; i++)
+                if (!TryBuildMultiVarReadItems(tags, out var items, out var varTypes, out var arrayLengths))
                 {
-                    var t = tags[i];
-                    if (t == null || string.IsNullOrWhiteSpace(t.Name) || string.IsNullOrWhiteSpace(t.Address) || t.ArrayLength == null)
-                    {
-                        return null;
-                    }
-
-                    if (!TryParseDbAddressForMultiVar(t, out var db, out var startByte, out var varType, out var countBytes))
-                    {
-                        return null;
-                    }
-
-                    varTypes[i] = varType;
-                    arrayLengths[i] = t.ArrayLength.Value;
-                    var elementCount = varType == VarType.Word || varType == VarType.Int || varType == VarType.Timer || varType == VarType.Counter ? (countBytes / 2) :
-                        varType == VarType.DWord || varType == VarType.DInt || varType == VarType.Real ? (countBytes / 4) :
-                        varType == VarType.LReal ? (countBytes / 8) :
-                        countBytes;
-                    items.Add(new S7MultiVar.ReadItem(DataType.DataBlock, db, startByte, elementCount, t.Name!));
+                    return null;
                 }
 
                 var request = S7MultiVar.BuildReadVarRequest(items);
-                if (request.Length == 0)
+                if (!TrySendMultiVarRequest(_socketRx, tags[0], request, receiveBuffer))
                 {
                     return null;
                 }
 
-                var sent = _socketRx.Send(tags[0], request, request.Length);
-                if (sent != request.Length)
-                {
-                    return null;
-                }
-
-                Array.Clear(bReceive, 0, bReceive.Length);
-                _ = _socketRx.Receive(tags[0], bReceive, bReceive.Length);
-
-                parsed.AddRange(S7MultiVar.ParseReadVarResponse(bReceive, items, pool));
-                if (parsed.Count == 0)
-                {
-                    return null;
-                }
-
-                var dict = new Dictionary<string, object?>(tags.Count, StringComparer.InvariantCultureIgnoreCase);
-                for (var i = 0; i < tags.Count && i < parsed.Count; i++)
-                {
-                    var res = parsed[i];
-                    if (res.ReturnCode != 0xFF || res.Data.IsEmpty)
-                    {
-                        dict[tags[i].Name!] = default;
-                        continue;
-                    }
-
-                    dict[tags[i].Name!] = ParseBytes(varTypes[i], res.Data.ToArray(), arrayLengths[i]);
-                }
-
-                return dict;
+                parsed.AddRange(S7MultiVar.ParseReadVarResponse(receiveBuffer, items, pool));
+                return parsed.Count == 0 ? null : CreateMultiVarReadResult(tags, parsed, varTypes, arrayLengths, ParseBytes);
             }
             catch (Exception ex)
             {
@@ -646,20 +594,18 @@ public class RxS7 : IRxS7
             {
                 foreach (var r in parsed)
                 {
-                    if (r.RentedBuffer != null)
+                    if (r.RentedBuffer is not null)
                     {
                         pool.Return(r.RentedBuffer);
                     }
                 }
 
-                pool.Return(bReceive);
+                pool.Return(receiveBuffer);
             }
         }
     }
 
-    /// <summary>
-    /// Attempts to write the specified collection of tags to the connected device in a single multi-variable operation.
-    /// </summary>
+    /// <summary>Attempts to write the specified collection of tags to the connected device in a single multi-variable operation.</summary>
     /// <remarks>This method performs a batch write operation, sending all tag values in a single request. If
     /// any tag is invalid or the write operation fails for any tag, the method returns false. The operation is not
     /// atomic; partial writes may occur if an error is encountered during the process.</remarks>
@@ -668,66 +614,24 @@ public class RxS7 : IRxS7
     /// <returns>true if all tags are written successfully; otherwise, false.</returns>
     internal bool WriteMultiVar(IReadOnlyList<Tag> tags)
     {
-        if (tags == null || tags.Count == 0)
+        if (tags is null || tags.Count == 0)
         {
             return false;
         }
 
         lock (_socketLock)
         {
-            var bReceive = new byte[1024];
+            var receiveBuffer = new byte[1024];
             try
             {
-                var items = new List<S7MultiVar.WriteItem>(tags.Count);
-
-                for (var i = 0; i < tags.Count; i++)
+                if (!TryBuildMultiVarWriteItems(tags, out var items))
                 {
-                    var t = tags[i];
-                    if (t == null || string.IsNullOrWhiteSpace(t.Name) || string.IsNullOrWhiteSpace(t.Address) || t.NewValue == null)
-                    {
-                        return false;
-                    }
-
-                    if (!TryParseDbAddressForMultiVar(t, out var db, out var startByte, out var varType, out var countBytes))
-                    {
-                        return false;
-                    }
-
-                    if (!TrySerializeTagNewValue(t, out var transportSize, out var data))
-                    {
-                        return false;
-                    }
-
-                    var elementCount = varType == VarType.Word || varType == VarType.Int || varType == VarType.Timer || varType == VarType.Counter ? (countBytes / 2) :
-                        varType == VarType.DWord || varType == VarType.DInt || varType == VarType.Real ? (countBytes / 4) :
-                        varType == VarType.LReal ? (countBytes / 8) :
-                        countBytes;
-
-                    items.Add(new S7MultiVar.WriteItem(DataType.DataBlock, db, startByte, elementCount, transportSize, data, t.Name!));
+                    return false;
                 }
 
                 var request = S7MultiVar.BuildWriteVarRequest(items);
-                if (request.Length == 0)
-                {
-                    return false;
-                }
-
-                var sent = _socketRx.Send(tags[0], request, request.Length);
-                if (sent != request.Length)
-                {
-                    return false;
-                }
-
-                _ = _socketRx.Receive(tags[0], bReceive, bReceive.Length);
-
-                // general status ok
-                if (bReceive[21] != 0xFF)
-                {
-                    return false;
-                }
-
-                var results = S7MultiVar.ParseWriteVarResponse(bReceive, items.Count);
-                return results.Count == items.Count && results.All(r => r.ReturnCode == 0xFF);
+                return TrySendMultiVarRequest(_socketRx, tags[0], request, receiveBuffer) &&
+                    AreMultiVarWriteResultsSuccessful(receiveBuffer, items.Count);
             }
             catch (Exception ex)
             {
@@ -738,52 +642,212 @@ public class RxS7 : IRxS7
         }
     }
 
-    /// <summary>
-    /// Releases unmanaged and - optionally - managed resources.
-    /// </summary>
+    /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
     /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
     protected virtual void Dispose(bool disposing)
     {
-        if (!IsDisposed)
+        if (IsDisposed)
         {
-            if (disposing)
+            return;
+        }
+
+        IsDisposed = true;
+        if (!disposing)
+        {
+            return;
+        }
+
+        _disposables.Dispose();
+        DisposeSemaphore(_lock, "Lock");
+        DisposeSemaphore(_lockTagList, "Tag list lock");
+        _dataRead.Dispose();
+        _lastError.Dispose();
+        _socketRx.Dispose();
+        _lastErrorCode.Dispose();
+        _paused.Dispose();
+        _plcRequestSubject.Dispose();
+        _status.Dispose();
+        _readTime.Dispose();
+    }
+
+    /// <summary>Returns whether the value is null, empty, or contains only whitespace.</summary>
+    /// <param name="value">The value to inspect.</param>
+    /// <returns>true when no non-whitespace text is present; otherwise, false.</returns>
+    private static bool HasNoText(string? value)
+    {
+        if (value is null)
+        {
+            return true;
+        }
+
+        foreach (var character in value)
+        {
+            if (!char.IsWhiteSpace(character))
             {
-                _disposables.Dispose();
-                try
-                {
-                    _lock.Wait();
-                    _lock.Dispose();
-                }
-                catch
-                {//// ignored
-                }
-
-                try
-                {
-                    _lockTagList.Wait();
-                    _lockTagList.Dispose();
-                }
-                catch
-                {//// ignored
-                }
-
-                _dataRead?.Dispose();
-                _lastError?.Dispose();
-                _socketRx?.Dispose();
-                _lastErrorCode?.Dispose();
-                _paused?.Dispose();
-                _pLCRequestSubject?.Dispose();
-                _status?.Dispose();
-                _readTime?.Dispose();
+                return false;
             }
+        }
 
-            IsDisposed = true;
+        return true;
+    }
+
+    /// <summary>Disposes a semaphore while preserving debug diagnostics.</summary>
+    /// <param name="semaphore">The semaphore to dispose.</param>
+    /// <param name="name">The semaphore diagnostic name.</param>
+    private static void DisposeSemaphore(SemaphoreSlim semaphore, string name)
+    {
+        try
+        {
+            semaphore.Wait();
+            semaphore.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"{name} disposal failed. {ex}");
         }
     }
 
-    /// <summary>
-    /// Attempts to serialize the new value of the specified tag into a byte array suitable for transport.
-    /// </summary>
+    /// <summary>Builds read-var request items from tags.</summary>
+    /// <param name="tags">The tags to read.</param>
+    /// <param name="items">The generated read items.</param>
+    /// <param name="varTypes">The parsed variable types.</param>
+    /// <param name="arrayLengths">The tag array lengths.</param>
+    /// <returns>true when all tags are valid; otherwise, false.</returns>
+    private static bool TryBuildMultiVarReadItems(
+        IReadOnlyList<Tag> tags,
+        out List<S7MultiVar.ReadItem> items,
+        out VarType[] varTypes,
+        out int[] arrayLengths)
+    {
+        items = new(tags.Count);
+        varTypes = new VarType[tags.Count];
+        arrayLengths = new int[tags.Count];
+
+        for (var i = 0; i < tags.Count; i++)
+        {
+            var tag = tags[i];
+            if (tag is null || string.IsNullOrWhiteSpace(tag.Name) || !TryParseDbAddressForMultiVar(tag, out var db, out var startByte, out var varType, out var countBytes))
+            {
+                return false;
+            }
+
+            varTypes[i] = varType;
+            arrayLengths[i] = tag.ArrayLength!.Value;
+            items.Add(new S7MultiVar.ReadItem(DataType.DataBlock, db, startByte, countBytes, tag.Name!));
+        }
+
+        return true;
+    }
+
+    /// <summary>Builds write-var request items from tags.</summary>
+    /// <param name="tags">The tags to write.</param>
+    /// <param name="items">The generated write items.</param>
+    /// <returns>true when all tags are valid and serializable; otherwise, false.</returns>
+    private static bool TryBuildMultiVarWriteItems(IReadOnlyList<Tag> tags, out List<S7MultiVar.WriteItem> items)
+    {
+        items = new(tags.Count);
+        for (var i = 0; i < tags.Count; i++)
+        {
+            var tag = tags[i];
+            if (tag is null || string.IsNullOrWhiteSpace(tag.Name) || tag.NewValue is null)
+            {
+                return false;
+            }
+
+            if (!TryParseDbAddressForMultiVar(tag, out var db, out var startByte, out _, out var countBytes))
+            {
+                return false;
+            }
+
+            if (!TrySerializeTagNewValue(tag, out var transportSize, out var data))
+            {
+                return false;
+            }
+
+            items.Add(new S7MultiVar.WriteItem(DataType.DataBlock, db, startByte, countBytes, transportSize, data, tag.Name!));
+        }
+
+        return true;
+    }
+
+    /// <summary>Checks parsed multi-var write response results.</summary>
+    /// <param name="receiveBuffer">The response buffer.</param>
+    /// <param name="itemCount">The expected item count.</param>
+    /// <returns>true when all write results succeeded; otherwise, false.</returns>
+    private static bool AreMultiVarWriteResultsSuccessful(byte[] receiveBuffer, int itemCount)
+    {
+        var results = S7MultiVar.ParseWriteVarResponse(receiveBuffer, itemCount);
+        if (results.Count != itemCount)
+        {
+            return false;
+        }
+
+        foreach (var result in results)
+        {
+            if (result.ReturnCode != 0xFF)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Sends a multi-var request and receives the response.</summary>
+    /// <param name="socketRx">The socket wrapper to use.</param>
+    /// <param name="tag">The tag used for error context.</param>
+    /// <param name="request">The request buffer.</param>
+    /// <param name="receiveBuffer">The receive buffer.</param>
+    /// <returns>true when the request was sent and a response was received; otherwise, false.</returns>
+    private static bool TrySendMultiVarRequest(S7SocketRx socketRx, Tag tag, byte[] request, byte[] receiveBuffer)
+    {
+        if (request.Length == 0)
+        {
+            return false;
+        }
+
+        var sent = socketRx.Send(tag, request, request.Length);
+        if (sent != request.Length)
+        {
+            return false;
+        }
+
+        Array.Clear(receiveBuffer, 0, receiveBuffer.Length);
+        _ = socketRx.Receive(tag, receiveBuffer, receiveBuffer.Length);
+        return true;
+    }
+
+    /// <summary>Creates a dictionary from parsed multi-var read results.</summary>
+    /// <param name="tags">The original tags.</param>
+    /// <param name="parsed">The parsed read results.</param>
+    /// <param name="varTypes">The variable types.</param>
+    /// <param name="arrayLengths">The array lengths.</param>
+    /// <param name="parseBytes">The byte parser.</param>
+    /// <returns>The read result dictionary.</returns>
+    private static Dictionary<string, object?> CreateMultiVarReadResult(
+        IReadOnlyList<Tag> tags,
+        List<S7MultiVar.ReadResult> parsed,
+        VarType[] varTypes,
+        int[] arrayLengths,
+        Func<VarType, byte[], int, object?> parseBytes)
+    {
+        var dict = new Dictionary<string, object?>(tags.Count, StringComparer.InvariantCultureIgnoreCase);
+        for (var i = 0; i < tags.Count && i < parsed.Count; i++)
+        {
+            var result = parsed[i];
+            if (result.ReturnCode != 0xFF || result.Data.IsEmpty)
+            {
+                dict[tags[i].Name!] = default;
+                continue;
+            }
+
+            dict[tags[i].Name!] = parseBytes(varTypes[i], result.Data.ToArray(), arrayLengths[i]);
+        }
+
+        return dict;
+    }
+
+    /// <summary>Attempts to serialize the new value of the specified tag into a byte array suitable for transport.</summary>
     /// <remarks>The method supports serialization for common primitive types, arrays of bytes, and strings.
     /// If the tag's type is not supported or the new value is null, the method returns false and outputs an empty
     /// array.</remarks>
@@ -798,56 +862,129 @@ public class RxS7 : IRxS7
         transportSize = 2;
         data = [];
 
-        if (tag.NewValue == null)
-        {
-            return false;
-        }
+        return tag.NewValue is not null &&
+            (TrySerializeScalarTagValue(tag, out data) || TrySerializeArrayTagValue(tag, out data));
+    }
 
+    /// <summary>Attempts to serialize a scalar tag value.</summary>
+    /// <param name="tag">The tag to serialize.</param>
+    /// <param name="data">The serialized bytes.</param>
+    /// <returns>true when serialization succeeds; otherwise, false.</returns>
+    private static bool TrySerializeScalarTagValue(Tag tag, out byte[] data)
+    {
+        data = [];
         switch (tag.Type.Name)
         {
-            case "Boolean":
-            case "Byte":
-                data = [(byte)Convert.ChangeType(tag.NewValue, typeof(byte))!];
-                return true;
+            case "Boolean" or "Byte":
+                {
+                    data = [(byte)Convert.ChangeType(tag.NewValue, typeof(byte))!];
+                    return true;
+                }
 
-            case "Int16":
-            case "short":
-                data = Int.ToByteArray((short)tag.NewValue!);
-                return true;
+            case "Int16" or "short":
+                {
+                    data = Int.ToByteArray((short)tag.NewValue!);
+                    return true;
+                }
 
-            case "UInt16":
-            case "ushort":
-                data = Word.ToByteArray((ushort)Convert.ChangeType(tag.NewValue, typeof(ushort))!);
-                return true;
+            case "UInt16" or "ushort":
+                {
+                    data = Word.ToByteArray((ushort)Convert.ChangeType(tag.NewValue, typeof(ushort))!);
+                    return true;
+                }
 
-            case "Int32":
-            case "int":
-                data = DInt.ToByteArray((int)tag.NewValue!);
-                return true;
+            case "Int32" or "int":
+                {
+                    data = DInt.ToByteArray((int)tag.NewValue!);
+                    return true;
+                }
 
-            case "UInt32":
-            case "uint":
-                data = DWord.ToByteArray((uint)Convert.ChangeType(tag.NewValue, typeof(uint))!);
-                return true;
+            case "UInt32" or "uint":
+                {
+                    data = DWord.ToByteArray((uint)Convert.ChangeType(tag.NewValue, typeof(uint))!);
+                    return true;
+                }
 
             case "Single":
-                data = Real.ToByteArray((float)tag.NewValue!);
-                return true;
+                {
+                    data = Real.ToByteArray((float)tag.NewValue!);
+                    return true;
+                }
 
             case "Double":
-                data = LReal.ToByteArray((double)tag.NewValue!);
-                return true;
-
-            case "Byte[]":
-                data = (byte[])tag.NewValue;
-                return true;
-
-            case "String":
-                data = PlcTypes.String.ToByteArray(tag.NewValue as string);
-                return true;
+                {
+                    data = LReal.ToByteArray((double)tag.NewValue!);
+                    return true;
+                }
 
             default:
-                return false;
+                {
+                    return false;
+                }
+        }
+    }
+
+    /// <summary>Attempts to serialize an array or string tag value.</summary>
+    /// <param name="tag">The tag to serialize.</param>
+    /// <param name="data">The serialized bytes.</param>
+    /// <returns>true when serialization succeeds; otherwise, false.</returns>
+    private static bool TrySerializeArrayTagValue(Tag tag, out byte[] data)
+    {
+        data = [];
+        switch (tag.Type.Name)
+        {
+            case "Byte[]":
+                {
+                    data = (byte[])tag.NewValue!;
+                    return true;
+                }
+
+            case "Int16[]" or "short[]":
+                {
+                    data = Int.ToByteArray((short[])tag.NewValue!);
+                    return true;
+                }
+
+            case "UInt16[]" or "ushort[]":
+                {
+                    data = Word.ToByteArray((ushort[])tag.NewValue!);
+                    return true;
+                }
+
+            case "Int32[]" or "int[]":
+                {
+                    data = DInt.ToByteArray((int[])tag.NewValue!);
+                    return true;
+                }
+
+            case "UInt32[]" or "uint[]":
+                {
+                    data = DWord.ToByteArray((uint[])Convert.ChangeType(tag.NewValue, typeof(uint[]))!);
+                    return true;
+                }
+
+            case "Single[]":
+                {
+                    data = Real.ToByteArray((float[])tag.NewValue!);
+                    return true;
+                }
+
+            case "Double[]":
+                {
+                    data = LReal.ToByteArray((double[])tag.NewValue!);
+                    return true;
+                }
+
+            case "String":
+                {
+                    data = PlcTypes.String.ToByteArray(tag.NewValue as string);
+                    return true;
+                }
+
+            default:
+                {
+                    return false;
+                }
         }
     }
 
@@ -865,9 +1002,7 @@ public class RxS7 : IRxS7
     private static bool TryParseInt(ReadOnlySpan<char> s, out int value) =>
         int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
 
-    /// <summary>
-    /// Attempts to parse a data block address for a multi-variable tag and extract its components.
-    /// </summary>
+    /// <summary>Attempts to parse a data block address for a multi-variable tag and extract its components.</summary>
     /// <remarks>The method supports addresses in the format "DBx.DBByy", "DBx.DBWyy", or "DBx.DBDyy", where x
     /// is the data block number and yy is the byte offset. The variable type is inferred from both the address and the
     /// tag's Type property. This method does not throw exceptions for invalid input; instead, it returns false and sets
@@ -889,37 +1024,7 @@ public class RxS7 : IRxS7
         varType = VarType.Byte;
         countBytes = 0;
 
-        if (string.IsNullOrWhiteSpace(tag.Address) || tag.ArrayLength == null)
-        {
-            return false;
-        }
-
-        var addr = tag.Address!.ToUpperInvariant().Replace(" ", string.Empty);
-        if (!addr.AsSpan().StartsWith("DB".AsSpan(), StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var parts = addr.Split(['.']);
-        if (parts.Length < 2)
-        {
-            return false;
-        }
-
-        if (!TryParseInt(parts[0].AsSpan(2), out db))
-        {
-            return false;
-        }
-
-        // keep dbType extraction as string (switch below)
-        var part1 = parts[1];
-        if (part1.Length < 3)
-        {
-            return false;
-        }
-
-        var dbType = part1.Substring(0, 3);
-        if (!TryParseInt(part1.AsSpan(3), out startByte))
+        if (tag.ArrayLength is null || !TryParseDbAddressParts(tag.Address, out db, out var dbType, out startByte))
         {
             return false;
         }
@@ -927,37 +1032,82 @@ public class RxS7 : IRxS7
         switch (dbType)
         {
             case "DBB":
-                varType = VarType.Byte;
-                break;
-            case "DBW":
-                varType = tag.Type == typeof(short) || tag.Type == typeof(short[]) ? VarType.Int : VarType.Word;
-                break;
-            case "DBD":
-                if (tag.Type == typeof(double) || tag.Type == typeof(double[]))
                 {
-                    varType = VarType.LReal;
-                }
-                else if (tag.Type == typeof(float) || tag.Type == typeof(float[]))
-                {
-                    varType = VarType.Real;
-                }
-                else if (tag.Type == typeof(int) || tag.Type == typeof(int[]))
-                {
-                    varType = VarType.DInt;
-                }
-                else
-                {
-                    varType = VarType.DWord;
+                    varType = VarType.Byte;
+                    break;
                 }
 
-                break;
+            case "DBW":
+                {
+                    varType = tag.Type == typeof(short) || tag.Type == typeof(short[]) ? VarType.Int : VarType.Word;
+                    break;
+                }
+
+            case "DBD":
+                {
+                    varType = GetDbdMultiVarType(tag.Type);
+                    break;
+                }
+
             default:
-                return false;
+                {
+                    return false;
+                }
         }
 
         countBytes = VarTypeToByteLength(varType, tag.ArrayLength.Value);
         return countBytes > 0;
     }
+
+    /// <summary>Attempts to parse the DB number, type, and start byte from an S7 DB address.</summary>
+    /// <param name="address">The source address.</param>
+    /// <param name="db">The parsed DB number.</param>
+    /// <param name="dbType">The parsed DB type prefix.</param>
+    /// <param name="startByte">The parsed start byte.</param>
+    /// <returns>true when the address parts are valid; otherwise, false.</returns>
+    private static bool TryParseDbAddressParts(string? address, out int db, out string dbType, out int startByte)
+    {
+        db = 0;
+        dbType = string.Empty;
+        startByte = 0;
+
+        if (address is null || string.IsNullOrWhiteSpace(address))
+        {
+            return false;
+        }
+
+        var normalized = address.Replace(" ", string.Empty).ToUpperInvariant();
+        if (!normalized.AsSpan().StartsWith("DB".AsSpan(), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var parts = normalized.Split(['.']);
+        if (parts.Length < 2 || !TryParseInt(parts[0].AsSpan(2), out db))
+        {
+            return false;
+        }
+
+        var item = parts[1];
+        if (item.Length < 3 || !TryParseInt(item.AsSpan(3), out startByte))
+        {
+            return false;
+        }
+
+        dbType = item[..3];
+        return true;
+    }
+
+    /// <summary>Gets the multi-var type for a DBD address from the tag value type.</summary>
+    /// <param name="tagType">The tag value type.</param>
+    /// <returns>The multi-var type.</returns>
+    private static VarType GetDbdMultiVarType(Type tagType) => tagType switch
+    {
+        _ when tagType == typeof(double) || tagType == typeof(double[]) => VarType.LReal,
+        _ when tagType == typeof(float) || tagType == typeof(float[]) => VarType.Real,
+        _ when tagType == typeof(int) || tagType == typeof(int[]) => VarType.DInt,
+        _ => VarType.DWord,
+    };
 
     /// <summary>
     /// Determines whether the specified tag is non-null and its type and value are compatible with the specified type
@@ -968,7 +1118,7 @@ public class RxS7 : IRxS7
     /// <typeparam name="T">The type to validate against the tag's type and value.</typeparam>
     /// <param name="tag">The tag to validate. May be null.</param>
     /// <returns>true if the tag is not null and its type and value match the specified type parameter; otherwise, false.</returns>
-    private static bool TagValueIsValid<T>(Tag? tag) => tag != null && (typeof(T) == typeof(object) || (tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
+    private static bool TagValueIsValid<T>(Tag? tag) => tag is not null && (typeof(T) == typeof(object) || (tag.Type == typeof(T) && tag.Value?.GetType() == typeof(T)));
 
     /// <summary>
     /// Determines whether the specified tag's name matches the given variable and its type and value are compatible
@@ -1002,39 +1152,43 @@ public class RxS7 : IRxS7
         package.Add([18, 10, 16]);
         switch (dataType)
         {
-            case DataType.Timer:
-            case DataType.Counter:
-                package.Add((byte)dataType);
-                break;
+            case DataType.Timer or DataType.Counter:
+                {
+                    package.Add((byte)dataType);
+                    break;
+                }
 
             default:
-                package.Add(2);
-                break;
+                {
+                    package.Add(2);
+                    break;
+                }
         }
 
         package.Add(Word.ToByteArray((ushort)count));
         package.Add(Word.ToByteArray((ushort)db));
         package.Add((byte)dataType);
-        var overflow = (int)(startByteAdr * 8 / 65535U); // handles words with address bigger than 8191
+        var overflow = (int)(startByteAdr * 8 / 65_535U); // handles words with address bigger than 8191
         package.Add((byte)overflow);
         switch (dataType)
         {
-            case DataType.Timer:
-            case DataType.Counter:
-                package.Add(Word.ToByteArray((ushort)startByteAdr));
-                break;
+            case DataType.Timer or DataType.Counter:
+                {
+                    package.Add(Word.ToByteArray((ushort)startByteAdr));
+                    break;
+                }
 
             default:
-                package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
-                break;
+                {
+                    package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
+                    break;
+                }
         }
 
         return package;
     }
 
-    /// <summary>
-    /// Creates a header package for a specified number of requests.
-    /// </summary>
+    /// <summary>Creates a header package for a specified number of requests.</summary>
     /// <remarks>The returned header package is formatted with a fixed header size and includes fields that
     /// depend on the specified amount. This method is intended for use in constructing protocol-compliant request
     /// headers.</remarks>
@@ -1061,9 +1215,7 @@ public class RxS7 : IRxS7
         return package;
     }
 
-    /// <summary>
-    /// Calculates the total number of bytes required to represent a value or array of the specified variable type.
-    /// </summary>
+    /// <summary>Calculates the total number of bytes required to represent a value or array of the specified variable type.</summary>
     /// <remarks>This method is typically used to determine buffer sizes or offsets when working with raw data
     /// representations of various variable types. The calculation depends on the size of each type and the number of
     /// elements specified.</remarks>
@@ -1090,17 +1242,21 @@ public class RxS7 : IRxS7
     /// <param name="tag">The tag. For the Address Input strings like "DB1.DBX0.0", "DB20.DBD200", "MB20", "T45", etc.</param>
     private void Write(Tag tag)
     {
+#if NET8_0_OR_GREATER
+        ArgumentException.ThrowIfNullOrWhiteSpace(tag.Address);
+#else
         if (string.IsNullOrWhiteSpace(tag.Address))
         {
             throw new ArgumentNullException(nameof(tag.Address));
         }
+#endif
 
-        if (tag.NewValue == null)
+        if (tag.NewValue is null)
         {
             throw new ArgumentNullException(nameof(tag.NewValue));
         }
 
-        _pLCRequestSubject.OnNext(new(PLCRequestType.Write, tag));
+        _plcRequestSubject.OnNext(new(PLCRequestType.Write, tag));
     }
 
     /// <summary>
@@ -1128,7 +1284,7 @@ public class RxS7 : IRxS7
     {
         lock (_socketLock)
         {
-            var bReceive = new byte[1024];
+            var receiveBuffer = new byte[1024];
             try
             {
                 var varCount = value.Length;
@@ -1162,12 +1318,12 @@ public class RxS7 : IRxS7
                     return false;
                 }
 
-                var result = _socketRx.Receive(tag, bReceive, 1024);
+                var result = _socketRx.Receive(tag, receiveBuffer, 1024);
 
-                if (bReceive[21] != 0xff)
+                if (receiveBuffer[21] != 0xff)
                 {
                     _lastErrorCode.OnNext(ErrorCode.WriteData);
-                    _lastError.OnNext($"Tag {tag.Name} failed to write - {nameof(ErrorCode.WrongNumberReceivedBytes)} code {bReceive[21]}");
+                    _lastError.OnNext($"Tag {tag.Name} failed to write - {nameof(ErrorCode.WrongNumberReceivedBytes)} code {receiveBuffer[21]}");
                     return false;
                 }
 
@@ -1183,16 +1339,14 @@ public class RxS7 : IRxS7
         }
     }
 
-    /// <summary>
-    /// Attempts to read a value for the specified tag and assigns it to the tag if successful.
-    /// </summary>
+    /// <summary>Attempts to read a value for the specified tag and assigns it to the tag if successful.</summary>
     /// <remarks>If the tag cannot be read or an error occurs, the tag's value is not modified.</remarks>
     /// <param name="tag">The tag for which to retrieve and assign a value. If <paramref name="tag"/> is <see langword="null"/>, no action
     /// is taken.</param>
     private void GetTagValue(Tag? tag)
     {
         var result = Read(tag);
-        if (tag == null || result == null || result is ErrorCode)
+        if (tag is null || result is null || result is ErrorCode)
         {
             return;
         }
@@ -1200,9 +1354,7 @@ public class RxS7 : IRxS7
         tag.Value = result;
     }
 
-    /// <summary>
-    /// Parses a byte array into an object of the specified variable type and count.
-    /// </summary>
+    /// <summary>Parses a byte array into an object of the specified variable type and count.</summary>
     /// <remarks>The returned object type depends on the specified <paramref name="varType"/> and <paramref
     /// name="varCount"/>. For example, if <paramref name="varType"/> is <c>Word</c> and <paramref name="varCount"/> is
     /// 1, a single <c>Word</c> object is returned; if <paramref name="varCount"/> is greater than 1, an array of
@@ -1222,94 +1374,7 @@ public class RxS7 : IRxS7
     {
         try
         {
-            if (bytes == null)
-            {
-                return default;
-            }
-
-            switch (varType)
-            {
-                case VarType.Byte:
-                    if (varCount == 1)
-                    {
-                        return bytes[0];
-                    }
-
-                    return bytes;
-
-                case VarType.Word:
-                    if (varCount == 1)
-                    {
-                        return Word.FromByteArray(bytes);
-                    }
-
-                    return Word.ToArray(bytes);
-
-                case VarType.Int:
-                    if (varCount == 1)
-                    {
-                        return Int.FromByteArray(bytes);
-                    }
-
-                    return Int.ToArray(bytes);
-
-                case VarType.DWord:
-                    if (varCount == 1)
-                    {
-                        return DWord.FromByteArray(bytes);
-                    }
-
-                    return DWord.ToArray(bytes);
-
-                case VarType.DInt:
-                    if (varCount == 1)
-                    {
-                        return DInt.FromByteArray(bytes);
-                    }
-
-                    return DInt.ToArray(bytes);
-
-                case VarType.Real:
-                    if (varCount == 1)
-                    {
-                        return Real.FromByteArray(bytes);
-                    }
-
-                    return Real.ToArray(bytes);
-
-                case VarType.LReal:
-                    if (varCount == 1)
-                    {
-                        return LReal.FromByteArray(bytes);
-                    }
-
-                    return LReal.ToArray(bytes);
-
-                case VarType.String:
-                    return PlcTypes.String.FromByteArray(bytes);
-
-                case VarType.Timer:
-                    if (varCount == 1)
-                    {
-                        return PlcTypes.Timer.FromByteArray(bytes);
-                    }
-
-                    return PlcTypes.Timer.ToArray(bytes);
-
-                case VarType.Counter:
-                    if (varCount == 1)
-                    {
-                        return Counter.FromByteArray(bytes);
-                    }
-
-                    return Counter.ToArray(bytes);
-
-                case VarType.Bit:
-                    return (bytes[0] & 0x01) == 0x01;
-
-                default:
-                    return default;
-            }
+            return bytes is null ? default : RxS7ValueHelpers.ParseNonNullBytes(varType, bytes, varCount);
         }
         catch (Exception ex)
         {
@@ -1324,6 +1389,7 @@ public class RxS7 : IRxS7
     /// read multiple consecutive variables of the same type (Word, DWord, Int, etc). If the
     /// read was not successful, check LastErrorCode or LastErrorString.
     /// </summary>
+    /// <typeparam name="T">The t value type.</typeparam>
     /// <param name="tag">The tag.</param>
     /// <param name="dataType">
     /// Data type of the memory area, can be DB, Timer, Counter, Memory, Input, Output.
@@ -1352,7 +1418,7 @@ public class RxS7 : IRxS7
         }
         finally
         {
-            _lock.Release();
+            _ = _lock.Release();
         }
 
         return default;
@@ -1376,339 +1442,34 @@ public class RxS7 : IRxS7
     /// whitespace.</exception>
     private object? Read(Tag? tag)
     {
+#if NET8_0_OR_GREATER
+        ArgumentException.ThrowIfNullOrWhiteSpace(tag?.Address);
+#else
         if (string.IsNullOrWhiteSpace(tag?.Address))
         {
             throw new ArgumentNullException(nameof(tag));
         }
-
-        DataType dataType;
-        int dB;
-        int mByte;
-        int mBit;
-
-        BitArray objBoolArray;
+#endif
 
         // remove spaces
         var correctVariable = tag!.Address!.ToUpper().Replace(" ", string.Empty);
 
         try
         {
-            switch (correctVariable!.Substring(0, 2))
+            return correctVariable[..2] switch
             {
-                case "DB":
-                    var strings = correctVariable.Split(['.']);
-                    if (strings.Length < 2)
-                    {
-                        throw new Exception();
-                    }
-
-                    dB = int.Parse(strings[0].Substring(2));
-                    var dbType = strings[1].Substring(0, 3);
-                    var dbIndex = int.Parse(strings[1].Substring(3));
-
-                    switch (dbType)
-                    {
-                        case "DBB":
-                            if (tag.Type == typeof(byte[]))
-                            {
-                                return Read<byte[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Byte);
-                            }
-
-                            // TODO: fix string
-                            ////if (tag.Type == typeof(string))
-                            ////{
-                            ////    return Read<string[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.String);
-                            ////}
-
-                            return Read<byte>(tag, DataType.DataBlock, dB, dbIndex, VarType.Byte);
-
-                        case "DBW":
-                            if (tag.Type == typeof(short[]))
-                            {
-                                return Read<short[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Int);
-                            }
-
-                            if (tag.Type == typeof(short))
-                            {
-                                return Read<short>(tag, DataType.DataBlock, dB, dbIndex, VarType.Int);
-                            }
-
-                            if (tag.Type == typeof(ushort[]))
-                            {
-                                return Read<ushort[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
-                            }
-
-                            return Read<ushort>(tag, DataType.DataBlock, dB, dbIndex, VarType.Word);
-
-                        case "DBD":
-                            if (tag.Type == typeof(double))
-                            {
-                                return Read<double>(tag, DataType.DataBlock, dB, dbIndex, VarType.LReal);
-                            }
-
-                            if (tag.Type == typeof(double[]))
-                            {
-                                return Read<double[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.LReal);
-                            }
-
-                            if (tag.Type == typeof(float))
-                            {
-                                return Read<float>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real);
-                            }
-
-                            if (tag.Type == typeof(float[]))
-                            {
-                                return Read<float[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.Real);
-                            }
-
-                            if (tag.Type == typeof(int))
-                            {
-                                return Read<int>(tag, DataType.DataBlock, dB, dbIndex, VarType.DInt);
-                            }
-
-                            if (tag.Type == typeof(int[]))
-                            {
-                                return Read<int[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.DInt);
-                            }
-
-                            if (tag.Type == typeof(uint[]))
-                            {
-                                return Read<uint[]>(tag, DataType.DataBlock, dB, dbIndex, VarType.DWord);
-                            }
-
-                            return Read<uint>(tag, DataType.DataBlock, dB, dbIndex, VarType.DWord);
-
-                        case "DBX":
-                            mByte = dbIndex;
-                            mBit = int.Parse(strings[2]);
-                            if (mBit > 7)
-                            {
-                                throw new Exception();
-                            }
-
-                            var obj2 = Read<byte>(tag, DataType.DataBlock, dB, mByte, VarType.Byte);
-                            objBoolArray = new BitArray([obj2]);
-                            return objBoolArray[mBit];
-
-                        default:
-                            throw new Exception();
-                    }
-
-                case "EB":
-
-                    // Input byte
-                    if (tag.Type == typeof(byte[]))
-                    {
-                        return Read<byte[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Byte);
-                    }
-
-                    return Read<byte>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Byte);
-
-                case "EW":
-
-                    // Input word
-                    if (tag.Type == typeof(ushort[]))
-                    {
-                        return Read<ushort[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    if (tag.Type == typeof(short[]))
-                    {
-                        return Read<short[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    if (tag.Type == typeof(short))
-                    {
-                        return Read<short>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    return Read<ushort>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-
-                case "ED":
-
-                    // Input double-word
-                    if (tag.Type == typeof(uint[]))
-                    {
-                        return Read<uint[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
-                    }
-
-                    if (tag.Type == typeof(int[]))
-                    {
-                        return Read<int[]>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
-                    }
-
-                    if (tag.Type == typeof(int))
-                    {
-                        return Read<int>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
-                    }
-
-                    return Read<uint>(tag, DataType.Input, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
-
-                case "AB":
-
-                    // Output byte
-                    if (tag.Type == typeof(byte[]))
-                    {
-                        return Read<byte[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Byte);
-                    }
-
-                    return Read<byte>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Byte);
-
-                case "AW":
-
-                    // Output word
-                    if (tag.Type == typeof(ushort[]))
-                    {
-                        return Read<ushort[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    if (tag.Type == typeof(short[]))
-                    {
-                        return Read<short[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    if (tag.Type == typeof(short))
-                    {
-                        return Read<short>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    return Read<ushort>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-
-                case "AD":
-
-                    // Output double-word
-                    if (tag.Type == typeof(uint[]))
-                    {
-                        return Read<uint[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
-                    }
-
-                    if (tag.Type == typeof(int[]))
-                    {
-                        return Read<int[]>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
-                    }
-
-                    if (tag.Type == typeof(int))
-                    {
-                        return Read<int>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
-                    }
-
-                    return Read<uint>(tag, DataType.Output, 0, int.Parse(correctVariable.Substring(2)), VarType.DWord);
-
-                case "MB":
-
-                    // Memory byte
-                    if (tag.Type == typeof(byte[]))
-                    {
-                        return Read<byte[]>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Byte);
-                    }
-
-                    return Read<byte>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Byte);
-
-                case "MW":
-
-                    // Memory word
-                    if (tag.Type == typeof(ushort[]))
-                    {
-                        return Read<ushort[]>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    if (tag.Type == typeof(short[]))
-                    {
-                        return Read<short[]>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    if (tag.Type == typeof(short))
-                    {
-                        return Read<short>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-                    }
-
-                    return Read<ushort>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.Word);
-
-                case "MD":
-
-                    // Memory double-word
-                    if (tag.Type == typeof(double[]))
-                    {
-                        return Read<double[]>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.LReal);
-                    }
-
-                    return Read<double>(tag, DataType.Memory, 0, int.Parse(correctVariable.Substring(2)), VarType.LReal);
-
-                default:
-                    switch (correctVariable.Substring(0, 1))
-                    {
-                        case "E":
-                        case "I":
-
-                            // Input
-                            dataType = DataType.Input;
-                            break;
-
-                        case "A":
-                        case "O":
-
-                            // Output
-                            dataType = DataType.Output;
-                            break;
-
-                        case "M":
-
-                            // Memory
-                            dataType = DataType.Memory;
-                            break;
-
-                        case "T":
-
-                            // Timer
-                            if (tag.Type == typeof(double[]))
-                            {
-                                return Read<double[]>(tag, DataType.Timer, 0, int.Parse(correctVariable.Substring(2)), VarType.Timer);
-                            }
-
-                            return Read<double>(tag, DataType.Timer, 0, int.Parse(correctVariable.Substring(1)), VarType.Timer);
-
-                        case "Z":
-                        case "C":
-
-                            // Counter
-                            if (tag.Type == typeof(ushort[]))
-                            {
-                                return Read<ushort[]>(tag, DataType.Counter, 0, int.Parse(correctVariable.Substring(2)), VarType.Counter);
-                            }
-
-                            if (tag.Type == typeof(short[]))
-                            {
-                                return Read<short[]>(tag, DataType.Counter, 0, int.Parse(correctVariable.Substring(2)), VarType.Counter);
-                            }
-
-                            if (tag.Type == typeof(short))
-                            {
-                                return Read<short>(tag, DataType.Counter, 0, int.Parse(correctVariable.Substring(2)), VarType.Counter);
-                            }
-
-                            return Read<ushort>(tag, DataType.Counter, 0, int.Parse(correctVariable.Substring(1)), VarType.Counter);
-
-                        default:
-                            throw new Exception();
-                    }
-
-                    var txt2 = correctVariable.Substring(1);
-                    if (!txt2.Contains('.'))
-                    {
-                        throw new Exception();
-                    }
-
-                    mByte = int.Parse(txt2.Substring(0, txt2.IndexOf('.')));
-                    mBit = int.Parse(txt2.Substring(txt2.IndexOf('.') + 1));
-                    if (mBit > 7)
-                    {
-                        throw new Exception(string.Format("Addressing Error: You can only reference bitwise locations 0-7. Address {0} is invalid", mBit));
-                    }
-
-                    var obj3 = Read<byte>(tag, dataType, 0, mByte, VarType.Byte);
-                    objBoolArray = new BitArray([obj3]);
-                    return objBoolArray[mBit];
-            }
+                "DB" => ReadDataBlockAddress(tag, correctVariable),
+                "EB" => ReadByteAddress(tag, DataType.Input, int.Parse(correctVariable[2..])),
+                "EW" => ReadWordAddress(tag, DataType.Input, int.Parse(correctVariable[2..]), VarType.Word, VarType.Word),
+                "ED" => ReadAreaDWordAddress(tag, DataType.Input, int.Parse(correctVariable[2..])),
+                "AB" => ReadByteAddress(tag, DataType.Output, int.Parse(correctVariable[2..])),
+                "AW" => ReadWordAddress(tag, DataType.Output, int.Parse(correctVariable[2..]), VarType.Word, VarType.Word),
+                "AD" => ReadAreaDWordAddress(tag, DataType.Output, int.Parse(correctVariable[2..])),
+                "MB" => ReadByteAddress(tag, DataType.Memory, int.Parse(correctVariable[2..])),
+                "MW" => ReadWordAddress(tag, DataType.Memory, int.Parse(correctVariable[2..]), VarType.Word, VarType.Word),
+                "MD" => ReadMemoryDWordAddress(tag, int.Parse(correctVariable[2..])),
+                _ => ReadSpecialOrBitAddress(tag, correctVariable),
+            };
         }
         catch
         {
@@ -1718,9 +1479,223 @@ public class RxS7 : IRxS7
         }
     }
 
-    /// <summary>
-    /// Reads a sequence of bytes from the specified data block and address using the given tag and data type.
-    /// </summary>
+    /// <summary>Reads a data block address.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="correctVariable">The normalized variable address.</param>
+    /// <returns>The value read from the data block address.</returns>
+    private object? ReadDataBlockAddress(Tag tag, string correctVariable)
+    {
+        var strings = correctVariable.Split(['.']);
+        if (strings.Length < 2)
+        {
+            throw new ArgumentException($"Cannot parse DB address '{correctVariable}'.", nameof(tag));
+        }
+
+        var dbNumber = int.Parse(strings[0][2..]);
+        var dbType = strings[1][..3];
+        var dbIndex = int.Parse(strings[1][3..]);
+        return dbType switch
+        {
+            "DBB" => ReadByteAddress(tag, DataType.DataBlock, dbIndex, dbNumber),
+            "DBW" => ReadWordAddress(tag, DataType.DataBlock, dbIndex, VarType.Int, VarType.Word, dbNumber),
+            "DBD" => ReadDataBlockDWordAddress(tag, dbNumber, dbIndex),
+            "DBX" => ReadDataBlockBitAddress(tag, strings, dbNumber, dbIndex),
+            _ => throw new ArgumentException($"Unable to parse DB address type '{dbType}'.", nameof(tag)),
+        };
+    }
+
+    /// <summary>Reads a byte address from the specified data area.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="dataType">The data area type.</param>
+    /// <param name="startByteAdr">The byte offset.</param>
+    /// <param name="db">The data block number.</param>
+    /// <returns>The byte value or array.</returns>
+    private object? ReadByteAddress(Tag tag, DataType dataType, int startByteAdr, int db = 0) =>
+        tag.Type == typeof(byte[])
+            ? Read<byte[]>(tag, dataType, db, startByteAdr, VarType.Byte)
+            : Read<byte>(tag, dataType, db, startByteAdr, VarType.Byte);
+
+    /// <summary>Reads a word address from the specified data area.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="dataType">The data area type.</param>
+    /// <param name="startByteAdr">The byte offset.</param>
+    /// <param name="signedVarType">The variable type for signed values.</param>
+    /// <param name="unsignedVarType">The variable type for unsigned values.</param>
+    /// <param name="db">The data block number.</param>
+    /// <returns>The word value or array.</returns>
+    private object? ReadWordAddress(Tag tag, DataType dataType, int startByteAdr, VarType signedVarType, VarType unsignedVarType, int db = 0)
+    {
+        if (tag.Type == typeof(short[]))
+        {
+            return Read<short[]>(tag, dataType, db, startByteAdr, signedVarType);
+        }
+
+        if (tag.Type == typeof(short))
+        {
+            return Read<short>(tag, dataType, db, startByteAdr, signedVarType);
+        }
+
+        return tag.Type == typeof(ushort[])
+            ? Read<ushort[]>(tag, dataType, db, startByteAdr, unsignedVarType)
+            : Read<ushort>(tag, dataType, db, startByteAdr, unsignedVarType);
+    }
+
+    /// <summary>Reads a data block double-word address.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="db">The data block number.</param>
+    /// <param name="startByteAdr">The byte offset.</param>
+    /// <returns>The double-word value or array.</returns>
+    private object? ReadDataBlockDWordAddress(Tag tag, int db, int startByteAdr)
+    {
+        if (tag.Type == typeof(double))
+        {
+            return Read<double>(tag, DataType.DataBlock, db, startByteAdr, VarType.LReal);
+        }
+
+        if (tag.Type == typeof(double[]))
+        {
+            return Read<double[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.LReal);
+        }
+
+        if (tag.Type == typeof(float))
+        {
+            return Read<float>(tag, DataType.DataBlock, db, startByteAdr, VarType.Real);
+        }
+
+        if (tag.Type == typeof(float[]))
+        {
+            return Read<float[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.Real);
+        }
+
+        if (tag.Type == typeof(int))
+        {
+            return Read<int>(tag, DataType.DataBlock, db, startByteAdr, VarType.DInt);
+        }
+
+        if (tag.Type == typeof(int[]))
+        {
+            return Read<int[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.DInt);
+        }
+
+        return tag.Type == typeof(uint[])
+            ? Read<uint[]>(tag, DataType.DataBlock, db, startByteAdr, VarType.DWord)
+            : Read<uint>(tag, DataType.DataBlock, db, startByteAdr, VarType.DWord);
+    }
+
+    /// <summary>Reads a non-data-block double-word address.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="dataType">The data area type.</param>
+    /// <param name="startByteAdr">The byte offset.</param>
+    /// <returns>The double-word value or array.</returns>
+    private object? ReadAreaDWordAddress(Tag tag, DataType dataType, int startByteAdr)
+    {
+        if (tag.Type == typeof(uint[]))
+        {
+            return Read<uint[]>(tag, dataType, 0, startByteAdr, VarType.DWord);
+        }
+
+        if (tag.Type == typeof(int[]))
+        {
+            return Read<int[]>(tag, dataType, 0, startByteAdr, VarType.DWord);
+        }
+
+        return tag.Type == typeof(int)
+            ? Read<int>(tag, dataType, 0, startByteAdr, VarType.DWord)
+            : Read<uint>(tag, dataType, 0, startByteAdr, VarType.DWord);
+    }
+
+    /// <summary>Reads a memory double-word address.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="startByteAdr">The byte offset.</param>
+    /// <returns>The memory double-word value or array.</returns>
+    private object? ReadMemoryDWordAddress(Tag tag, int startByteAdr) =>
+        tag.Type == typeof(double[])
+            ? Read<double[]>(tag, DataType.Memory, 0, startByteAdr, VarType.LReal)
+            : Read<double>(tag, DataType.Memory, 0, startByteAdr, VarType.LReal);
+
+    /// <summary>Reads a data block bit address.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="strings">The parsed address components.</param>
+    /// <param name="db">The data block number.</param>
+    /// <param name="byteOffset">The byte offset.</param>
+    /// <returns>The bit value.</returns>
+    private bool ReadDataBlockBitAddress(Tag tag, string[] strings, int db, int byteOffset)
+    {
+        var bitOffset = int.Parse(strings[2]);
+        RxS7ValueHelpers.EnsureBitOffsetIsValid(bitOffset, tag);
+        var value = Read<byte>(tag, DataType.DataBlock, db, byteOffset, VarType.Byte);
+        return RxS7ValueHelpers.GetBit(value, bitOffset);
+    }
+
+    /// <summary>Reads a timer, counter, or bit address outside data blocks.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="correctVariable">The normalized variable address.</param>
+    /// <returns>The value read from the address.</returns>
+    private object? ReadSpecialOrBitAddress(Tag tag, string correctVariable)
+    {
+        return correctVariable[..1] switch
+        {
+            "E" or "I" => ReadBitAddress(tag, correctVariable, DataType.Input),
+            "A" or "O" => ReadBitAddress(tag, correctVariable, DataType.Output),
+            "M" => ReadBitAddress(tag, correctVariable, DataType.Memory),
+            "T" => ReadTimerAddress(tag, correctVariable),
+            "Z" or "C" => ReadCounterAddress(tag, correctVariable),
+            _ => throw new ArgumentException($"Unknown variable type {correctVariable[..1]}.", nameof(tag)),
+        };
+    }
+
+    /// <summary>Reads a bit address from the specified data area.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="correctVariable">The normalized variable address.</param>
+    /// <param name="dataType">The data area type.</param>
+    /// <returns>The bit value.</returns>
+    private bool ReadBitAddress(Tag tag, string correctVariable, DataType dataType)
+    {
+        var addressLocation = correctVariable[1..];
+        var decimalPointIndex = addressLocation.IndexOf('.');
+        if (decimalPointIndex == -1)
+        {
+            throw new ArgumentException($"Cannot parse variable {correctVariable}. Input, Output, Memory Address, Timer, and Counter types require bit-level addressing (e.g. I0.1).", nameof(tag));
+        }
+
+        var byteOffset = int.Parse(addressLocation[..decimalPointIndex]);
+        var bitOffset = int.Parse(addressLocation[(decimalPointIndex + 1)..]);
+        RxS7ValueHelpers.EnsureBitOffsetIsValid(bitOffset, tag);
+        var value = Read<byte>(tag, dataType, 0, byteOffset, VarType.Byte);
+        return RxS7ValueHelpers.GetBit(value, bitOffset);
+    }
+
+    /// <summary>Reads a timer address.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="correctVariable">The normalized variable address.</param>
+    /// <returns>The timer value or array.</returns>
+    private object? ReadTimerAddress(Tag tag, string correctVariable) =>
+        tag.Type == typeof(double[])
+            ? Read<double[]>(tag, DataType.Timer, 0, int.Parse(correctVariable[2..]), VarType.Timer)
+            : Read<double>(tag, DataType.Timer, 0, int.Parse(correctVariable[1..]), VarType.Timer);
+
+    /// <summary>Reads a counter address.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="correctVariable">The normalized variable address.</param>
+    /// <returns>The counter value or array.</returns>
+    private object? ReadCounterAddress(Tag tag, string correctVariable)
+    {
+        if (tag.Type == typeof(ushort[]))
+        {
+            return Read<ushort[]>(tag, DataType.Counter, 0, int.Parse(correctVariable[2..]), VarType.Counter);
+        }
+
+        if (tag.Type == typeof(short[]))
+        {
+            return Read<short[]>(tag, DataType.Counter, 0, int.Parse(correctVariable[2..]), VarType.Counter);
+        }
+
+        return tag.Type == typeof(short)
+            ? Read<short>(tag, DataType.Counter, 0, int.Parse(correctVariable[2..]), VarType.Counter)
+            : Read<ushort>(tag, DataType.Counter, 0, int.Parse(correctVariable[1..]), VarType.Counter);
+    }
+
+    /// <summary>Reads a sequence of bytes from the specified data block and address using the given tag and data type.</summary>
     /// <remarks>If the read operation fails or an error occurs, the method returns null and updates the error
     /// state. The method is thread-safe.</remarks>
     /// <param name="tag">The tag that identifies the target device or connection for the read operation.</param>
@@ -1748,26 +1723,26 @@ public class RxS7 : IRxS7
                 }
 
                 var receiveSize = Math.Max(_socketRx.DataReadLength + 256, count + 256);
-                var bReceive = new byte[receiveSize];
-                var result = _socketRx.ReceiveIsoData(tag, ref bReceive);
+                var receiveBuffer = new byte[receiveSize];
+                var result = _socketRx.ReceiveIsoData(tag, ref receiveBuffer);
                 if (result < 25)
                 {
                     return default;
                 }
 
-                if (bReceive[21] != 0xFF)
+                if (receiveBuffer[21] != 0xFF)
                 {
                     return default;
                 }
 
-                var availableDataLength = GetReadResponseDataLengthBytes(bReceive, result);
+                var availableDataLength = RxS7ValueHelpers.GetReadResponseDataLengthBytes(receiveBuffer, result);
                 if (availableDataLength <= 0)
                 {
                     return default;
                 }
 
                 var bytesToCopy = Math.Min(count, availableDataLength);
-                Array.Copy(bReceive, 25, bytes, 0, bytesToCopy);
+                Array.Copy(receiveBuffer, 25, bytes, 0, bytesToCopy);
                 if (bytesToCopy == count)
                 {
                     return bytes;
@@ -1786,10 +1761,7 @@ public class RxS7 : IRxS7
         }
     }
 
-    /// <summary>
-    /// Reads a specified number of bytes from the given data block and starting address using the provided tag and data
-    /// type.
-    /// </summary>
+    /// <summary>Reads a specified number of bytes from the given data block and starting address using the provided tag and data type.</summary>
     /// <remarks>The method attempts to read the requested bytes in chunks, retrying up to three times per
     /// chunk if necessary. If any chunk cannot be read after retries, the method returns an empty array. The returned
     /// array may be empty if the operation fails.</remarks>
@@ -1811,17 +1783,9 @@ public class RxS7 : IRxS7
             while (numBytes > 0)
             {
                 var maxToRead = Math.Min(numBytes, chunkSize);
-                var bytes = default(byte[]);
-                for (var i = 0; i < 3; i++)
-                {
-                    bytes = ReadBytes(tag, dataType, db, index, maxToRead);
-                    if (bytes != null && bytes.Length > 0)
-                    {
-                        break;
-                    }
-                }
+                var bytes = ReadBytesWithRetries(tag, dataType, db, index, maxToRead);
 
-                if (bytes == null || bytes.Length == 0)
+                if (bytes is null || bytes.Length == 0)
                 {
                     if (maxToRead > 1)
                     {
@@ -1852,24 +1816,25 @@ public class RxS7 : IRxS7
         }
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Keep instance methods to satisfy StyleCop member ordering without large refactor in a hot codepath.")]
-    private int GetReadResponseDataLengthBytes(byte[] response, int responseLength)
+    /// <summary>Reads a byte chunk with a small retry window.</summary>
+    /// <param name="tag">The tag to read.</param>
+    /// <param name="dataType">The data type.</param>
+    /// <param name="db">The data block number.</param>
+    /// <param name="index">The byte index.</param>
+    /// <param name="maxToRead">The maximum bytes to read.</param>
+    /// <returns>The read bytes, or null when all attempts fail.</returns>
+    private byte[]? ReadBytesWithRetries(Tag tag, DataType dataType, int db, int index, int maxToRead)
     {
-        if (responseLength <= 25)
+        for (var i = 0; i < 3; i++)
         {
-            return 0;
+            var bytes = ReadBytes(tag, dataType, db, index, maxToRead);
+            if (bytes?.Length > 0)
+            {
+                return bytes;
+            }
         }
 
-        var fallbackLength = responseLength - 25;
-        var dataLength = Word.FromByteArray(response, 23);
-        if (dataLength <= 0)
-        {
-            return fallbackLength;
-        }
-
-        var parsedLength = (dataLength + 7) / 8;
-
-        return Math.Min(parsedLength, fallbackLength);
+        return null;
     }
 
     /// <summary>
@@ -1889,58 +1854,82 @@ public class RxS7 : IRxS7
                 var tim = Observable.Interval(TimeSpan.FromMilliseconds(interval))
                     .Subscribe(async _ =>
                     {
-                        if (IsConnectedValue)
+                        if (!IsConnectedValue)
                         {
-                            if (DateTime.UtcNow - _lastConnectedAtUtc < TimeSpan.FromMilliseconds(250))
-                            {
-                                _paused.OnNext(true);
-                                return;
-                            }
+                            return;
+                        }
 
-                            var tagList = TagList.ToList().Where(t => !t.DoNotPoll);
-                            if (!tagList.Any() || _pause)
-                            {
-                                _paused.OnNext(true);
-                                return;
-                            }
+                        if (DateTime.UtcNow - _lastConnectedAtUtc < TimeSpan.FromMilliseconds(250))
+                        {
+                            NotifyPaused(true);
+                            return;
+                        }
 
-                            _stopwatch.Restart();
-                            _paused.OnNext(false);
-                            try
+                        var tagList = new List<Tag>();
+                        foreach (var item in TagList)
+                        {
+                            if (item is Tag { DoNotPoll: false } tag)
                             {
-                                foreach (var tag in tagList)
+                                tagList.Add(tag);
+                            }
+                        }
+
+                        if (tagList.Count == 0 || _pause)
+                        {
+                            NotifyPaused(true);
+                            return;
+                        }
+
+                        _stopwatch.Restart();
+                        NotifyPaused(false);
+                        try
+                        {
+                            foreach (var tag in tagList)
+                            {
+                                try
                                 {
-                                    if (tag.DoNotPoll)
+                                    while (!IsConnectedValue)
                                     {
-                                        continue;
+                                        await Task.Delay(10);
                                     }
 
-                                    try
-                                    {
-                                        while (!IsConnectedValue)
-                                        {
-                                            await Task.Delay(10);
-                                        }
-
-                                        _pLCRequestSubject.OnNext(new PLCRequest(PLCRequestType.Read, tag));
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _lastError.OnNext(ex.Message);
-                                        _status.OnNext($"{tag.Name} could not be read from {tag.Address}. Error: " + ex);
-                                    }
+                                    _plcRequestSubject.OnNext(new PLCRequest(PLCRequestType.Read, tag));
+                                }
+                                catch (Exception ex)
+                                {
+                                    _lastError.OnNext(ex.Message);
+                                    _status.OnNext($"{tag.Name} could not be read from {tag.Address}. Error: " + ex);
                                 }
                             }
-                            finally
-                            {
-                                _stopwatch.Stop();
-                                _readTime.OnNext(_stopwatch.ElapsedTicks);
-                            }
+                        }
+                        finally
+                        {
+                            _stopwatch.Stop();
+                            _readTime.OnNext(_stopwatch.ElapsedTicks);
                         }
                     });
 
                 return new SingleAssignmentDisposable { Disposable = tim };
-            }).Retry().Publish().RefCount();
+            }).OnErrorRetry().Publish().RefCount();
+
+    /// <summary>Notifies pause observers while tolerating timer callbacks racing with disposal.</summary>
+    /// <param name="isPaused">The pause state to publish.</param>
+    private void NotifyPaused(bool isPaused)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        try
+        {
+            _paused.OnNext(isPaused);
+        }
+        catch (ObjectDisposedException)
+        {
+            // A timer callback can overlap disposal; in that case the pause notification is no longer observable.
+        }
+    }
 
     /// <summary>
     /// Creates an observable sequence that periodically writes a watchdog value to the configured address, enabling
@@ -1962,22 +1951,26 @@ public class RxS7 : IRxS7
             }
 
             // Setup the watchdog
-            this.AddUpdateTagItem<ushort>("WatchDog", WatchDogAddress!).SetTagPollIng(false);
+            _ = this.AddUpdateTagItem<ushort>("WatchDog", WatchDogAddress!).SetTagPollIng(false);
 
-            var tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(WatchDogWritingTime)).Retry().Subscribe(_ =>
+            var tim = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(WatchDogWritingTime)).OnErrorRetry().Subscribe(_ =>
             {
-                if (IsConnectedValue)
+                if (!IsConnectedValue)
                 {
-                    Value("WatchDog", WatchDogValueToWrite);
-                    if (ShowWatchDogWriting)
-                    {
-                        _status.OnNext($"{DateTime.Now} - WatchDog writing {WatchDogValueToWrite} to {WatchDogAddress}");
-                    }
+                    return;
                 }
+
+                Value("WatchDog", WatchDogValueToWrite);
+                if (!ShowWatchDogWriting)
+                {
+                    return;
+                }
+
+                _status.OnNext($"{DateTime.Now} - WatchDog writing {WatchDogValueToWrite} to {WatchDogAddress}");
             });
 
             return new SingleAssignmentDisposable { Disposable = tim };
-        }).Retry().Publish().RefCount();
+        }).OnErrorRetry().Publish().RefCount();
 
     /// <summary>
     /// Takes in input an object and tries to parse it to an array of values. This can be used
@@ -1999,99 +1992,23 @@ public class RxS7 : IRxS7
     /// <returns>NoError if it was successful, or the error is specified.</returns>
     private bool Write(Tag tag, DataType dataType, int db, int startByteAdr)
     {
-        if (tag.NewValue == null)
+        if (tag.NewValue is null)
         {
             return false;
         }
 
-        byte[] package;
-        switch (tag.Type.Name)
+        if (!TrySerializeTagNewValue(tag, out _, out var package))
         {
-            case "Boolean":
-            case "Byte":
-                package = [(byte)Convert.ChangeType(tag.NewValue, typeof(byte))!];
-                break;
-
-            case "Int16":
-            case "short":
-                package = Int.ToByteArray((short)tag.NewValue!);
-                break;
-
-            case "UInt16":
-            case "ushort":
-                package = Word.ToByteArray((ushort)Convert.ChangeType(tag.NewValue, typeof(ushort))!);
-                break;
-
-            case "Int32":
-            case "int":
-                package = DInt.ToByteArray((int)tag.NewValue!);
-                break;
-
-            case "UInt32":
-            case "uint":
-                package = DWord.ToByteArray((uint)Convert.ChangeType(tag.NewValue, typeof(uint))!);
-                break;
-
-            case "Single":
-                package = Real.ToByteArray((float)tag.NewValue!);
-                break;
-
-            case "Double":
-                package = LReal.ToByteArray((double)tag.NewValue!);
-                break;
-
-            case "Byte[]":
-                package = (byte[])tag.NewValue;
-                break;
-
-            case "Int16[]":
-            case "short[]":
-                package = Int.ToByteArray((short[])tag.NewValue!);
-                break;
-
-            case "UInt16[]":
-            case "ushort[]":
-                package = Word.ToByteArray((ushort[])tag.NewValue);
-                break;
-
-            case "Int32[]":
-            case "int[]":
-                package = DInt.ToByteArray((int[])tag.NewValue!);
-                break;
-
-            case "UInt32[]":
-            case "uint[]":
-                package = DWord.ToByteArray((uint[])Convert.ChangeType(tag.NewValue, typeof(uint[]))!);
-                break;
-
-            case "Single[]":
-                package = Real.ToByteArray((float[])tag.NewValue!);
-                break;
-
-            case "Double[]":
-                package = LReal.ToByteArray((double[])tag.NewValue!);
-                break;
-
-            case "String":
-                package = PlcTypes.String.ToByteArray(tag.NewValue! as string);
-                break;
-
-            default:
-                _lastErrorCode.OnNext(ErrorCode.WrongVarFormat);
-                return false;
+            _lastErrorCode.OnNext(ErrorCode.WrongVarFormat);
+            return false;
         }
 
-        if (package.Length > 200 && dataType == DataType.DataBlock)
-        {
-            return WriteMultipleBytes(tag, [.. package], db, startByteAdr);
-        }
-
-        return WriteBytes(tag, dataType, db, startByteAdr, package);
+        return package.Length > 200 && dataType == DataType.DataBlock
+            ? WriteMultipleBytes(tag, [.. package], db, startByteAdr)
+            : WriteBytes(tag, dataType, db, startByteAdr, package);
     }
 
-    /// <summary>
-    /// Writes a sequence of bytes to the specified data block of a tag, starting at the given byte address.
-    /// </summary>
+    /// <summary>Writes a sequence of bytes to the specified data block of a tag, starting at the given byte address.</summary>
     /// <remarks>The method writes the bytes in chunks, with each chunk containing up to 200 bytes. If an
     /// error occurs during writing, the operation stops and returns false.</remarks>
     /// <param name="tag">The tag to which the bytes will be written.</param>
@@ -2108,8 +2025,9 @@ public class RxS7 : IRxS7
             while (bytes.Count > 0)
             {
                 var maxToWrite = Math.Min(bytes.Count, 200);
-                var part = bytes.ToList().GetRange(0, maxToWrite);
-                errCode = WriteBytes(tag, DataType.DataBlock, db, index, [.. part]);
+                var part = new byte[maxToWrite];
+                bytes.CopyTo(0, part, 0, maxToWrite);
+                errCode = WriteBytes(tag, DataType.DataBlock, db, index, part);
                 bytes.RemoveRange(0, maxToWrite);
                 index += maxToWrite;
                 if (!errCode)
@@ -2127,9 +2045,7 @@ public class RxS7 : IRxS7
         return errCode;
     }
 
-    /// <summary>
-    /// Attempts to write the value of the specified tag to the appropriate PLC memory area based on its address format.
-    /// </summary>
+    /// <summary>Attempts to write the value of the specified tag to the appropriate PLC memory area based on its address format.</summary>
     /// <remarks>Supported address formats include data blocks (e.g., DBB, DBW, DBD, DBX, DBS), inputs (E or
     /// I), outputs (A or O), memory (M), timers (T), and counters (C or Z). The method validates address syntax and bit
     /// ranges, and updates error state if parsing fails. If the tag is null or the address is invalid, the method
@@ -2139,171 +2055,24 @@ public class RxS7 : IRxS7
     /// <returns>true if the value was successfully written to the PLC; otherwise, false.</returns>
     private bool WriteString(Tag? tag)
     {
-        if (tag == null)
+        if (tag is null)
         {
             return false;
         }
-
-        DataType mDataType;
-        int mDB;
-        int mByte;
-        int mBit;
-
-        string addressLocation;
-        byte @byte;
 
         var tagAddress = tag.Address!.ToUpper();
         tagAddress = tagAddress.Replace(" ", string.Empty); // Remove spaces
 
         try
         {
-            switch (tagAddress.Substring(0, 2))
+            return tagAddress[..2] switch
             {
-                case "DB":
-                    var strings = tagAddress.Split(['.']);
-                    if (strings.Length < 2)
-                    {
-                        throw new Exception();
-                    }
-
-                    mDB = int.Parse(strings[0].Substring(2));
-                    var dbType = strings[1].Substring(0, 3);
-                    var dbIndex = int.Parse(strings[1].Substring(3));
-
-                    switch (dbType)
-                    {
-                        case "DBB":
-                        case "DBW":
-                        case "DBD":
-                        case "DBS":
-                            return Write(tag, DataType.DataBlock, mDB, dbIndex);
-
-                        case "DBX":
-                            mByte = dbIndex;
-                            mBit = int.Parse(strings[2]);
-                            if (mBit > 7)
-                            {
-                                throw new Exception(string.Format("Addressing Error: You can only reference bitwise locations 0-7. Address {0} is invalid", mBit));
-                            }
-
-                            var b = Read<byte>(tag, DataType.DataBlock, mDB, mByte, VarType.Byte);
-                            if (Convert.ToInt32(tag.NewValue) == 1)
-                            {
-                                b = (byte)(b | (byte)Math.Pow(2, mBit)); // set bit
-                            }
-                            else
-                            {
-                                b = (byte)(b & (b ^ (byte)Math.Pow(2, mBit))); // reset bit
-                            }
-
-                            tag.NewValue = b;
-
-                            return Write(tag, DataType.DataBlock, mDB, mByte);
-
-                        default:
-                            throw new Exception(string.Format("Addressing Error: Unable to parse address {0}. Supported formats include DBB (BYTE), DBW (WORD), DBD (DWORD), DBX (BITWISE), DBS (STRING).", dbType));
-                    }
-
-                case "EB":
-                case "EW":
-                case "ED":
-                    return Write(tag, DataType.Input, 0, int.Parse(tagAddress.Substring(2)));
-
-                case "AB":
-                case "AW":
-                case "AD":
-                    return Write(tag, DataType.Output, 0, int.Parse(tagAddress.Substring(2)));
-
-                case "MB":
-                case "MW":
-                case "MD":
-                    return Write(tag, DataType.Memory, 0, int.Parse(tagAddress.Substring(2)));
-
-                default:
-                    switch (tagAddress.Substring(0, 1))
-                    {
-                        case "E":
-                        case "I":
-
-                            // Input
-                            mDataType = DataType.Input;
-                            break;
-
-                        case "A":
-                        case "O":
-
-                            // Output
-                            mDataType = DataType.Output;
-                            break;
-
-                        case "M":
-
-                            // Memory
-                            mDataType = DataType.Memory;
-                            break;
-
-                        case "T":
-
-                            // Timer
-                            return Write(tag, DataType.Timer, 0, int.Parse(tagAddress.Substring(1)));
-
-                        case "Z":
-                        case "C":
-
-                            // Counter
-                            return Write(tag, DataType.Counter, 0, int.Parse(tagAddress.Substring(1)));
-
-                        default:
-                            throw new Exception(string.Format("Unknown variable type {0}.", tagAddress.Substring(0, 1)));
-                    }
-
-                    addressLocation = tagAddress.Substring(1);
-                    var decimalPointIndex = addressLocation.IndexOf('.');
-                    if (decimalPointIndex == -1)
-                    {
-                        throw new Exception(string.Format("Cannot parse variable {0}. Input, Output, Memory Address, Timer, and Counter types require bit-level addressing (e.g. I0.1).", addressLocation));
-                    }
-
-                    mByte = int.Parse(addressLocation.Substring(0, decimalPointIndex));
-                    mBit = int.Parse(addressLocation.Substring(decimalPointIndex + 1));
-                    if (mBit > 7)
-                    {
-                        throw new Exception(string.Format("Addressing Error: You can only reference bitwise locations 0-7. Address {0} is invalid", mBit));
-                    }
-
-                    @byte = Read<byte>(tag, mDataType, 0, mByte, VarType.Byte);
-
-                    var parsedBool = false;
-
-                    if (bool.TryParse(tag.NewValue!.ToString(), out parsedBool))
-                    {
-                        if (parsedBool)
-                        {
-                            @byte = (byte)(@byte | (byte)Math.Pow(2, mBit));      // Set bit
-                        }
-                        else
-                        {
-                            @byte = (byte)(@byte & (@byte ^ (byte)Math.Pow(2, mBit))); // Reset bit
-                        }
-                    }
-
-                    var parsedInt = -1;
-
-                    if (int.TryParse(tag.NewValue.ToString(), out parsedInt))
-                    {
-                        if (parsedInt == 1)
-                        {
-                            @byte = (byte)(@byte | (byte)Math.Pow(2, mBit)); // Set bit
-                        }
-                        else
-                        {
-                            @byte = (byte)(@byte & (@byte ^ (byte)Math.Pow(2, mBit))); // Reset bit
-                        }
-                    }
-
-                    tag.NewValue = @byte;
-                    return Write(tag, mDataType, 0, mByte);
-            }
+                "DB" => WriteDataBlockAddress(tag, tagAddress),
+                "EB" or "EW" or "ED" => Write(tag, DataType.Input, 0, int.Parse(tagAddress[2..])),
+                "AB" or "AW" or "AD" => Write(tag, DataType.Output, 0, int.Parse(tagAddress[2..])),
+                "MB" or "MW" or "MD" => Write(tag, DataType.Memory, 0, int.Parse(tagAddress[2..])),
+                _ => WriteSpecialOrBitAddress(tag, tagAddress),
+            };
         }
         catch (Exception exc)
         {
@@ -2311,5 +2080,80 @@ public class RxS7 : IRxS7
             _lastError.OnNext("The variable'" + tag + "' could not be parsed. Please check the syntax and try again.\nException: " + exc.Message);
             return false;
         }
+    }
+
+    /// <summary>Writes a data block address.</summary>
+    /// <param name="tag">The tag to write.</param>
+    /// <param name="tagAddress">The normalized tag address.</param>
+    /// <returns>true if the write succeeds; otherwise, false.</returns>
+    private bool WriteDataBlockAddress(Tag tag, string tagAddress)
+    {
+        var strings = tagAddress.Split(['.']);
+        if (strings.Length < 2)
+        {
+            throw new ArgumentException($"Cannot parse DB address '{tagAddress}'.", nameof(tag));
+        }
+
+        var dbNumber = int.Parse(strings[0][2..]);
+        var dbType = strings[1][..3];
+        var dbIndex = int.Parse(strings[1][3..]);
+        return dbType switch
+        {
+            "DBB" or "DBW" or "DBD" or "DBS" => Write(tag, DataType.DataBlock, dbNumber, dbIndex),
+            "DBX" => WriteDataBlockBitAddress(tag, strings, dbNumber, dbIndex),
+            _ => throw new ArgumentException($"Addressing Error: Unable to parse address {dbType}. Supported formats include DBB (BYTE), DBW (WORD), DBD (DWORD), DBX (BITWISE), DBS (STRING).", nameof(tag)),
+        };
+    }
+
+    /// <summary>Writes a data block bit address.</summary>
+    /// <param name="tag">The tag to write.</param>
+    /// <param name="strings">The parsed address parts.</param>
+    /// <param name="dbNumber">The data block number.</param>
+    /// <param name="byteOffset">The byte offset.</param>
+    /// <returns>true if the write succeeds; otherwise, false.</returns>
+    private bool WriteDataBlockBitAddress(Tag tag, string[] strings, int dbNumber, int byteOffset)
+    {
+        var bitOffset = int.Parse(strings[2]);
+        RxS7ValueHelpers.EnsureBitOffsetIsValid(bitOffset, tag);
+        var value = Read<byte>(tag, DataType.DataBlock, dbNumber, byteOffset, VarType.Byte);
+        tag.NewValue = RxS7ValueHelpers.SetBit(value, bitOffset, Convert.ToInt32(tag.NewValue, CultureInfo.InvariantCulture) == 1);
+        return Write(tag, DataType.DataBlock, dbNumber, byteOffset);
+    }
+
+    /// <summary>Writes a timer, counter, or bit address outside data blocks.</summary>
+    /// <param name="tag">The tag to write.</param>
+    /// <param name="tagAddress">The normalized tag address.</param>
+    /// <returns>true if the write succeeds; otherwise, false.</returns>
+    private bool WriteSpecialOrBitAddress(Tag tag, string tagAddress) => tagAddress[..1] switch
+    {
+        "E" or "I" => WriteBitAddress(tag, tagAddress, DataType.Input),
+        "A" or "O" => WriteBitAddress(tag, tagAddress, DataType.Output),
+        "M" => WriteBitAddress(tag, tagAddress, DataType.Memory),
+        "T" => Write(tag, DataType.Timer, 0, int.Parse(tagAddress[1..])),
+        "Z" or "C" => Write(tag, DataType.Counter, 0, int.Parse(tagAddress[1..])),
+        _ => throw new ArgumentException($"Unknown variable type {tagAddress[..1]}.", nameof(tag)),
+    };
+
+    /// <summary>Writes a bit address from the specified data area.</summary>
+    /// <param name="tag">The tag to write.</param>
+    /// <param name="tagAddress">The normalized tag address.</param>
+    /// <param name="writeDataType">The data area type.</param>
+    /// <returns>true if the write succeeds; otherwise, false.</returns>
+    private bool WriteBitAddress(Tag tag, string tagAddress, DataType writeDataType)
+    {
+        var addressLocation = tagAddress[1..];
+        var decimalPointIndex = addressLocation.IndexOf('.');
+        if (decimalPointIndex == -1)
+        {
+            throw new ArgumentException($"Cannot parse variable {addressLocation}. Input, Output, Memory Address, Timer, and Counter types require bit-level addressing (e.g. I0.1).", nameof(tag));
+        }
+
+        var byteOffset = int.Parse(addressLocation[..decimalPointIndex]);
+        var bitOffset = int.Parse(addressLocation[(decimalPointIndex + 1)..]);
+        RxS7ValueHelpers.EnsureBitOffsetIsValid(bitOffset, tag);
+
+        var value = Read<byte>(tag, writeDataType, 0, byteOffset, VarType.Byte);
+        tag.NewValue = RxS7ValueHelpers.ApplyBitWriteValue(value, tag.NewValue!, bitOffset);
+        return Write(tag, writeDataType, 0, byteOffset);
     }
 }

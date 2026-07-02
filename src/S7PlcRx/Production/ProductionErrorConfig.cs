@@ -1,11 +1,14 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Production;
+#else
 namespace S7PlcRx.Production;
+#endif
 
-/// <summary>
-/// Represents the configuration settings for error handling and retry logic in a production environment.
-/// </summary>
+/// <summary>Represents the configuration settings for error handling and retry logic in a production environment.</summary>
 /// <remarks>This class provides options to control retry attempts, delay strategies, and circuit breaker behavior
 /// for handling transient errors. It is typically used to configure error resilience policies in applications that
 /// interact with external systems or services.</remarks>

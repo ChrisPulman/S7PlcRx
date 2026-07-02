@@ -1,8 +1,8 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx.Advanced;
 using S7PlcRx.Enums;
@@ -12,7 +12,7 @@ namespace S7PlcRx.Tests;
 /// <summary>
 /// Tests for multi-variable batching against non-DB areas (I/Q/M) and bit addressing.
 /// </summary>
-[NonParallelizable]
+[NotInParallel]
 public class S7PlcRxMultiVarNonDbAreaTests
 {
     /// <summary>
@@ -31,7 +31,7 @@ public class S7PlcRxMultiVarNonDbAreaTests
         plc.AddUpdateTagItem<byte>("MB0", "MB0").SetTagPollIng(false);
         plc.AddUpdateTagItem<ushort>("MW2", "MW2").SetTagPollIng(false);
 
-        await plc.IsConnected.FirstAsync(x => x);
+        await plc.IsConnected.Where(x => x).FirstAsync();
 
         static async Task EventuallyAsync(Func<Task<bool>> predicate, TimeSpan timeout, TimeSpan interval)
         {

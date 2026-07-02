@@ -1,7 +1,7 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
 using S7PlcRx.Binding;
 using S7PlcRx.Enums;
 using S7PlcRx.PlcTypes;
@@ -11,6 +11,7 @@ namespace S7PlcRx.Tests.Binding;
 /// <summary>
 /// Tests runtime grouped byte-array PLC binding operations.
 /// </summary>
+[NotInParallel]
 public sealed class S7TagRuntimeBindingTests
 {
     /// <summary>
@@ -31,7 +32,7 @@ public sealed class S7TagRuntimeBindingTests
         binding.Write("Temperature", 12.5f);
         binding.Write("Pressure", 25.25f);
 
-        await Task.Delay(150);
+        await WaitUntilAsync(() => plc.Writes.Count > 0);
 
         Assert.Multiple(() =>
         {
@@ -60,7 +61,9 @@ public sealed class S7TagRuntimeBindingTests
 
         using var binding = S7TagRuntimeBinding.Bind(plc, definitions, (name, value) => applied[name] = value);
 
-        await Task.Delay(150);
+        await WaitUntilAsync(() => plc.Reads.Contains("__s7_binding_db1_0_8", StringComparer.Ordinal) &&
+            applied.ContainsKey("Temperature") &&
+            applied.ContainsKey("Pressure"));
 
         Assert.Multiple(() =>
         {
@@ -145,5 +148,19 @@ public sealed class S7TagRuntimeBindingTests
         public IObservable<string[]> GetCpuInfo() => Observable.Empty<string[]>();
 
         public void Dispose() => IsDisposed = true;
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var timeoutAt = System.DateTime.UtcNow.AddSeconds(2);
+        while (System.DateTime.UtcNow < timeoutAt)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(20);
+        }
     }
 }

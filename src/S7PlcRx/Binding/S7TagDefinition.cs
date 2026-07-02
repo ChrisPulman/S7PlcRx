@@ -1,16 +1,17 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Binding;
+#else
 namespace S7PlcRx.Binding;
+#endif
 
-/// <summary>
-/// Describes a generated PLC tag/property binding.
-/// </summary>
+/// <summary>Describes a generated PLC tag/property binding.</summary>
 public sealed class S7TagDefinition
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="S7TagDefinition"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="S7TagDefinition"/> class.</summary>
     /// <param name="name">The property and PLC tag name.</param>
     /// <param name="address">The S7 DB address.</param>
     /// <param name="valueType">The .NET value type.</param>
@@ -27,43 +28,27 @@ public sealed class S7TagDefinition
         ArrayLength = Math.Max(1, arrayLength);
     }
 
-    /// <summary>
-    /// Gets the property and PLC tag name.
-    /// </summary>
+    /// <summary>Gets the property and PLC tag name.</summary>
     public string Name { get; }
 
-    /// <summary>
-    /// Gets the S7 DB address.
-    /// </summary>
+    /// <summary>Gets the S7 DB address.</summary>
     public string Address { get; }
 
-    /// <summary>
-    /// Gets the .NET value type.
-    /// </summary>
+    /// <summary>Gets the .NET value type.</summary>
     public Type ValueType { get; }
 
-    /// <summary>
-    /// Gets the read polling interval in milliseconds.
-    /// </summary>
+    /// <summary>Gets the read polling interval in milliseconds.</summary>
     public int PollIntervalMs { get; }
 
-    /// <summary>
-    /// Gets the tag access direction.
-    /// </summary>
+    /// <summary>Gets the tag access direction.</summary>
     public S7TagDirection Direction { get; }
 
-    /// <summary>
-    /// Gets the array/string element length.
-    /// </summary>
+    /// <summary>Gets the array/string element length.</summary>
     public int ArrayLength { get; }
 
-    /// <summary>
-    /// Gets a value indicating whether this tag should be read on polling intervals.
-    /// </summary>
+    /// <summary>Gets a value indicating whether this tag should be read on polling intervals.</summary>
     public bool CanRead => Direction != S7TagDirection.WriteOnly && PollIntervalMs > 0;
 
-    /// <summary>
-    /// Gets a value indicating whether this tag can write property changes to the PLC.
-    /// </summary>
+    /// <summary>Gets a value indicating whether this tag can write property changes to the PLC.</summary>
     public bool CanWrite => Direction != S7TagDirection.ReadOnly;
 }

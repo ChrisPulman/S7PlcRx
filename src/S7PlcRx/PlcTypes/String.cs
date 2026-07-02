@@ -1,44 +1,36 @@
-﻿// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Text;
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.PlcTypes;
+#else
 namespace S7PlcRx.PlcTypes;
+#endif
 
-/// <summary>
-/// Provides utility methods for converting between strings and byte arrays using ASCII encoding.
-/// </summary>
+/// <summary>Provides utility methods for converting between strings and byte arrays using ASCII encoding.</summary>
 /// <remarks>All methods in this class use ASCII encoding for conversions. These methods are intended for
 /// scenarios where data is known to be ASCII-compatible. Non-ASCII characters will be replaced with '?' during encoding
 /// and decoding. The class is internal and intended for use within the assembly.</remarks>
 public static class String
 {
-    /// <summary>
-    /// Decodes a UTF-8 encoded byte array into a string.
-    /// </summary>
+    /// <summary>Decodes a UTF-8 encoded byte array into a string.</summary>
     /// <param name="bytes">The byte array containing the UTF-8 encoded text to decode. Cannot be null.</param>
     /// <returns>A string representation of the decoded UTF-8 text. Returns an empty string if the array is empty.</returns>
     public static string FromByteArray(byte[] bytes) => FromSpan(bytes.AsSpan());
 
-    /// <summary>
-    /// Converts the specified read-only span of ASCII-encoded bytes to its equivalent string representation.
-    /// </summary>
+    /// <summary>Converts the specified read-only span of ASCII-encoded bytes to its equivalent string representation.</summary>
     /// <param name="bytes">A read-only span containing the bytes to decode as an ASCII string.</param>
     /// <returns>A string that represents the decoded ASCII characters. Returns an empty string if <paramref name="bytes"/> is
     /// empty.</returns>
     public static string FromSpan(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.IsEmpty)
-        {
-            return string.Empty;
-        }
-
-        return Encoding.ASCII.GetString(bytes);
+        return bytes.IsEmpty ? string.Empty : Encoding.ASCII.GetString(bytes);
     }
 
-    /// <summary>
-    /// Converts a specified range of bytes from a byte array to a string.
-    /// </summary>
+    /// <summary>Converts a specified range of bytes from a byte array to a string.</summary>
     /// <param name="bytes">The byte array containing the data to convert.</param>
     /// <param name="start">The zero-based index in the array at which to begin conversion.</param>
     /// <param name="length">The number of bytes to convert starting from <paramref name="start"/>.</param>
@@ -46,22 +38,15 @@ public static class String
     /// the array.</returns>
     public static string FromByteArray(byte[] bytes, int start, int length)
     {
-        if (bytes == null || bytes.Length == 0)
+        if (bytes is null || bytes.Length == 0)
         {
             return string.Empty;
         }
 
-        if (bytes.Length < start + length)
-        {
-            return string.Empty;
-        }
-
-        return FromSpan(bytes.AsSpan(start, length));
+        return bytes.Length < start + length ? string.Empty : FromSpan(bytes.AsSpan(start, length));
     }
 
-    /// <summary>
-    /// Converts the specified string to a byte array using ASCII encoding.
-    /// </summary>
+    /// <summary>Converts the specified string to a byte array using ASCII encoding.</summary>
     /// <remarks>Characters in the input string that are not representable in ASCII are replaced with a
     /// question mark ("?") in the resulting byte array.</remarks>
     /// <param name="value">The string to convert to a byte array. If null or empty, an empty array is returned.</param>
@@ -69,18 +54,11 @@ public static class String
     /// empty.</returns>
     public static byte[] ToByteArray(string? value)
     {
-        if (string.IsNullOrEmpty(value))
-        {
-            return [];
-        }
-
         // Use high-performance ASCII encoding
-        return Encoding.ASCII.GetBytes(value);
+        return string.IsNullOrEmpty(value) ? [] : Encoding.ASCII.GetBytes(value);
     }
 
-    /// <summary>
-    /// Encodes the specified string as ASCII bytes and writes the result to the provided destination span.
-    /// </summary>
+    /// <summary>Encodes the specified string as ASCII bytes and writes the result to the provided destination span.</summary>
     /// <remarks>Characters in the input string that cannot be represented in ASCII are replaced with a
     /// question mark ('?').</remarks>
     /// <param name="value">The string to encode as ASCII. If null or empty, no bytes are written.</param>
@@ -102,9 +80,7 @@ public static class String
         return bytesWritten;
     }
 
-    /// <summary>
-    /// Attempts to encode the specified string as ASCII bytes and write the result to the provided destination buffer.
-    /// </summary>
+    /// <summary>Attempts to encode the specified string as ASCII bytes and write the result to the provided destination buffer.</summary>
     /// <remarks>If the input string is null or empty, no bytes are written and the method returns true. The
     /// method returns false if the destination buffer is not large enough to hold the encoded bytes.</remarks>
     /// <param name="value">The string to encode as ASCII. Can be null or empty.</param>
@@ -116,11 +92,6 @@ public static class String
     {
         bytesWritten = 0;
 
-        if (string.IsNullOrEmpty(value))
-        {
-            return true;
-        }
-
-        return Encoding.ASCII.TryGetBytes(value, destination, out bytesWritten);
+        return string.IsNullOrEmpty(value) || Encoding.ASCII.TryGetBytes(value, destination, out bytesWritten);
     }
 }

@@ -1,11 +1,20 @@
-// Copyright (c) Chris Pulman. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Copyright (c) 2022-2026 Chris Pulman. All rights reserved.
+// Chris Pulman licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+#if REACTIVE_SHIM
+using S7PlcRx.Reactive.Cache;
+#else
 using S7PlcRx.Cache;
+#endif
 
+#if REACTIVE_SHIM
+namespace S7PlcRx.Reactive.Optimization;
+#else
 namespace S7PlcRx.Optimization;
+#endif
 
 /// <summary>
 /// Provides batch processing and caching for optimized requests, enabling efficient handling of repeated or concurrent
@@ -17,21 +26,28 @@ namespace S7PlcRx.Optimization;
 /// concurrent use. Dispose the instance when it is no longer needed to release resources.</remarks>
 internal class OptimizationEngine : IDisposable
 {
+    /// <summary>Stores the r eq ue st qu e u e used by this instance.</summary>
     private readonly ConcurrentQueue<OptimizedRequest> _requestQueue = new();
+
+    /// <summary>Stores the v al ue ca c h e used by this instance.</summary>
     private readonly ConcurrentDictionary<string, CachedValue> _valueCache = new();
+
+    /// <summary>Stores the b at ch ti m e r used by this instance.</summary>
     private readonly Timer _batchTimer;
+
+    /// <summary>Stores the p ro ce ss in gl o c k used by this instance.</summary>
     private readonly SemaphoreSlim _processingLock = new(1, 1);
+
+    /// <summary>Stores the a xb at ch si z e used by this instance.</summary>
     private readonly int _maxBatchSize;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="OptimizationEngine"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="OptimizationEngine"/> class.</summary>
     /// <param name="batchIntervalMs">The batch processing interval in milliseconds.</param>
     /// <param name="maxBatchSize">The maximum batch size per request.</param>
     public OptimizationEngine(int batchIntervalMs = 50, int maxBatchSize = 20)
     {
         _maxBatchSize = maxBatchSize;
-        _batchTimer = new Timer(
+        _batchTimer = new(
             ProcessBatchedRequests,
             null,
             TimeSpan.FromMilliseconds(batchIntervalMs),
@@ -51,9 +67,7 @@ internal class OptimizationEngine : IDisposable
         CacheHitRatio = CalculateCacheHitRatio()
     };
 
-    /// <summary>
-    /// Adds the specified request to the processing queue.
-    /// </summary>
+    /// <summary>Adds the specified request to the processing queue.</summary>
     /// <param name="request">The request to enqueue for processing. Cannot be null.</param>
     public void EnqueueRequest(OptimizedRequest request) => _requestQueue.Enqueue(request);
 
@@ -66,19 +80,17 @@ internal class OptimizationEngine : IDisposable
     /// <returns>The cached value associated with the specified tag name if it exists and is not expired; otherwise, null.</returns>
     public object? GetCachedValue(string tagName, TimeSpan maxAge)
     {
-        if (_valueCache.TryGetValue(tagName, out var cachedValue) &&
-            DateTime.UtcNow - cachedValue.Timestamp <= maxAge)
+        if (!_valueCache.TryGetValue(tagName, out var cachedValue) ||
+            DateTime.UtcNow - cachedValue.Timestamp > maxAge)
         {
-            cachedValue.HitCount++;
-            return cachedValue.Value;
+            return null;
         }
 
-        return null;
+        cachedValue.HitCount++;
+        return cachedValue.Value;
     }
 
-    /// <summary>
-    /// Updates the cached value associated with the specified tag name, or adds a new entry if the tag does not exist.
-    /// </summary>
+    /// <summary>Updates the cached value associated with the specified tag name, or adds a new entry if the tag does not exist.</summary>
     /// <param name="tagName">The unique tag name used to identify the cached value. Cannot be null.</param>
     /// <param name="value">The value to store in the cache for the specified tag name.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -87,29 +99,29 @@ internal class OptimizationEngine : IDisposable
             new CachedValue(value, DateTime.UtcNow),
             (_, existing) => new CachedValue(value, DateTime.UtcNow, existing.HitCount));
 
-    /// <summary>
-    /// Removes all cache entries that have expired based on the specified maximum age.
-    /// </summary>
+    /// <summary>Removes all cache entries that have expired based on the specified maximum age.</summary>
     /// <remarks>Use this method to periodically clean up expired items and free memory. The method compares
     /// each entry's timestamp to the current UTC time minus the specified maximum age.</remarks>
     /// <param name="maxAge">The maximum duration a cache entry is considered valid. Entries older than this value are removed.</param>
     public void ClearExpiredCache(TimeSpan maxAge)
     {
         var cutoff = DateTime.UtcNow - maxAge;
-        var expiredKeys = _valueCache
-            .Where(kvp => kvp.Value.Timestamp < cutoff)
-            .Select(kvp => kvp.Key)
-            .ToList();
+        var expiredKeys = new List<string>();
+        foreach (var kvp in _valueCache)
+        {
+            if (kvp.Value.Timestamp < cutoff)
+            {
+                expiredKeys.Add(kvp.Key);
+            }
+        }
 
         foreach (var key in expiredKeys)
         {
-            _valueCache.TryRemove(key, out _);
+            _ = _valueCache.TryRemove(key, out _);
         }
     }
 
-    /// <summary>
-    /// Disposes the optimization engine.
-    /// </summary>
+    /// <summary>Disposes the optimization engine.</summary>
     public void Dispose()
     {
         _batchTimer?.Dispose();
@@ -117,9 +129,7 @@ internal class OptimizationEngine : IDisposable
         _valueCache.Clear();
     }
 
-    /// <summary>
-    /// Processes a batch of optimized read or write requests targeting the same data block to improve performance.
-    /// </summary>
+    /// <summary>Processes a batch of optimized read or write requests targeting the same data block to improve performance.</summary>
     /// <remarks>Batching requests reduces network round trips and can significantly enhance throughput when
     /// multiple operations target the same data block. Each request's completion is signaled via its associated
     /// completion source.</remarks>
@@ -143,9 +153,7 @@ internal class OptimizationEngine : IDisposable
         }
     }
 
-    /// <summary>
-    /// Processes a batch of optimized requests by grouping them for efficient data block access.
-    /// </summary>
+    /// <summary>Processes a batch of optimized requests by grouping them for efficient data block access.</summary>
     /// <remarks>Requests are grouped by their associated data block to maximize batch processing efficiency.
     /// If an error occurs while processing a group, the error is logged and processing continues with the remaining
     /// groups.</remarks>
@@ -153,15 +161,27 @@ internal class OptimizationEngine : IDisposable
     private static void ProcessRequestBatch(List<OptimizedRequest> requests)
     {
         // Group requests by data block for optimal batch reading
-        var groupedRequests = requests
-            .GroupBy(r => GetDataBlockFromAddress(r.Tag.Address))
-            .OrderByDescending(g => g.Count()); // Process larger groups first
+        var groupedRequests = new Dictionary<int, List<OptimizedRequest>>();
+        foreach (var request in requests)
+        {
+            var dataBlock = GetDataBlockFromAddress(request.Tag.Address);
+            if (!groupedRequests.TryGetValue(dataBlock, out var group))
+            {
+                group = [];
+                groupedRequests[dataBlock] = group;
+            }
 
-        foreach (var group in groupedRequests)
+            group.Add(request);
+        }
+
+        var orderedGroups = new List<KeyValuePair<int, List<OptimizedRequest>>>(groupedRequests);
+        orderedGroups.Sort(static (left, right) => right.Value.Count.CompareTo(left.Value.Count));
+
+        foreach (var group in orderedGroups)
         {
             try
             {
-                ProcessDataBlockBatch([.. group]);
+                ProcessDataBlockBatch(group.Value);
             }
             catch (Exception ex)
             {
@@ -171,9 +191,7 @@ internal class OptimizationEngine : IDisposable
         }
     }
 
-    /// <summary>
-    /// Extracts the data block number from a PLC address string in the format "DB{number}.{...}".
-    /// </summary>
+    /// <summary>Extracts the data block number from a PLC address string in the format "DB{number}.{...}".</summary>
     /// <remarks>This method returns -1 if the address is null, empty, does not start with "DB", or does not
     /// contain a valid data block number before the first dot.</remarks>
     /// <param name="address">The PLC address string from which to extract the data block number. The address must start with "DB" followed by
@@ -182,28 +200,28 @@ internal class OptimizationEngine : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int GetDataBlockFromAddress(string? address)
     {
-        if (string.IsNullOrEmpty(address) || address?.StartsWith("DB") == false)
+        if (string.IsNullOrEmpty(address))
         {
             return -1;
         }
 
-        var dotIndex = address!.IndexOf('.');
+        var nonNullAddress = address!;
+
+        if (!nonNullAddress.StartsWith("DB", StringComparison.Ordinal))
+        {
+            return -1;
+        }
+
+        var dotIndex = nonNullAddress.IndexOf('.');
         if (dotIndex <= 2)
         {
             return -1;
         }
 
-        if (int.TryParse(address.Substring(2, dotIndex - 2), out var dbNumber))
-        {
-            return dbNumber;
-        }
-
-        return -1;
+        return int.TryParse(nonNullAddress[2..dotIndex], out var dbNumber) ? dbNumber : -1;
     }
 
-    /// <summary>
-    /// Processes a batch of queued requests, up to the configured maximum batch size.
-    /// </summary>
+    /// <summary>Processes a batch of queued requests, up to the configured maximum batch size.</summary>
     /// <remarks>This method is intended to be invoked by a timer or background scheduler. If the processing
     /// lock cannot be acquired within 100 milliseconds, the method exits without processing any requests. The method
     /// processes requests in batches to improve throughput and efficiency.</remarks>
@@ -234,13 +252,11 @@ internal class OptimizationEngine : IDisposable
         }
         finally
         {
-            _processingLock.Release();
+            _ = _processingLock.Release();
         }
     }
 
-    /// <summary>
-    /// Calculates the ratio of cache hits to total cache requests.
-    /// </summary>
+    /// <summary>Calculates the ratio of cache hits to total cache requests.</summary>
     /// <remarks>The cache hit ratio provides an indication of how effectively the cache is serving requests.
     /// A higher ratio suggests better cache performance. If the cache is empty or no requests have been made, the
     /// method returns 0.0.</remarks>
@@ -252,7 +268,12 @@ internal class OptimizationEngine : IDisposable
             return 0.0;
         }
 
-        var totalHits = _valueCache.Values.Sum(v => v.HitCount);
+        var totalHits = 0L;
+        foreach (var cachedValue in _valueCache.Values)
+        {
+            totalHits += cachedValue.HitCount;
+        }
+
         var totalRequests = _valueCache.Count + totalHits;
 
         return totalRequests > 0 ? (double)totalHits / totalRequests : 0.0;

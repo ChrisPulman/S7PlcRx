@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reactive.Linq;
 using MockS7Plc;
 using S7PlcRx.Advanced;
 using S7PlcRx.Enums;
@@ -25,7 +24,7 @@ internal static class PerfHarness
         plc.AddUpdateTagItem<ushort>("BenchWord", "DB1.DBW0").SetTagPollIng(false);
 
         var connectSw = Stopwatch.StartNew();
-        await plc.IsConnected.FirstAsync(x => x);
+        await plc.IsConnected.Where(static x => x).FirstAsync();
         connectSw.Stop();
 
         Console.WriteLine($"Connect time: {connectSw.ElapsedMilliseconds} ms");
