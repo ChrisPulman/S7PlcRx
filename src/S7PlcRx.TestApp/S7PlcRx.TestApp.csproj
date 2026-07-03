@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="ReactiveUI.Primitives" Version="6.0.0" />
-    <PackageReference Include="ReactiveUI.Primitives.Extensions" Version="5.8.0" />
+    <PackageReference Include="ReactiveUI.Primitives.Extensions" Version="6.0.0" />
     <ProjectReference Include="..\MockS7Plc\MockS7Plc.csproj" />
     <ProjectReference Include="..\S7PlcRx\S7PlcRx.csproj" />
   </ItemGroup>
