@@ -25,6 +25,6 @@
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.9" />
     <PackageVersion Include="System.Text.Json" Version="10.0.9" />
     <PackageVersion Include="TUnit" Version="1.58.0" />
-    <PackageVersion Include="TUnit.Assertions" Version="1.58.0" />
+    <PackageVersion Include="TUnit.Assertions" Version="1.59.0" />
   </ItemGroup>
 </Project>
