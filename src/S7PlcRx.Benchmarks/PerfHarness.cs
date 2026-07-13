@@ -20,7 +20,7 @@ internal static class PerfHarness
 
         var localhost = MockServer.Localhost;
 
-        using var plc = new RxS7(CpuType.S71500, localhost, 0, 1, null, interval: 1);
+        using var plc = new RxS7(new(new(CpuType.S71500, localhost, 0, 1), new(1)));
         plc.AddUpdateTagItem<ushort>("BenchWord", "DB1.DBW0").SetTagPollIng(false);
 
         var connectSw = Stopwatch.StartNew();

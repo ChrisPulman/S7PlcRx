@@ -29,7 +29,7 @@ public class S7PlcRxComprehensiveTests
     public void CreatePLC_AllSupportedTypes_ShouldSetCorrectProperties(CpuType cpuType)
     {
         // Arrange & Act
-        using var plc = new RxS7(cpuType, MockServer.Localhost, 0, 1, null, 100);
+        using var plc = new RxS7(new(new(cpuType, MockServer.Localhost, 0, 1)));
 
         // Assert
         Assert.That(plc, Is.Not.Null);
@@ -258,17 +258,17 @@ public class S7PlcRxComprehensiveTests
     public void WatchdogConfiguration_ShouldWorkCorrectly()
     {
         // Test valid watchdog configuration
-        using var plc1 = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBW100", 100, 4500, 15);
+        using var plc1 = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), watchdog: new("DB10.DBW100", intervalSeconds: 15)));
         Assert.That(plc1.WatchDogAddress, Is.EqualTo("DB10.DBW100"));
         Assert.That(plc1.WatchDogValueToWrite, Is.EqualTo(4500));
         Assert.That(plc1.WatchDogWritingTime, Is.EqualTo(15));
 
         // Test invalid watchdog address (non-DBW)
-        var ex = Assert.Throws<ArgumentException>(() => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB100", 100));
+        var ex = Assert.Throws<ArgumentException>(() => new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), watchdog: new("DB10.DBB100"))));
         Assert.That(ex?.Message, Does.Contain("WatchDogAddress must be a DBW address"));
 
         // Test without watchdog
-        using var plc2 = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, 100);
+        using var plc2 = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1)));
         Assert.That(plc2.WatchDogAddress, Is.Null);
     }
 
@@ -500,7 +500,7 @@ public class S7PlcRxComprehensiveTests
     public void ComprehensiveScenario_MixedOperations_ShouldWorkTogether()
     {
         // Arrange - Create PLC with watchdog
-        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB100.DBW0", 50, 4500, 10);
+        using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), new(50), new("DB100.DBW0")));
 
         // Add various tags
         plc.AddUpdateTagItem<byte>("ProcessByte", "DB1.DBB0");

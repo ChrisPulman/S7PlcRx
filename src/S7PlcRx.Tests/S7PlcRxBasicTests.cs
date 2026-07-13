@@ -42,7 +42,7 @@ public class S7PlcRxBasicTests
     public void RxS7_Create_DifferentTypes_ShouldSetCorrectCpuType(CpuType cpuType)
     {
         // Arrange & Act
-        using var plc = new RxS7(cpuType, MockServer.Localhost, 0, 1, null, 100);
+        using var plc = new RxS7(new(new(cpuType, MockServer.Localhost, 0, 1)));
 
         // Assert
         Assert.That(plc, Is.Not.Null);
@@ -180,7 +180,7 @@ public class S7PlcRxBasicTests
     public void RxS7_WithWatchdog_ShouldSetWatchdogProperties()
     {
         // Arrange & Act
-        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBW0", 100, 5000, 15);
+        using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), watchdog: new("DB10.DBW0", 5000, 15)));
 
         // Assert
         Assert.That(plc.WatchDogAddress, Is.EqualTo("DB10.DBW0"));
@@ -195,8 +195,51 @@ public class S7PlcRxBasicTests
     public void RxS7_WithInvalidWatchdogAddress_ShouldThrowArgumentException()
     {
         // Act & Assert
-        var ex = Assert.Throws<ArgumentException>(() => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB0", 100, 5000, 15));
+        var ex = Assert.Throws<ArgumentException>(() => new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), watchdog: new("DB10.DBB0", 5000, 15))));
         Assert.That(ex?.Message, Does.Contain("WatchDogAddress must be a DBW address"));
+    }
+
+    /// <summary>Verifies the composed options use stable polling and watchdog defaults.</summary>
+    [Test]
+    public void RxS7Options_WithDefaults_ShouldComposeExpectedSettings()
+    {
+        var options = new RxS7Options(new(CpuType.S71500, MockServer.Localhost, 0, 1));
+
+        Assert.That(options.Polling.IntervalMilliseconds, Is.EqualTo(S7PollingOptions.DefaultIntervalMilliseconds));
+        Assert.That(options.Watchdog, Is.Null);
+        Assert.That(S7WatchdogOptions.DefaultValueToWrite, Is.EqualTo(4500));
+        Assert.That(S7WatchdogOptions.DefaultIntervalSeconds, Is.EqualTo(10));
+    }
+
+    /// <summary>Verifies null composed options are rejected before native resources are allocated.</summary>
+    [Test]
+    public void RxS7_WithNullOptions_ShouldThrowArgumentNullException()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() => new RxS7(null!));
+
+        Assert.That(exception?.ParamName, Is.EqualTo("options"));
+    }
+
+    /// <summary>Verifies null connection settings are rejected before native resources are allocated.</summary>
+    [Test]
+    public void RxS7_WithNullConnectionOptions_ShouldThrowArgumentNullException()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() => new RxS7(new(null!)));
+
+        Assert.That(exception?.ParamName, Is.EqualTo("options"));
+    }
+
+    /// <summary>Verifies invalid watchdog timing is rejected before native resources are allocated.</summary>
+    [Test]
+    public void RxS7_WithInvalidWatchdogInterval_ShouldThrowArgumentOutOfRangeException()
+    {
+        var options = new RxS7Options(
+            new(CpuType.S71500, MockServer.Localhost, 0, 1),
+            watchdog: new("DB10.DBW0", intervalSeconds: 0));
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => new RxS7(options));
+
+        Assert.That(exception?.ParamName, Is.EqualTo("options"));
     }
 
     /// <summary>

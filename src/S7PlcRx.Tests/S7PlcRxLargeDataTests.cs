@@ -65,7 +65,7 @@ public class S7PlcRxLargeDataTests
         Assert.That(rc, Is.EqualTo(0), "Server Start should succeed.");
 
         // ── Connect PLC and register tag ───────────────────────────────────────
-        using var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1, null, interval: 100);
+        using var plc = new RxS7(new(new(S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1)));
         plc.AddUpdateTagItem<byte[]>("LargeBlock", "DB1.DBB0", actualTotalBytes).SetTagPollIng(false);
 
         await plc.IsConnected.Where(x => x).Timeout(System.TimeSpan.FromSeconds(10)).FirstAsync();

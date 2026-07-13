@@ -32,6 +32,30 @@ namespace S7PlcRx.Advanced;
 /// considerations are addressed where relevant in individual method documentation.</remarks>
 public static class AdvancedExtensions
 {
+    /// <summary>Message used when a PLC extension method receives a null instance.</summary>
+    private const string PlcNullMessage = "PLC instance cannot be null.";
+
+    /// <summary>Defines the delay before reading a written value back for verification.</summary>
+    private const int WriteVerificationDelayMilliseconds = 50;
+
+    /// <summary>Defines the first valid separator position in a data-block address.</summary>
+    private const int MinimumDataBlockDotIndex = 3;
+
+    /// <summary>Defines the tag count above which connection pooling is recommended.</summary>
+    private const int HighTagCountThreshold = 200;
+
+    /// <summary>Defines the connection latency above which network checks are recommended.</summary>
+    private const double HighConnectionLatencyMilliseconds = 500;
+
+    /// <summary>Defines the inactive-tag ratio above which cleanup is recommended.</summary>
+    private const double InactiveTagRatioThreshold = 0.3;
+
+    /// <summary>Defines the maximum change rate for a slow-changing tag.</summary>
+    private const double SlowTagChangesPerMinuteThreshold = 0.1;
+
+    /// <summary>Defines the minimum change rate for a fast-changing tag.</summary>
+    private const double FastTagChangesPerMinuteThreshold = 10;
+
     /// <summary>Provides advanced batch, diagnostics, and analysis extensions for PLC instances.</summary>
     /// <param name="plc">The PLC instance.</param>
     extension(IRxS7 plc)
@@ -52,7 +76,7 @@ public static class AdvancedExtensions
     {
         if (plc is null)
         {
-            throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
+            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
         }
 
         if (variables is null || variables.Length == 0)
@@ -98,7 +122,7 @@ public static class AdvancedExtensions
     {
         if (plc is null)
         {
-            throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
+            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
         }
 
         return await plc.ReadValuesAsync<T>(variables).ConfigureAwait(false);
@@ -120,7 +144,7 @@ public static class AdvancedExtensions
 
         if (plc is null)
         {
-            throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
+            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
         }
 
         await plc.WriteValuesAsync(values).ConfigureAwait(false);
@@ -144,7 +168,7 @@ public static class AdvancedExtensions
     {
         if (plc is null)
         {
-            throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
+            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
         }
 
         var result = new BatchReadResult<T>();
@@ -190,7 +214,7 @@ public static class AdvancedExtensions
     {
         if (plc is null)
         {
-            throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
+            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
         }
 
         var result = new BatchWriteResult();
@@ -231,7 +255,7 @@ public static class AdvancedExtensions
     {
         if (plc is null)
         {
-            throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
+            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
         }
 
         var diagnostics = new ProductionDiagnostics
@@ -315,7 +339,7 @@ public static class AdvancedExtensions
     {
         if (plc is null)
         {
-            throw new ArgumentNullException(nameof(plc), "PLC instance cannot be null.");
+            throw new ArgumentNullException(nameof(plc), PlcNullMessage);
         }
 
         var analysis = new PerformanceAnalysis { StartTime = DateTime.UtcNow };
@@ -568,7 +592,7 @@ public static class AdvancedExtensions
     /// <returns>true when the read-back value matches; otherwise, false.</returns>
     private static async Task<bool> VerifyWrite<T>(IRxS7 plc, KeyValuePair<string, T> kvp)
     {
-        await Task.Delay(50).ConfigureAwait(false);
+        await Task.Delay(WriteVerificationDelayMilliseconds).ConfigureAwait(false);
         var readBack = await plc.Value<T>(kvp.Key).ConfigureAwait(false);
         return readBack is not null && EqualityComparer<T>.Default.Equals(readBack, kvp.Value);
     }
@@ -609,7 +633,7 @@ public static class AdvancedExtensions
         }
 
         var dotIndex = address.IndexOf('.');
-        return dotIndex <= 2 ? "SYSTEM" : address[..dotIndex];
+        return dotIndex < MinimumDataBlockDotIndex ? "SYSTEM" : address[..dotIndex];
     }
 
     /// <summary>Analyzes the distribution of tags across data blocks and returns a count of tags per data block identifier.</summary>
@@ -638,17 +662,17 @@ public static class AdvancedExtensions
     {
         var recommendations = new List<string>();
 
-        if (diagnostics.TagMetrics.TotalTags > 200)
+        if (diagnostics.TagMetrics.TotalTags > HighTagCountThreshold)
         {
             recommendations.Add("High tag count detected - consider implementing connection pooling");
         }
 
-        if (diagnostics.ConnectionLatencyMs > 500)
+        if (diagnostics.ConnectionLatencyMs > HighConnectionLatencyMilliseconds)
         {
             recommendations.Add($"High latency ({diagnostics.ConnectionLatencyMs:F0}ms) - check network configuration");
         }
 
-        if (diagnostics.TagMetrics.InactiveTags > diagnostics.TagMetrics.TotalTags * 0.3)
+        if (diagnostics.TagMetrics.InactiveTags > diagnostics.TagMetrics.TotalTags * InactiveTagRatioThreshold)
         {
             recommendations.Add($"Many inactive tags ({diagnostics.TagMetrics.InactiveTags}) - consider cleanup");
         }
@@ -685,12 +709,12 @@ public static class AdvancedExtensions
         foreach (var kvp in tagChangeCounts)
         {
             var changesPerMinute = kvp.Value / totalMinutes;
-            if (changesPerMinute < 0.1)
+            if (changesPerMinute < SlowTagChangesPerMinuteThreshold)
             {
                 slowChangingTagCount++;
             }
 
-            if (changesPerMinute > 10)
+            if (changesPerMinute > FastTagChangesPerMinuteThreshold)
             {
                 fastChangingTagCount++;
             }

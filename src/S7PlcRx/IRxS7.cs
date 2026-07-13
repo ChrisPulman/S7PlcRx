@@ -5,6 +5,7 @@
 #if REACTIVE_SHIM
 using S7PlcRx.Reactive.Enums;
 #else
+using ReactiveUI.Primitives.Disposables;
 using S7PlcRx.Enums;
 #endif
 

@@ -31,11 +31,7 @@ public class ConnectionPool : IDisposable
     private readonly ConnectionPoolConfig _config;
 
     /// <summary>Stores the lock used to protect connection selection and disposal.</summary>
-#if NET8_0
-    private readonly object _lock = new();
-#else
     private readonly Lock _lock = new();
-#endif
 
     /// <summary>Stores the d is po s e d used by this instance.</summary>
     private bool _disposed;
@@ -66,7 +62,7 @@ public class ConnectionPool : IDisposable
                 break;
             }
 
-            var plc = new RxS7(config.PLCType, config.IPAddress, config.Rack, config.Slot);
+            var plc = new RxS7(new(new(config.PLCType, config.IPAddress, config.Rack, config.Slot)));
             _connections.Add(plc);
             addedConnections++;
         }

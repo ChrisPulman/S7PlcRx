@@ -27,6 +27,15 @@ namespace S7PlcRx.PlcTypes;
 /// ensure appropriate synchronization if accessing shared objects.</remarks>
 public static class Class
 {
+    /// <summary>The byte boundary required for S7 class fields.</summary>
+    private const int ByteAlignment = 2;
+
+    /// <summary>The fraction of a byte occupied by one Boolean value.</summary>
+    private const double BitSizeInBytes = 0.125;
+
+    /// <summary>Message used when a string property lacks serialization metadata.</summary>
+    private const string MissingS7StringAttributeMessage = "Please add S7StringAttribute to the string field";
+
     /// <summary>
     /// Calculates the total size, in bytes, of the specified object's accessible properties, including arrays and
     /// nested properties as applicable.
@@ -80,7 +89,7 @@ public static class Class
         {
             // enlarge numBytes to next even number because S7-Structs in a DB always will be resized to an even byte count
             numBytes = Math.Ceiling(numBytes);
-            if ((numBytes / 2) > Math.Floor(numBytes / 2.0))
+            if ((numBytes / ByteAlignment) > Math.Floor(numBytes / ByteAlignment))
             {
                 numBytes++;
             }
@@ -238,7 +247,7 @@ public static class Class
         {
             case "Boolean":
                 {
-                    numBytes += 0.125;
+                    numBytes += BitSizeInBytes;
                     break;
                 }
 
@@ -252,28 +261,28 @@ public static class Class
             case "Int16" or "UInt16":
                 {
                     IncrementToEven(ref numBytes);
-                    numBytes += 2;
+                    numBytes += sizeof(short);
                     break;
                 }
 
             case "Int32" or "UInt32":
                 {
                     IncrementToEven(ref numBytes);
-                    numBytes += 4;
+                    numBytes += sizeof(int);
                     break;
                 }
 
             case "Single":
                 {
                     IncrementToEven(ref numBytes);
-                    numBytes += 4;
+                    numBytes += sizeof(float);
                     break;
                 }
 
             case "Double":
                 {
                     IncrementToEven(ref numBytes);
-                    numBytes += 8;
+                    numBytes += sizeof(double);
                     break;
                 }
 
@@ -282,7 +291,7 @@ public static class Class
                     var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
                     if (attribute == default(S7StringAttribute))
                     {
-                        throw new ArgumentException("Please add S7StringAttribute to the string field");
+                        throw new ArgumentException(MissingS7StringAttributeMessage);
                     }
 
                     IncrementToEven(ref numBytes);
@@ -328,9 +337,9 @@ public static class Class
                 {
                     // get the value
                     var bytePos = (int)Math.Floor(numBytes);
-                    var bitPos = (int)((numBytes - bytePos) / 0.125);
-                    value = (bytes[bytePos] & (int)Math.Pow(2, bitPos)) != 0;
-                    numBytes += 0.125;
+                    var bitPos = (int)((numBytes - bytePos) / BitSizeInBytes);
+                    value = (bytes[bytePos] & (1 << bitPos)) != 0;
+                    numBytes += BitSizeInBytes;
                     break;
                 }
 
@@ -349,7 +358,7 @@ public static class Class
                     // hier auswerten
                     var source = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
                     value = source.ConvertToShort();
-                    numBytes += 2;
+                    numBytes += sizeof(short);
                     break;
                 }
 
@@ -359,28 +368,28 @@ public static class Class
 
                     // hier auswerten
                     value = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
-                    numBytes += 2;
+                    numBytes += sizeof(ushort);
                     break;
                 }
 
             case "Int32":
                 {
                     IncrementToEven(ref numBytes);
-                    var wordBuffer = new byte[4];
+                    var wordBuffer = new byte[sizeof(int)];
                     Array.Copy(bytes, (int)numBytes, wordBuffer, 0, wordBuffer.Length);
                     var sourceUInt = DWord.FromByteArray(wordBuffer);
                     value = sourceUInt.ConvertToInt();
-                    numBytes += 4;
+                    numBytes += sizeof(int);
                     break;
                 }
 
             case "UInt32":
                 {
                     IncrementToEven(ref numBytes);
-                    var wordBuffer2 = new byte[4];
+                    var wordBuffer2 = new byte[sizeof(uint)];
                     Array.Copy(bytes, (int)numBytes, wordBuffer2, 0, wordBuffer2.Length);
                     value = DWord.FromByteArray(wordBuffer2);
-                    numBytes += 4;
+                    numBytes += sizeof(uint);
                     break;
                 }
 
@@ -389,25 +398,20 @@ public static class Class
                     IncrementToEven(ref numBytes);
 
                     // hier auswerten
-                    value = Real.FromByteArray(
-                        [
-                            bytes[(int)numBytes],
-                            bytes[(int)numBytes + 1],
-                            bytes[(int)numBytes + 2],
-                            bytes[(int)numBytes + 3]]);
-                    numBytes += 4;
+                    value = Real.FromSpan(bytes.AsSpan((int)numBytes, sizeof(float)));
+                    numBytes += sizeof(float);
                     break;
                 }
 
             case "Double":
                 {
                     IncrementToEven(ref numBytes);
-                    var buffer = new byte[8];
-                    Array.Copy(bytes, (int)numBytes, buffer, 0, 8);
+                    var buffer = new byte[sizeof(double)];
+                    Array.Copy(bytes, (int)numBytes, buffer, 0, buffer.Length);
 
                     // hier auswerten
                     value = LReal.FromByteArray(buffer);
-                    numBytes += 8;
+                    numBytes += sizeof(double);
                     break;
                 }
 
@@ -416,7 +420,7 @@ public static class Class
                     var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
                     if (attribute == default(S7StringAttribute))
                     {
-                        throw new ArgumentException("Please add S7StringAttribute to the string field");
+                        throw new ArgumentException(MissingS7StringAttributeMessage);
                     }
 
                     IncrementToEven(ref numBytes);
@@ -479,17 +483,17 @@ public static class Class
                 {
                     // get the value
                     bytePos = (int)Math.Floor(numBytes);
-                    var bitPos = (int)((numBytes - bytePos) / 0.125);
+                    var bitPos = (int)((numBytes - bytePos) / BitSizeInBytes);
                     if ((bool)propertyValue)
                     {
-                        bytes[bytePos] |= (byte)Math.Pow(2, bitPos); // is true
+                        bytes[bytePos] |= (byte)(1 << bitPos); // is true
                     }
                     else
                     {
-                        bytes[bytePos] &= (byte)(~(byte)Math.Pow(2, bitPos)); // is false
+                        bytes[bytePos] &= (byte)~(1 << bitPos); // is false
                     }
 
-                    numBytes += 0.125;
+                    numBytes += BitSizeInBytes;
                     break;
                 }
 
@@ -543,7 +547,7 @@ public static class Class
                     var attribute = propertyInfo is null ? null : GetS7StringAttribute(propertyInfo);
                     if (attribute == default(S7StringAttribute))
                     {
-                        throw new ArgumentException("Please add S7StringAttribute to the string field");
+                        throw new ArgumentException(MissingS7StringAttributeMessage);
                     }
 
                     bytes2 = attribute.Type switch
@@ -586,7 +590,7 @@ public static class Class
     private static void IncrementToEven(ref double numBytes)
     {
         numBytes = Math.Ceiling(numBytes);
-        if (numBytes % 2 == 0)
+        if (numBytes % ByteAlignment == 0)
         {
             return;
         }

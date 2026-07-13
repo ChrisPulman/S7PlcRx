@@ -21,6 +21,9 @@ namespace S7PlcRx.PlcTypes;
 /// maintain any internal state.</remarks>
 public static class Counter
 {
+    /// <summary>The serialized counter width in bytes.</summary>
+    private const int TypeLengthInBytes = sizeof(ushort);
+
     /// <summary>Converts a byte array to a 16-bit unsigned integer.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert. Must contain at least two bytes representing the value in the
     /// expected byte order.</param>
@@ -131,14 +134,14 @@ public static class Counter
     /// <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to hold the encoded bytes.</exception>
     public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)
     {
-        if (destination.Length < values.Length * 2)
+        if (destination.Length < values.Length * TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         for (var i = 0; i < values.Length; i++)
         {
-            ToSpan(values[i], destination.Slice(i * 2, 2));
+            ToSpan(values[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
     }
 

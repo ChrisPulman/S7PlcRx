@@ -21,6 +21,12 @@ namespace S7PlcRx.PlcTypes;
 /// conversion can be configured via the StringEncoding property. All methods are thread-safe.</remarks>
 public static class S7String
 {
+    /// <summary>The S7 string header width in bytes.</summary>
+    private const int HeaderLengthInBytes = 2;
+
+    /// <summary>The largest character capacity supported by an S7 string.</summary>
+    private const int MaximumReservedLength = 254;
+
     /// <summary>Stores the s tr in ge nc od i n g value.</summary>
     private static Encoding _stringEncoding = Encoding.ASCII;
 
@@ -60,7 +66,7 @@ public static class S7String
     /// </exception>
     public static string FromSpan(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length < 2)
+        if (bytes.Length < HeaderLengthInBytes)
         {
             throw new PlcException(ErrorCode.ReadData, "Malformed S7 String / too short");
         }
@@ -72,15 +78,15 @@ public static class S7String
             throw new PlcException(ErrorCode.ReadData, "Malformed S7 String / length larger than capacity");
         }
 
-        if (bytes.Length < 2 + length)
+        if (bytes.Length < HeaderLengthInBytes + length)
         {
-            throw new PlcException(ErrorCode.ReadData, $"Insufficient data for S7 String. Expected {2 + length} bytes, got {bytes.Length}");
+            throw new PlcException(ErrorCode.ReadData, $"Insufficient data for S7 String. Expected {HeaderLengthInBytes + length} bytes, got {bytes.Length}");
         }
 
         try
         {
             // For .NET Standard 2.0 compatibility, convert span to array for encoding
-            var stringBytes = bytes.Slice(2, length).ToArray();
+            var stringBytes = bytes.Slice(HeaderLengthInBytes, length).ToArray();
             return StringEncoding.GetString(stringBytes);
         }
         catch (Exception e)
@@ -98,7 +104,7 @@ public static class S7String
     /// <returns>A <see cref="T:byte[]" /> containing the string header and string value with a maximum length of <paramref name="reservedLength"/> + 2.</returns>
     public static byte[] ToByteArray(string? value, int reservedLength)
     {
-        Span<byte> buffer = stackalloc byte[2 + reservedLength];
+        Span<byte> buffer = stackalloc byte[HeaderLengthInBytes + reservedLength];
         var bytesWritten = ToSpan(value, reservedLength, buffer);
         return buffer.Slice(0, bytesWritten).ToArray();
     }
@@ -121,12 +127,12 @@ public static class S7String
             throw new ArgumentNullException(nameof(value));
         }
 
-        if (reservedLength > 254)
+        if (reservedLength > MaximumReservedLength)
         {
             throw new ArgumentException("The maximum string length supported is 254.");
         }
 
-        if (destination.Length < 2 + reservedLength)
+        if (destination.Length < HeaderLengthInBytes + reservedLength)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
@@ -138,7 +144,7 @@ public static class S7String
         }
 
         // Clear the destination area
-        destination.Slice(0, 2 + reservedLength).Clear();
+        destination.Slice(0, HeaderLengthInBytes + reservedLength).Clear();
 
         // Set header
         destination[0] = (byte)reservedLength;
@@ -147,10 +153,10 @@ public static class S7String
         // Copy string data
         if (bytes.Length > 0)
         {
-            bytes.AsSpan().CopyTo(destination.Slice(2));
+            bytes.AsSpan().CopyTo(destination.Slice(HeaderLengthInBytes));
         }
 
-        return 2 + reservedLength;
+        return HeaderLengthInBytes + reservedLength;
     }
 
     /// <summary>Tries to convert a string to S7 string format in the specified span.</summary>
@@ -163,7 +169,7 @@ public static class S7String
     {
         bytesWritten = 0;
 
-        if (value is null || reservedLength > 254 || destination.Length < 2 + reservedLength)
+        if (value is null || reservedLength > MaximumReservedLength || destination.Length < HeaderLengthInBytes + reservedLength)
         {
             return false;
         }
@@ -181,5 +187,5 @@ public static class S7String
     /// <summary>Gets the total byte length for an S7 string with the specified reserved length.</summary>
     /// <param name="reservedLength">The reserved length for the string.</param>
     /// <returns>The total byte length including header.</returns>
-    public static int GetByteLength(int reservedLength) => 2 + reservedLength;
+    public static int GetByteLength(int reservedLength) => HeaderLengthInBytes + reservedLength;
 }

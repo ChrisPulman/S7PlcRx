@@ -24,6 +24,12 @@ namespace S7PlcRx.PlcTypes;
 /// I/O. The class is static and cannot be instantiated.</remarks>
 public static class Word
 {
+    /// <summary>The serialized unsigned word width in bytes.</summary>
+    private const int TypeLengthInBytes = sizeof(ushort);
+
+    /// <summary>The number of distinct values representable by one byte.</summary>
+    private const int ByteValueRange = byte.MaxValue + 1;
+
     /// <summary>Creates a 16-bit unsigned integer from a byte array.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert. Must contain at least two elements.</param>
     /// <returns>A 16-bit unsigned integer represented by the first two bytes of the array.</returns>
@@ -51,7 +57,7 @@ public static class Word
     /// <param name="lowValue">The low-order byte of the resulting 16-bit unsigned integer.</param>
     /// <param name="highValue">The high-order byte of the resulting 16-bit unsigned integer.</param>
     /// <returns>A 16-bit unsigned integer composed from the specified low and high bytes.</returns>
-    public static ushort FromBytes(byte lowValue, byte highValue) => (ushort)((highValue * 256) + lowValue);
+    public static ushort FromBytes(byte lowValue, byte highValue) => (ushort)((highValue * ByteValueRange) + lowValue);
 
     /// <summary>Converts a byte array to an array of 16-bit unsigned integers.</summary>
     /// <remarks>The conversion interprets each pair of bytes in the input array as a single 16-bit unsigned
@@ -86,7 +92,7 @@ public static class Word
     /// <returns>A byte array containing the bytes of the specified value in little-endian order.</returns>
     public static byte[] ToByteArray(ushort value)
     {
-        Span<byte> bytes = stackalloc byte[2];
+        Span<byte> bytes = stackalloc byte[TypeLengthInBytes];
         ToSpan(value, bytes);
         return bytes.ToArray();
     }
@@ -119,7 +125,7 @@ public static class Word
     public static void ToByteArray(ushort value, Array destination, int start)
     {
         var bytes = ToByteArray(value);
-        Array.Copy(bytes, 0, destination, start, 2);
+        Array.Copy(bytes, 0, destination, start, TypeLengthInBytes);
     }
 
     /// <summary>Converts an array of 16-bit unsigned integers to a byte array.</summary>
@@ -145,14 +151,14 @@ public static class Word
     /// <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the converted bytes.</exception>
     public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)
     {
-        if (destination.Length < values.Length * 2)
+        if (destination.Length < values.Length * TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         for (var i = 0; i < values.Length; i++)
         {
-            ToSpan(values[i], destination.Slice(i * 2, 2));
+            ToSpan(values[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
     }
 }

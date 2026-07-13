@@ -23,6 +23,9 @@ namespace S7PlcRx.PlcTypes;
 /// concurrent use.</remarks>
 public static class LReal
 {
+    /// <summary>The serialized double-precision value width in bytes.</summary>
+    private const int TypeLengthInBytes = sizeof(double);
+
     /// <summary>Converts a byte array to a double-precision floating-point number.</summary>
     /// <param name="bytes">The byte array containing the binary representation of a double-precision floating-point value. Must be at least
     /// 8 bytes in length.</param>
@@ -61,7 +64,7 @@ public static class LReal
         {
             // Create a temporary span and reverse for big-endian
             Span<byte> temp = stackalloc byte[8];
-            bytes.Slice(0, 8).CopyTo(temp);
+            bytes.Slice(0, TypeLengthInBytes).CopyTo(temp);
             temp.Reverse();
             return MemoryMarshal.Read<double>(temp);
         }
@@ -147,14 +150,14 @@ public static class LReal
     /// <exception cref="ArgumentException">Thrown when the length of destination is less than values.Length Ã— 8 bytes.</exception>
     public static void ToSpan(ReadOnlySpan<double> values, Span<byte> destination)
     {
-        if (destination.Length < values.Length * 8)
+        if (destination.Length < values.Length * TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         for (var i = 0; i < values.Length; i++)
         {
-            ToSpan(values[i], destination.Slice(i * 8, 8));
+            ToSpan(values[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
     }
 

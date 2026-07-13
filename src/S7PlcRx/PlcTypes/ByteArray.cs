@@ -16,6 +16,12 @@ namespace S7PlcRx.PlcTypes;
 /// <param name="size">The initial capacity of the internal buffer, in bytes. Must be greater than zero.</param>
 public class ByteArray(int size) : IDisposable
 {
+    /// <summary>The initial capacity used by the parameterless constructor.</summary>
+    private const int DefaultCapacity = 32;
+
+    /// <summary>The factor by which the pooled buffer grows.</summary>
+    private const int GrowthFactor = 2;
+
     /// <summary>Stores the b uf f e r used by this instance.</summary>
     private byte[] _buffer = ArrayPool<byte>.Shared.Rent(size);
 
@@ -29,7 +35,7 @@ public class ByteArray(int size) : IDisposable
     /// <remarks>This constructor is useful when the required initial capacity is not known in advance. The
     /// internal buffer will automatically expand as needed when additional bytes are added.</remarks>
     public ByteArray()
-        : this(32)
+        : this(DefaultCapacity)
     {
     }
 
@@ -148,7 +154,7 @@ public class ByteArray(int size) : IDisposable
             return;
         }
 
-        var newCapacity = Math.Max(required, _buffer.Length * 2);
+        var newCapacity = Math.Max(required, _buffer.Length * GrowthFactor);
         var newBuffer = ArrayPool<byte>.Shared.Rent(newCapacity);
 
         _buffer.AsSpan(0, _position).CopyTo(newBuffer);

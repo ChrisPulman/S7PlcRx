@@ -25,6 +25,18 @@ namespace S7PlcRx.PlcTypes;
 /// S7StringAttribute to specify their encoding and length. All methods are static and thread-safe.</remarks>
 public static class Struct
 {
+    /// <summary>The byte boundary required for S7 struct fields.</summary>
+    private const int ByteAlignment = 2;
+
+    /// <summary>The fraction of a byte occupied by one Boolean value.</summary>
+    private const double BitSizeInBytes = 0.125;
+
+    /// <summary>The offset of the third byte in a four-byte value.</summary>
+    private const int ThirdByteOffset = 2;
+
+    /// <summary>The offset of the fourth byte in a four-byte value.</summary>
+    private const int FourthByteOffset = 3;
+
     /// <summary>
     /// Calculates the total size, in bytes, required to store an instance of the specified struct type, based on its
     /// fields and their types.
@@ -137,25 +149,25 @@ public static class Struct
         switch (info.FieldType.Name)
         {
             case "Boolean":
-                return numBytes + 0.125;
+                return numBytes + BitSizeInBytes;
             case "Byte":
                 return Math.Ceiling(numBytes) + 1;
             case "Int16" or "UInt16":
                 {
                     IncrementToEven(ref numBytes);
-                    return numBytes + 2;
+                    return numBytes + sizeof(short);
                 }
 
             case "Int32" or "UInt32" or "Single" or "TimeSpan":
                 {
                     IncrementToEven(ref numBytes);
-                    return numBytes + 4;
+                    return numBytes + sizeof(int);
                 }
 
             case "Double":
                 {
                     IncrementToEven(ref numBytes);
-                    return numBytes + 8;
+                    return numBytes + sizeof(double);
                 }
 
             case "String":
@@ -288,9 +300,9 @@ public static class Struct
         ref double numBytes)
     {
         bytePos = (int)Math.Floor(numBytes);
-        bitPos = (int)((numBytes - bytePos) / 0.125);
+        bitPos = (int)((numBytes - bytePos) / BitSizeInBytes);
         info.SetValue(structValue, (bytes[bytePos] & (1 << bitPos)) != 0);
-        numBytes += 0.125;
+        numBytes += BitSizeInBytes;
     }
 
     /// <summary>Sets a byte field from a byte buffer.</summary>
@@ -313,7 +325,7 @@ public static class Struct
     {
         IncrementToEven(ref numBytes);
         var value = Word.FromBytes(bytes[(int)numBytes + 1], bytes[(int)numBytes]);
-        numBytes += 2;
+        numBytes += sizeof(ushort);
         return value;
     }
 
@@ -326,12 +338,12 @@ public static class Struct
     {
         IncrementToEven(ref numBytes);
         var sourceUInt = DWord.FromBytes(
-            bytes[(int)numBytes + 3],
-            bytes[(int)numBytes + 2],
+            bytes[(int)numBytes + FourthByteOffset],
+            bytes[(int)numBytes + ThirdByteOffset],
             bytes[(int)numBytes + 1],
             bytes[(int)numBytes]);
         info.SetValue(structValue, sourceUInt.ConvertToInt());
-        numBytes += 4;
+        numBytes += sizeof(int);
     }
 
     /// <summary>Sets an unsigned 32-bit integer field from a byte buffer.</summary>
@@ -345,9 +357,9 @@ public static class Struct
         info.SetValue(structValue, DWord.FromBytes(
             bytes[(int)numBytes],
             bytes[(int)numBytes + 1],
-            bytes[(int)numBytes + 2],
-            bytes[(int)numBytes + 3]));
-        numBytes += 4;
+            bytes[(int)numBytes + ThirdByteOffset],
+            bytes[(int)numBytes + FourthByteOffset]));
+        numBytes += sizeof(uint);
     }
 
     /// <summary>Sets a single precision field from a byte buffer.</summary>
@@ -358,14 +370,8 @@ public static class Struct
     private static void SetSingleFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
     {
         IncrementToEven(ref numBytes);
-        info.SetValue(structValue, Real.FromByteArray(
-            [
-                bytes[(int)numBytes],
-                bytes[(int)numBytes + 1],
-                bytes[(int)numBytes + 2],
-                bytes[(int)numBytes + 3]
-            ]));
-        numBytes += 4;
+        info.SetValue(structValue, Real.FromSpan(bytes.AsSpan((int)numBytes, sizeof(float))));
+        numBytes += sizeof(float);
     }
 
     /// <summary>Sets a double precision field from a byte buffer.</summary>
@@ -376,10 +382,10 @@ public static class Struct
     private static void SetDoubleFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
     {
         IncrementToEven(ref numBytes);
-        var data = new byte[8];
-        Array.Copy(bytes, (int)numBytes, data, 0, 8);
+        var data = new byte[sizeof(double)];
+        Array.Copy(bytes, (int)numBytes, data, 0, data.Length);
         info.SetValue(structValue, LReal.FromByteArray(data));
-        numBytes += 8;
+        numBytes += sizeof(double);
     }
 
     /// <summary>Sets a string field from a byte buffer.</summary>
@@ -410,14 +416,8 @@ public static class Struct
     private static void SetTimeSpanFieldFromBytes(FieldInfo info, object structValue, byte[] bytes, ref double numBytes)
     {
         IncrementToEven(ref numBytes);
-        info.SetValue(structValue, TimeSpan.FromByteArray(
-            [
-                bytes[(int)numBytes],
-                bytes[(int)numBytes + 1],
-                bytes[(int)numBytes + 2],
-                bytes[(int)numBytes + 3]
-            ]));
-        numBytes += 4;
+        info.SetValue(structValue, TimeSpan.FromSpan(bytes.AsSpan((int)numBytes, sizeof(int))));
+        numBytes += sizeof(int);
     }
 
     /// <summary>Sets a nested struct field from a byte buffer.</summary>
@@ -490,17 +490,17 @@ public static class Struct
     /// <param name="numBytes">The current byte count.</param>
     private static void SetBooleanFieldBytes(FieldInfo info, object structValue, byte[] bytes, ref int bytePos, ref double numBytes)
     {
-        var bitPos = (int)((numBytes - bytePos) / 0.125);
+        var bitPos = (int)((numBytes - bytePos) / BitSizeInBytes);
         if (GetValueOrThrow<bool>(info, structValue))
         {
-            bytes[bytePos] |= (byte)Math.Pow(2, bitPos); // is true
+            bytes[bytePos] |= (byte)(1 << bitPos); // is true
         }
         else
         {
-            bytes[bytePos] &= (byte)(~(byte)Math.Pow(2, bitPos)); // is false
+            bytes[bytePos] &= (byte)~(1 << bitPos); // is false
         }
 
-        numBytes += 0.125;
+        numBytes += BitSizeInBytes;
     }
 
     /// <summary>Sets a byte field in the destination byte buffer.</summary>
@@ -587,7 +587,7 @@ public static class Struct
     private static void IncrementToEven(ref double numBytes)
     {
         numBytes = Math.Ceiling(numBytes);
-        if (numBytes % 2 == 0)
+        if (numBytes % ByteAlignment == 0)
         {
             return;
         }

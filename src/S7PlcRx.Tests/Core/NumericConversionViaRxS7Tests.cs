@@ -18,7 +18,7 @@ public class NumericConversionViaRxS7Tests
     [Test]
     public void ParseBytes_ShouldDecodeWordDWordDInt()
     {
-        using var plc = new RxS7(CpuType.S7200, "127.0.0.1", rack: 0, slot: 0);
+        using var plc = new RxS7(new(new(CpuType.S7200, "127.0.0.1", 0, 0)));
 
         var parseBytes = typeof(RxS7).GetMethod("ParseBytes", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(parseBytes, Is.Not.Null);
@@ -42,7 +42,7 @@ public class NumericConversionViaRxS7Tests
     [Test]
     public void ParseBytes_ShouldDecodeRealAndLReal()
     {
-        using var plc = new RxS7(CpuType.S7200, "127.0.0.1", rack: 0, slot: 0);
+        using var plc = new RxS7(new(new(CpuType.S7200, "127.0.0.1", 0, 0)));
 
         var parseBytes = typeof(RxS7).GetMethod("ParseBytes", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(parseBytes, Is.Not.Null);

@@ -26,6 +26,15 @@ namespace S7PlcRx.Optimization;
 /// concurrent use. Dispose the instance when it is no longer needed to release resources.</remarks>
 internal class OptimizationEngine : IDisposable
 {
+    /// <summary>Defines the length of the DB address prefix.</summary>
+    private const int DataBlockPrefixLength = 2;
+
+    /// <summary>Defines the first valid separator position in a data-block address.</summary>
+    private const int MinimumDataBlockDotIndex = 3;
+
+    /// <summary>Defines how long batch processing waits to acquire its lock.</summary>
+    private const int ProcessingLockTimeoutMilliseconds = 100;
+
     /// <summary>Stores the r eq ue st qu e u e used by this instance.</summary>
     private readonly ConcurrentQueue<OptimizedRequest> _requestQueue = new();
 
@@ -48,7 +57,7 @@ internal class OptimizationEngine : IDisposable
     {
         _maxBatchSize = maxBatchSize;
         _batchTimer = new(
-            ProcessBatchedRequests,
+            _ => ProcessBatchedRequests(),
             null,
             TimeSpan.FromMilliseconds(batchIntervalMs),
             TimeSpan.FromMilliseconds(batchIntervalMs));
@@ -213,24 +222,22 @@ internal class OptimizationEngine : IDisposable
         }
 
         var dotIndex = nonNullAddress.IndexOf('.');
-        if (dotIndex <= 2)
+        if (dotIndex < MinimumDataBlockDotIndex)
         {
             return -1;
         }
 
-        return int.TryParse(nonNullAddress[2..dotIndex], out var dbNumber) ? dbNumber : -1;
+        return int.TryParse(nonNullAddress[DataBlockPrefixLength..dotIndex], out var dbNumber) ? dbNumber : -1;
     }
 
     /// <summary>Processes a batch of queued requests, up to the configured maximum batch size.</summary>
     /// <remarks>This method is intended to be invoked by a timer or background scheduler. If the processing
     /// lock cannot be acquired within 100 milliseconds, the method exits without processing any requests. The method
     /// processes requests in batches to improve throughput and efficiency.</remarks>
-    /// <param name="state">An optional state object provided by the timer or scheduling mechanism. This parameter is not used by the
-    /// method.</param>
-    private async void ProcessBatchedRequests(object? state)
+    private async void ProcessBatchedRequests()
     {
         // Quick timeout to avoid blocking
-        if (!await _processingLock.WaitAsync(100))
+        if (!await _processingLock.WaitAsync(ProcessingLockTimeoutMilliseconds))
         {
             return;
         }

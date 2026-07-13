@@ -163,7 +163,7 @@ public class S7PlcRxAsyncExtensionsTests
         BinaryPrimitives.WriteUInt16BigEndian(server.DefaultDb1!.AsSpan(0, 2), 100);
         BinaryPrimitives.WriteUInt16BigEndian(server.DefaultDb1.AsSpan(2, 2), 200);
 
-        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, interval: 100);
+        using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1)));
         plc.AddUpdateTagItem<ushort>("A", "DB1.DBW0").SetTagPollIng(false);
         plc.AddUpdateTagItem<ushort>("B", "DB1.DBW2").SetTagPollIng(false);
 
@@ -248,7 +248,7 @@ public class S7PlcRxAsyncExtensionsTests
         server.DefaultDb1Size = 16;
         Assert.That(server.Start(), Is.EqualTo(0));
 
-        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, interval: 100);
+        using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1)));
         plc.AddUpdateTagItem<ushort>("A", "DB1.DBW0").SetTagPollIng(false);
         plc.AddUpdateTagItem<ushort>("B", "DB1.DBW2").SetTagPollIng(false);
 

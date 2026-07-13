@@ -32,6 +32,9 @@ public static class TimeSpan
     /// TimeSpan.FromMilliseconds(int.MaxValue).</remarks>
     public static readonly System.TimeSpan SpecMaximumTimeSpan = System.TimeSpan.FromMilliseconds(int.MaxValue);
 
+    /// <summary>The allocation size above which array pooling is used.</summary>
+    private const int ArrayPoolThresholdInBytes = 1024;
+
     /// <summary>Creates a TimeSpan structure from its binary representation in a byte array.</summary>
     /// <remarks>The byte array must contain a valid binary representation of a TimeSpan as produced by the
     /// corresponding serialization method. Supplying an array that is too short or incorrectly formatted may result in
@@ -151,7 +154,7 @@ public static class TimeSpan
         // Use ArrayPool for large allocations
         var totalBytes = timeSpans.Length * TypeLengthInBytes;
         byte[]? pooledArray = null;
-        var buffer = totalBytes > 1024
+        var buffer = totalBytes > ArrayPoolThresholdInBytes
             ? pooledArray = ArrayPool<byte>.Shared.Rent(totalBytes)
             : new byte[totalBytes];
 

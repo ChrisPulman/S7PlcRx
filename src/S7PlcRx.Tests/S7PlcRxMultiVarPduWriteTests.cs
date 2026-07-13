@@ -25,7 +25,7 @@ public class S7PlcRxMultiVarPduWriteTests
         var rc = server.Start();
         Assert.That(rc, Is.EqualTo(0));
 
-        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, interval: 1);
+        using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), new(1)));
 
         plc.AddUpdateTagItem<ushort>("W0", "DB1.DBW0").SetTagPollIng(false);
         plc.AddUpdateTagItem<ushort>("W1", "DB1.DBW2").SetTagPollIng(false);

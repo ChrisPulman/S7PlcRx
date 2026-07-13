@@ -17,7 +17,7 @@ if (rc != 0)
     return;
 }
 // ── Connect PLC and register tag ───────────────────────────────────────
-using var plc = new RxS7(S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1, null, interval: 100);
+using var plc = new RxS7(new(new(S7PlcRx.Enums.CpuType.S71500, MockServer.Localhost, 0, 1)));
 
 plc.AddUpdateTagItem<byte[]>("GlobalVariables", "DB1.DBB0", 10088).SetTagPollIng(false);
 

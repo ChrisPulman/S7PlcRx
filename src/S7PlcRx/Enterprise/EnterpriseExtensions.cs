@@ -26,6 +26,18 @@ namespace S7PlcRx.Enterprise;
 /// production environments.</remarks>
 public static class EnterpriseExtensions
 {
+    /// <summary>Defines the minimum number of columns required for a CSV symbol row.</summary>
+    private const int CsvMinimumColumnCount = 3;
+
+    /// <summary>Defines the CSV column containing the symbol data type.</summary>
+    private const int CsvDataTypeColumnIndex = 2;
+
+    /// <summary>Defines the optional CSV column containing the symbol length.</summary>
+    private const int CsvLengthColumnIndex = 3;
+
+    /// <summary>Defines the optional CSV column containing the symbol description.</summary>
+    private const int CsvDescriptionColumnIndex = 4;
+
     /// <summary>Stores the s ym bo lt ab l e s used by this instance.</summary>
     private static readonly ConcurrentDictionary<string, SymbolTable> _symbolTables = new();
 
@@ -238,15 +250,15 @@ public static class EnterpriseExtensions
             for (var i = startIndex; i < lines.Length; i++)
             {
                 var values = lines[i].Split(',');
-                if (values.Length >= 3)
+                if (values.Length >= CsvMinimumColumnCount)
                 {
                     var symbol = new Symbol
                     {
                         Name = values[0].Trim('"'),
                         Address = values[1].Trim('"'),
-                        DataType = values[2].Trim('"'),
-                        Length = values.Length > 3 && int.TryParse(values[3], out var len) ? len : 1,
-                        Description = values.Length > 4 ? values[4].Trim('"') : string.Empty
+                        DataType = values[CsvDataTypeColumnIndex].Trim('"'),
+                        Length = values.Length > CsvLengthColumnIndex && int.TryParse(values[CsvLengthColumnIndex], out var len) ? len : 1,
+                        Description = values.Length > CsvDescriptionColumnIndex ? values[CsvDescriptionColumnIndex].Trim('"') : string.Empty
                     };
 
                     symbolTable.Symbols[symbol.Name] = symbol;
@@ -320,7 +332,7 @@ public static class EnterpriseExtensions
     /// <param name="document">The XML document.</param>
     private static void AddXmlSymbols(SymbolTable symbolTable, System.Xml.Linq.XDocument document)
     {
-        foreach (var element in document.Descendants("Symbol"))
+        foreach (var element in document.Descendants(nameof(Symbol)))
         {
             var symbol = CreateXmlSymbol(element);
             if (string.IsNullOrEmpty(symbol.Name))

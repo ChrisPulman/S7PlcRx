@@ -22,6 +22,39 @@ namespace S7PlcRx.Performance;
 /// arguments are supplied. Thread safety is ensured for performance data collection and metrics aggregation.</remarks>
 public static class PerformanceExtensions
 {
+    /// <summary>Defines the default interval between performance samples.</summary>
+    private const int DefaultMonitoringIntervalSeconds = 30;
+
+    /// <summary>Defines the delay before reading a written value back for verification.</summary>
+    private const int WriteVerificationDelayMilliseconds = 50;
+
+    /// <summary>Defines the first valid separator position in a data-block address.</summary>
+    private const int MinimumDataBlockDotIndex = 3;
+
+    /// <summary>Defines the delay between latency benchmark samples.</summary>
+    private const int LatencyTestDelayMilliseconds = 100;
+
+    /// <summary>Defines the delay between reliability benchmark samples.</summary>
+    private const int ReliabilityTestDelayMilliseconds = 50;
+
+    /// <summary>Defines the maximum contribution of latency to the benchmark score.</summary>
+    private const double LatencyScoreMaximum = 25;
+
+    /// <summary>Defines the latency divisor used to calculate the latency score.</summary>
+    private const double LatencyScoreDivisorMilliseconds = 20;
+
+    /// <summary>Defines the maximum contribution of throughput to the benchmark score.</summary>
+    private const double ThroughputScoreMaximum = 25;
+
+    /// <summary>Defines the multiplier used to calculate the throughput score.</summary>
+    private const double ThroughputScoreMultiplier = 2.5;
+
+    /// <summary>Defines the maximum contribution of reliability to the benchmark score.</summary>
+    private const double ReliabilityScoreMaximum = 50;
+
+    /// <summary>Defines the maximum composite benchmark score.</summary>
+    private const double BenchmarkScoreMaximum = 100;
+
     /// <summary>Stores the p er fo rm an ce co un te r s used by this instance.</summary>
     private static readonly ConcurrentDictionary<string, PerformanceCounter> _performanceCounters = new();
 
@@ -51,7 +84,7 @@ public static class PerformanceExtensions
             throw new ArgumentNullException(nameof(plc));
         }
 
-        var interval = monitoringInterval ?? TimeSpan.FromSeconds(30);
+        var interval = monitoringInterval ?? TimeSpan.FromSeconds(DefaultMonitoringIntervalSeconds);
         var metricsKey = $"{plc.IP}_{plc.PLCType}";
 
         return Observable.Timer(TimeSpan.Zero, interval)
@@ -396,7 +429,7 @@ public static class PerformanceExtensions
 
             if (config.VerifyWrites)
             {
-                await Task.Delay(50);
+                await Task.Delay(WriteVerificationDelayMilliseconds);
                 var readBack = await plc.Value<T>(kvp.Key);
                 if (readBack is null || !EqualityComparer<T>.Default.Equals(readBack, kvp.Value))
                 {
@@ -534,7 +567,7 @@ public static class PerformanceExtensions
         }
 
         var dotIndex = address.IndexOf('.');
-        return dotIndex <= 2 ? "SYSTEM" : address[..dotIndex];
+        return dotIndex < MinimumDataBlockDotIndex ? "SYSTEM" : address[..dotIndex];
     }
 
     /// <summary>
@@ -566,7 +599,7 @@ public static class PerformanceExtensions
 
                 if (i < config.LatencyTestCount - 1)
                 {
-                    await Task.Delay(100);
+                    await Task.Delay(LatencyTestDelayMilliseconds);
                 }
             }
             catch (Exception ex)
@@ -667,7 +700,7 @@ public static class PerformanceExtensions
 
             if (i < totalOperations - 1)
             {
-                await Task.Delay(50);
+                await Task.Delay(ReliabilityTestDelayMilliseconds);
             }
         }
 
@@ -688,18 +721,18 @@ public static class PerformanceExtensions
         // Latency score (lower is better)
         if (result.AverageLatencyMs > 0)
         {
-            score += Math.Max(0, 25 - (result.AverageLatencyMs / 20)); // 25 points max
+            score += Math.Max(0, LatencyScoreMaximum - (result.AverageLatencyMs / LatencyScoreDivisorMilliseconds));
         }
 
         // Throughput score
         if (result.OperationsPerSecond > 0)
         {
-            score += Math.Min(25, result.OperationsPerSecond * 2.5); // 25 points max
+            score += Math.Min(ThroughputScoreMaximum, result.OperationsPerSecond * ThroughputScoreMultiplier);
         }
 
         // Reliability score
-        score += result.ReliabilityRate * 50; // 50 points max
+        score += result.ReliabilityRate * ReliabilityScoreMaximum;
 
-        return Math.Min(100, score);
+        return Math.Min(BenchmarkScoreMaximum, score);
     }
 }

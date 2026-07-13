@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using Nuke.Common.Tooling;
 
+namespace S7PlcRx.Building;
+
 [TypeConverter(typeof(TypeConverter<Configuration>))]
 public class Configuration : Enumeration
 {

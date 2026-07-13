@@ -21,6 +21,21 @@ namespace S7PlcRx.PlcTypes;
 /// the reserved and actual string lengths, followed by the UTF-16 encoded string data.</remarks>
 public static class S7WString
 {
+    /// <summary>The S7 wide-string header width in bytes.</summary>
+    private const int HeaderLengthInBytes = 4;
+
+    /// <summary>The encoded width of one UTF-16 character.</summary>
+    private const int BytesPerCharacter = 2;
+
+    /// <summary>The header offset containing the high byte of the actual length.</summary>
+    private const int LengthHighByteOffset = 2;
+
+    /// <summary>The header offset containing the low byte of the actual length.</summary>
+    private const int LengthLowByteOffset = 3;
+
+    /// <summary>The largest character capacity supported by an S7 wide string.</summary>
+    private const int MaximumReservedLength = 16_382;
+
     /// <summary>Converts a byte array containing an S7 WString value to its corresponding .NET string representation.</summary>
     /// <remarks>The input array must follow the S7 WString format, where the first two bytes specify the
     /// maximum capacity, the next two bytes specify the actual string length, and the remaining bytes contain the
@@ -31,13 +46,13 @@ public static class S7WString
     /// <exception cref="PlcException">Thrown if the input array is null, too short, contains malformed S7 WString data, or if decoding fails.</exception>
     public static string FromByteArray(byte[] bytes)
     {
-        if (bytes?.Length < 4)
+        if (bytes?.Length < HeaderLengthInBytes)
         {
             throw new PlcException(ErrorCode.ReadData, "Malformed S7 WString / too short");
         }
 
         var size = (bytes![0] << 8) | bytes[1];
-        var length = (bytes[2] << 8) | bytes[3];
+        var length = (bytes[LengthHighByteOffset] << 8) | bytes[LengthLowByteOffset];
 
         if (length > size)
         {
@@ -46,7 +61,7 @@ public static class S7WString
 
         try
         {
-            return Encoding.BigEndianUnicode.GetString(bytes, 4, length * 2);
+            return Encoding.BigEndianUnicode.GetString(bytes, HeaderLengthInBytes, length * BytesPerCharacter);
         }
         catch (Exception e)
         {
@@ -76,18 +91,18 @@ public static class S7WString
             throw new ArgumentNullException(nameof(value));
         }
 
-        if (reservedLength > 16_382)
+        if (reservedLength > MaximumReservedLength)
         {
             throw new ArgumentException("The maximum string length supported is 16382.");
         }
 
-        var buffer = new byte[4 + (reservedLength * 2)];
+        var buffer = new byte[HeaderLengthInBytes + (reservedLength * BytesPerCharacter)];
         buffer[0] = (byte)((reservedLength >> 8) & 0xFF);
         buffer[1] = (byte)(reservedLength & 0xFF);
-        buffer[2] = (byte)((value.Length >> 8) & 0xFF);
-        buffer[3] = (byte)(value.Length & 0xFF);
+        buffer[LengthHighByteOffset] = (byte)((value.Length >> 8) & 0xFF);
+        buffer[LengthLowByteOffset] = (byte)(value.Length & 0xFF);
 
-        var stringLength = Encoding.BigEndianUnicode.GetBytes(value, 0, value.Length, buffer, 4) / 2;
+        var stringLength = Encoding.BigEndianUnicode.GetBytes(value, 0, value.Length, buffer, HeaderLengthInBytes) / BytesPerCharacter;
         if (stringLength > reservedLength)
         {
             throw new ArgumentException($"The provided string length ({stringLength} is larger than the specified reserved length ({reservedLength}).");

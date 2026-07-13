@@ -25,6 +25,9 @@ namespace S7PlcRx.PlcTypes;
 /// working with S7 Real data formats. All methods are static and intended for internal use.</remarks>
 public static class Real
 {
+    /// <summary>The serialized single-precision value width in bytes.</summary>
+    private const int TypeLengthInBytes = sizeof(float);
+
     /// <summary>Converts a byte array to a single-precision floating-point value.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert. Must contain at least four bytes representing a 32-bit
     /// floating-point value in the expected format.</param>
@@ -114,14 +117,14 @@ public static class Real
     /// values.</exception>
     public static void ToSpan(ReadOnlySpan<float> values, Span<byte> destination)
     {
-        if (destination.Length < values.Length * 4)
+        if (destination.Length < values.Length * TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         for (var i = 0; i < values.Length; i++)
         {
-            ToSpan(values[i], destination.Slice(i * 4, 4));
+            ToSpan(values[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
     }
 

@@ -13,6 +13,12 @@ namespace S7PlcRx.PlcTypes;
 /// <summary>Contains the conversion methods to convert Bit from S7 plc to C#.</summary>
 public static class Bit
 {
+    /// <summary>The largest zero-based bit index in one byte.</summary>
+    private const int MaximumBitIndex = 7;
+
+    /// <summary>The number of bits represented by one byte.</summary>
+    private const int BitsPerByte = 8;
+
     /// <summary>Determines whether the specified bit in a byte value is set.</summary>
     /// <remarks>If bitAdr is outside the range 0 to 7, the result may not be meaningful. This method does not
     /// validate the bit position.</remarks>
@@ -36,7 +42,7 @@ public static class Bit
             throw new ArgumentOutOfRangeException(nameof(byteIndex), "Byte index is out of range");
         }
 
-        if (bitIndex < 0 || bitIndex > 7)
+        if (bitIndex < 0 || bitIndex > MaximumBitIndex)
         {
             throw new ArgumentOutOfRangeException(nameof(bitIndex), "Bit index must be between 0 and 7");
         }
@@ -48,14 +54,14 @@ public static class Bit
     /// <param name="bytes">The byte array to convert. Each byte is interpreted in order, with the least significant bit first in each byte.</param>
     /// <returns>A BitArray containing the bits from the input byte array. If the input array is null or empty, returns an empty
     /// BitArray.</returns>
-    public static BitArray ToBitArray(byte[] bytes) => ToBitArray(bytes.AsSpan(), bytes?.Length * 8);
+    public static BitArray ToBitArray(byte[] bytes) => ToBitArray(bytes.AsSpan(), bytes?.Length * BitsPerByte);
 
     /// <summary>Creates a new BitArray representing the bits contained in the specified read-only span of bytes.</summary>
     /// <param name="bytes">A read-only span of bytes whose bits will be copied into the resulting BitArray. Each byte is interpreted in
     /// little-endian order, with the least significant bit first.</param>
     /// <returns>A BitArray containing the bits from the input span. The length of the BitArray will be equal to the total number
     /// of bits in the input.</returns>
-    public static BitArray ToBitArray(ReadOnlySpan<byte> bytes) => ToBitArray(bytes, bytes.Length * 8);
+    public static BitArray ToBitArray(ReadOnlySpan<byte> bytes) => ToBitArray(bytes, bytes.Length * BitsPerByte);
 
     /// <summary>Converts the specified byte array to a BitArray, optionally limiting the number of bits included.</summary>
     /// <param name="bytes">The array of bytes to convert to a BitArray. Cannot be null.</param>
@@ -88,7 +94,7 @@ public static class Bit
             throw new ArgumentException("Bytes span cannot be empty", nameof(bytes));
         }
 
-        if (length > bytes.Length * 8)
+        if (length > bytes.Length * BitsPerByte)
         {
             throw new ArgumentException($"Not enough data in bytes to return {length} bits.", nameof(bytes));
         }
@@ -122,7 +128,7 @@ public static class Bit
             throw new ArgumentOutOfRangeException(nameof(byteIndex), "Byte index is out of range");
         }
 
-        if (bitIndex < 0 || bitIndex > 7)
+        if (bitIndex < 0 || bitIndex > MaximumBitIndex)
         {
             throw new ArgumentOutOfRangeException(nameof(bitIndex), "Bit index must be between 0 and 7");
         }

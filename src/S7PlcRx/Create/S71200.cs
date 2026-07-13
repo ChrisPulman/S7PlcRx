@@ -11,6 +11,9 @@ namespace S7PlcRx;
 /// <summary>Provides factory methods for creating connections to Siemens S7-1200 PLC devices.</summary>
 public static class S71200
 {
+    /// <summary>Defines the highest supported PLC rack number.</summary>
+    private const short MaximumRack = 7;
+
     /// <summary>Creates a new instance of an S7 PLC connection with the specified configuration parameters.</summary>
     /// <param name="ip">The IP address of the S7 PLC to connect to.</param>
     /// <param name="rack">The rack number of the PLC. Must be between 0 and 7. The default is 0.</param>
@@ -22,11 +25,14 @@ public static class S71200
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the value of rack is less than 0 or greater than 7.</exception>
     public static IRxS7 Create(string ip, short rack = 0, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100)
     {
-        if (rack < 0 || rack > 7)
+        if (rack < 0 || rack > MaximumRack)
         {
             throw new ArgumentOutOfRangeException(nameof(rack), "Rack must be between 0 and 7");
         }
 
-        return new RxS7(Enums.CpuType.S71200, ip, rack, 1, watchDogAddress, interval, watchDogValueToWrite, watchDogInterval);
+        return new RxS7(new RxS7Options(
+            new S7ConnectionOptions(Enums.CpuType.S71200, ip, rack, 1),
+            new S7PollingOptions(interval),
+            watchDogAddress is null ? null : new S7WatchdogOptions(watchDogAddress, watchDogValueToWrite, watchDogInterval)));
     }
 }

@@ -21,6 +21,12 @@ namespace S7PlcRx.Production;
 /// ensured for shared resources such as circuit breakers.</remarks>
 public static class ProductionExtensions
 {
+    /// <summary>Defines the delay between production reliability checks.</summary>
+    private const int ReliabilityCheckDelayMilliseconds = 100;
+
+    /// <summary>Defines the multiplier used to express a ratio as a percentage.</summary>
+    private const double PercentageScale = 100;
+
     /// <summary>Stores the c ir cu it br ea ke r s used by this instance.</summary>
     private static readonly ConcurrentDictionary<string, CircuitBreaker> _circuitBreakers = new();
 
@@ -229,7 +235,7 @@ public static class ProductionExtensions
 
                 if (i < consecutiveOperations - 1)
                 {
-                    await Task.Delay(100);
+                    await Task.Delay(ReliabilityCheckDelayMilliseconds);
                 }
             }
 
@@ -276,6 +282,6 @@ public static class ProductionExtensions
             }
         }
 
-        return (double)successfulTests / result.ValidationTests.Count * 100;
+        return (double)successfulTests / result.ValidationTests.Count * PercentageScale;
     }
 }

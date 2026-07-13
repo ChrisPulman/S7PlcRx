@@ -39,8 +39,11 @@ internal class S7SocketRx : IDisposable
     /// <summary>Defines the f ai l e d value.</summary>
     private const string Failed = nameof(Failed);
 
-    /// <summary>Defines the s uc ce s s value.</summary>
+    /// <summary>Defines the successful operation status.</summary>
     private const string Success = nameof(Success);
+
+    /// <summary>Message emitted when an operation requires a connected device.</summary>
+    private const string DeviceNotConnectedMessage = "Device not connected";
 
     /// <summary>Defines the d ef au lt ti me o u t value.</summary>
     private const int DefaultTimeout = 10_000;
@@ -63,6 +66,303 @@ internal class S7SocketRx : IDisposable
     /// <summary>Defines the c on ne ct io nf ai lu re th re sh o l d value.</summary>
     private const int ConnectionFailureThreshold = 3;
 
+    /// <summary>Connection monitoring and retry policy.</summary>
+    private const int MetricsReportIntervalSeconds = 30;
+
+    /// <summary>Defines the Retry Backoff Maximum Exponent value.</summary>
+    private const int RetryBackoffMaximumExponent = 4;
+
+    /// <summary>Defines the Initial Retry Attempts To Log value.</summary>
+    private const int InitialRetryAttemptsToLog = 5;
+
+    /// <summary>Defines the Retry Logging Interval value.</summary>
+    private const int RetryLoggingInterval = 10;
+
+    /// <summary>Defines the Availability Startup Probe Interval Milliseconds value.</summary>
+    private const int AvailabilityStartupProbeIntervalMilliseconds = 250;
+
+    /// <summary>Defines the Availability Startup Probe Count value.</summary>
+    private const int AvailabilityStartupProbeCount = 8;
+
+    /// <summary>Defines the Connection Startup Probe Interval Milliseconds value.</summary>
+    private const int ConnectionStartupProbeIntervalMilliseconds = 50;
+
+    /// <summary>Defines the Socket Poll Microseconds value.</summary>
+    private const int SocketPollMicroseconds = 1_000;
+
+    /// <summary>Defines the Connection Idle Check Minutes value.</summary>
+    private const int ConnectionIdleCheckMinutes = 2;
+
+    /// <summary>Defines the Connection Restart Delay Milliseconds value.</summary>
+    private const int ConnectionRestartDelayMilliseconds = 1_000;
+
+    /// <summary>Defines the Consecutive Error Restart Threshold value.</summary>
+    private const int ConsecutiveErrorRestartThreshold = 6;
+
+    /// <summary>ISO-on-TCP and S7 protocol framing.</summary>
+    private const int S7TcpPort = 102;
+
+    /// <summary>Defines the Tpkt Header Length value.</summary>
+    private const int TpktHeaderLength = 4;
+
+    /// <summary>Defines the Tpkt Length High Byte Offset value.</summary>
+    private const int TpktLengthHighByteOffset = 2;
+
+    /// <summary>Defines the Tpkt Length Low Byte Offset value.</summary>
+    private const int TpktLengthLowByteOffset = 3;
+
+    /// <summary>Defines the Bits Per Byte value.</summary>
+    private const int BitsPerByte = 8;
+
+    /// <summary>Defines the Cotp Data Header Length value.</summary>
+    private const int CotpDataHeaderLength = 3;
+
+    /// <summary>Defines the Iso Data Header Length value.</summary>
+    private const int IsoDataHeaderLength = 7;
+
+    /// <summary>Defines the Minimum Iso Packet Length value.</summary>
+    private const int MinimumIsoPacketLength = 16;
+
+    /// <summary>Defines the Connection Response Length value.</summary>
+    private const int ConnectionResponseLength = 22;
+
+    /// <summary>Defines the Communication Setup Response Length value.</summary>
+    private const int CommunicationSetupResponseLength = 27;
+
+    /// <summary>Defines the Handshake Receive Buffer Size value.</summary>
+    private const int HandshakeReceiveBufferSize = 256;
+
+    /// <summary>Defines the Minimum Negotiated Pdu Length value.</summary>
+    private const ushort MinimumNegotiatedPduLength = 240;
+
+    /// <summary>Defines the Maximum Negotiated Pdu Length value.</summary>
+    private const ushort MaximumNegotiatedPduLength = 4_096;
+
+    /// <summary>Defines the Negotiated Pdu Length Offset value.</summary>
+    private const int NegotiatedPduLengthOffset = 25;
+
+    /// <summary>Defines the Socket Buffer Pdu Multiplier value.</summary>
+    private const int SocketBufferPduMultiplier = 2;
+
+    /// <summary>Defines the S7 Response Return Code Offset value.</summary>
+    private const int S7ResponseReturnCodeOffset = 21;
+
+    /// <summary>Supported controller PDU sizes.</summary>
+    private const ushort LogoPduLength = 240;
+
+    /// <summary>Defines the Standard Pdu Length value.</summary>
+    private const ushort StandardPduLength = 480;
+
+    /// <summary>Defines the Extended Pdu Length value.</summary>
+    private const ushort ExtendedPduLength = 960;
+
+    /// <summary>Defines the High Performance Pdu Length value.</summary>
+    private const ushort HighPerformancePduLength = 1_440;
+
+    /// <summary>SZL request and response layout.</summary>
+    private const int SzlBufferSize = 1_024;
+
+    /// <summary>Defines the Szl Request Sequence Offset value.</summary>
+    private const int SzlRequestSequenceOffset = 11;
+
+    /// <summary>Defines the Szl Area Offset value.</summary>
+    private const int SzlAreaOffset = 29;
+
+    /// <summary>Defines the Szl Index Offset value.</summary>
+    private const int SzlIndexOffset = 31;
+
+    /// <summary>Defines the Szl Continuation Sequence Offset value.</summary>
+    private const int SzlContinuationSequenceOffset = 24;
+
+    /// <summary>Defines the Minimum Szl Response Length value.</summary>
+    private const int MinimumSzlResponseLength = 32;
+
+    /// <summary>Defines the Szl Error Code Offset value.</summary>
+    private const int SzlErrorCodeOffset = 27;
+
+    /// <summary>Defines the Szl Return Code Offset value.</summary>
+    private const int SzlReturnCodeOffset = 29;
+
+    /// <summary>Defines the S7 Return Code Success value.</summary>
+    private const byte S7ReturnCodeSuccess = 0xff;
+
+    /// <summary>Defines the Szl First Payload Offset value.</summary>
+    private const int SzlFirstPayloadOffset = 41;
+
+    /// <summary>Defines the Szl Continuation Payload Offset value.</summary>
+    private const int SzlContinuationPayloadOffset = 37;
+
+    /// <summary>Defines the Szl Data Length Offset value.</summary>
+    private const int SzlDataLengthOffset = 31;
+
+    /// <summary>Defines the Szl First Packet Metadata Length value.</summary>
+    private const int SzlFirstPacketMetadataLength = 8;
+
+    /// <summary>Defines the Szl Last Data Unit Offset value.</summary>
+    private const int SzlLastDataUnitOffset = 26;
+
+    /// <summary>Defines the Szl Sequence Offset value.</summary>
+    private const int SzlSequenceOffset = 24;
+
+    /// <summary>Defines the Szl Total Length Offset value.</summary>
+    private const int SzlTotalLengthOffset = 37;
+
+    /// <summary>S7 telegram byte values.</summary>
+    private const byte TpktVersion = 0x03;
+
+    /// <summary>Defines the Szl Telegram Length value.</summary>
+    private const byte SzlTelegramLength = 0x21;
+
+    /// <summary>Defines the Connection Request Telegram Length value.</summary>
+    private const byte ConnectionRequestTelegramLength = 0x16;
+
+    /// <summary>Defines the Communication Setup Telegram Length value.</summary>
+    private const byte CommunicationSetupTelegramLength = 0x19;
+
+    /// <summary>Defines the Cotp Data Header Size value.</summary>
+    private const byte CotpDataHeaderSize = 0x02;
+
+    /// <summary>Defines the Cotp Data Pdu Type value.</summary>
+    private const byte CotpDataPduType = 0xf0;
+
+    /// <summary>Defines the Cotp End Of Transmission Unit value.</summary>
+    private const byte CotpEndOfTransmissionUnit = 0x80;
+
+    /// <summary>Defines the Cotp Connection Request Header Size value.</summary>
+    private const byte CotpConnectionRequestHeaderSize = 0x11;
+
+    /// <summary>Defines the Cotp Connection Request Pdu Type value.</summary>
+    private const byte CotpConnectionRequestPduType = 0xe0;
+
+    /// <summary>Defines the Cotp Source Reference Low Byte value.</summary>
+    private const byte CotpSourceReferenceLowByte = 0x2e;
+
+    /// <summary>Defines the Cotp Source Tsap Parameter Code value.</summary>
+    private const byte CotpSourceTsapParameterCode = 0xc1;
+
+    /// <summary>Defines the Cotp Destination Tsap Parameter Code value.</summary>
+    private const byte CotpDestinationTsapParameterCode = 0xc2;
+
+    /// <summary>Defines the Cotp Tpdu Size Parameter Code value.</summary>
+    private const byte CotpTpduSizeParameterCode = 0xc0;
+
+    /// <summary>Defines the Cotp Tsap Parameter Length value.</summary>
+    private const byte CotpTsapParameterLength = 0x02;
+
+    /// <summary>Defines the Cotp Tpdu Size Parameter Length value.</summary>
+    private const byte CotpTpduSizeParameterLength = 0x01;
+
+    /// <summary>Defines the Cotp Tpdu Size512 Bytes value.</summary>
+    private const byte CotpTpduSize512Bytes = 0x09;
+
+    /// <summary>Defines the S7 Protocol Identifier value.</summary>
+    private const byte S7ProtocolIdentifier = 0x32;
+
+    /// <summary>Defines the S7 User Data Message Type value.</summary>
+    private const byte S7UserDataMessageType = 0x07;
+
+    /// <summary>Defines the S7 Job Message Type value.</summary>
+    private const byte S7JobMessageType = 0x01;
+
+    /// <summary>Defines the Szl First Pdu Reference value.</summary>
+    private const byte SzlFirstPduReference = 0x05;
+
+    /// <summary>Defines the Szl Continuation Pdu Reference value.</summary>
+    private const byte SzlContinuationPduReference = 0x06;
+
+    /// <summary>Defines the Szl First Parameter Length value.</summary>
+    private const byte SzlFirstParameterLength = 0x08;
+
+    /// <summary>Defines the Szl Continuation Parameter Length value.</summary>
+    private const byte SzlContinuationParameterLength = 0x0c;
+
+    /// <summary>Defines the Szl First Data Length value.</summary>
+    private const byte SzlFirstDataLength = 0x08;
+
+    /// <summary>Defines the Szl Continuation Data Length value.</summary>
+    private const byte SzlContinuationDataLength = 0x04;
+
+    /// <summary>Defines the S7 User Data Parameter Head value.</summary>
+    private const byte S7UserDataParameterHead = 0x12;
+
+    /// <summary>Defines the Szl First Parameter Payload Length value.</summary>
+    private const byte SzlFirstParameterPayloadLength = 0x04;
+
+    /// <summary>Defines the Szl Continuation Parameter Payload Length value.</summary>
+    private const byte SzlContinuationParameterPayloadLength = 0x08;
+
+    /// <summary>Defines the Szl Read Request value.</summary>
+    private const byte SzlReadRequest = 0x11;
+
+    /// <summary>Defines the Szl Read Response value.</summary>
+    private const byte SzlReadResponse = 0x12;
+
+    /// <summary>Defines the Szl Function Group value.</summary>
+    private const byte SzlFunctionGroup = 0x44;
+
+    /// <summary>Defines the Szl Subfunction value.</summary>
+    private const byte SzlSubfunction = 0x01;
+
+    /// <summary>Defines the Szl Continuation Flag value.</summary>
+    private const byte SzlContinuationFlag = 0x01;
+
+    /// <summary>Defines the S7 Octet String Transport Size value.</summary>
+    private const byte S7OctetStringTransportSize = 0x09;
+
+    /// <summary>Defines the Szl Request Data Length value.</summary>
+    private const byte SzlRequestDataLength = 0x04;
+
+    /// <summary>Defines the Szl Continuation Data Bit Length value.</summary>
+    private const byte SzlContinuationDataBitLength = 0x0a;
+
+    /// <summary>Defines the Communication Setup Pdu Reference value.</summary>
+    private const byte CommunicationSetupPduReference = 0x04;
+
+    /// <summary>Defines the Communication Setup Parameter Length value.</summary>
+    private const byte CommunicationSetupParameterLength = 0x08;
+
+    /// <summary>Defines the S7 Setup Communication Function value.</summary>
+    private const byte S7SetupCommunicationFunction = 0xf0;
+
+    /// <summary>Defines the Default Requested Pdu Length Low Byte value.</summary>
+    private const byte DefaultRequestedPduLengthLowByte = 0x1e;
+
+    /// <summary>Defines the Communication Setup Pdu Length Offset value.</summary>
+    private const int CommunicationSetupPduLengthOffset = 23;
+
+    /// <summary>Defines the Connection Request Source Tsap High Offset value.</summary>
+    private const int ConnectionRequestSourceTsapHighOffset = 13;
+
+    /// <summary>Defines the Connection Request Source Tsap Low Offset value.</summary>
+    private const int ConnectionRequestSourceTsapLowOffset = 14;
+
+    /// <summary>Defines the Connection Request Destination Tsap High Offset value.</summary>
+    private const int ConnectionRequestDestinationTsapHighOffset = 17;
+
+    /// <summary>Defines the Connection Request Destination Tsap Low Offset value.</summary>
+    private const int ConnectionRequestDestinationTsapLowOffset = 18;
+
+    /// <summary>TSAP address encoding.</summary>
+    private const int RackAddressMultiplier = 2;
+
+    /// <summary>Defines the Slots Per Rack Address Unit value.</summary>
+    private const int SlotsPerRackAddressUnit = 16;
+
+    /// <summary>Defines the Programming Device Source Tsap High Byte value.</summary>
+    private const byte ProgrammingDeviceSourceTsapHighByte = 0x01;
+
+    /// <summary>Defines the Operator Panel Source Tsap High Byte value.</summary>
+    private const byte OperatorPanelSourceTsapHighByte = 0x02;
+
+    /// <summary>Defines the Alternate Programming Device Source Tsap High Byte value.</summary>
+    private const byte AlternateProgrammingDeviceSourceTsapHighByte = 0x10;
+
+    /// <summary>Defines the Default Source Tsap Low Byte value.</summary>
+    private const byte DefaultSourceTsapLowByte = 0x00;
+
+    /// <summary>Defines the Default Destination Tsap High Byte value.</summary>
+    private const byte DefaultDestinationTsapHighByte = 0x03;
+
     /// <summary>Stores the r ec en to pe ra ti on av ai la bi li ty wi nd o w value.</summary>
     private static readonly TimeSpan RecentOperationAvailabilityWindow = TimeSpan.FromSeconds(3);
 
@@ -72,7 +372,7 @@ internal class S7SocketRx : IDisposable
     /// <summary>Stores the c on ne ct io nl o c k used by this instance.</summary>
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
 
-    /// <summary>Stores the b uf fe rp o o l used by this instance.</summary>
+    /// <summary>Stores the shared byte-buffer pool used by this instance.</summary>
     private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
     /// <summary>Stores the e tr i c s used by this instance.</summary>
@@ -105,16 +405,16 @@ internal class S7SocketRx : IDisposable
     /// <summary>Stores the l as ts uc ce ss fu lo pe ra ti o n used by this instance.</summary>
     private DateTime _lastSuccessfulOperation = DateTime.MinValue;
 
-    /// <summary>Stores the c on se cu ti ve er ro r s used by this instance.</summary>
+    /// <summary>Stores the number of consecutive socket errors.</summary>
     private int _consecutiveErrors;
 
-    /// <summary>Stores the c on se cu ti ve av ai la bi li ty fa il ur e s used by this instance.</summary>
+    /// <summary>Stores the number of consecutive availability-check failures.</summary>
     private int _consecutiveAvailabilityFailures;
 
-    /// <summary>Stores the c on se cu ti ve co nn ec ti on fa il ur e s used by this instance.</summary>
+    /// <summary>Stores the number of consecutive connection failures.</summary>
     private int _consecutiveConnectionFailures;
 
-    /// <summary>Stores the r es ta rt in pr og re s s used by this instance.</summary>
+    /// <summary>Indicates whether a restart operation is in progress.</summary>
     private int _restartInProgress;
 
     /// <summary>
@@ -140,7 +440,11 @@ internal class S7SocketRx : IDisposable
         DataReadLength = GetOptimalDataReadLength(plcType);
 
         // Initialize metrics reporting
-        _metricsTimer = new(ReportMetrics, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        _metricsTimer = new(
+            _ => ReportMetrics(),
+            null,
+            TimeSpan.FromSeconds(MetricsReportIntervalSeconds),
+            TimeSpan.FromSeconds(MetricsReportIntervalSeconds));
 
         _disposable = Connect.Subscribe();
     }
@@ -210,7 +514,7 @@ internal class S7SocketRx : IDisposable
 
                     CloseSocketOptimized(_socket);
                     _socket = null;
-                    obs.OnError(new S7Exception("Device not connected"));
+                    obs.OnError(new S7Exception(DeviceNotConnectedMessage));
                 },
                 ex =>
                 {
@@ -233,7 +537,7 @@ internal class S7SocketRx : IDisposable
                                 {
                                     CloseSocketOptimized(_socket);
                                     _socket = null;
-                                    obs.OnError(new S7Exception("Device not connected"));
+                                    obs.OnError(new S7Exception(DeviceNotConnectedMessage));
                                     return;
                                 }
 
@@ -242,7 +546,7 @@ internal class S7SocketRx : IDisposable
                                 {
                                     CloseSocketOptimized(_socket);
                                     _socket = null;
-                                    obs.OnError(new S7Exception("Device not connected"));
+                                    obs.OnError(new S7Exception(DeviceNotConnectedMessage));
                                 }
                             }
                             else
@@ -273,11 +577,11 @@ internal class S7SocketRx : IDisposable
         {
             // Exponential backoff with cap: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
             // Use bit shifting for better performance and prevent overflow
-            var exponent = Math.Min(index, 4);
+            var exponent = Math.Min(index, RetryBackoffMaximumExponent);
             var delayMilliseconds = Math.Min(InitialRetryDelayMilliseconds * (1 << exponent), MaxRetryDelayMilliseconds);
 
             // Log only first 5 attempts and then every 10th attempt to prevent log flooding
-            if (index < 5 || index % 10 == 0)
+            if (index < InitialRetryAttemptsToLog || index % RetryLoggingInterval == 0)
             {
                 LogWarning($"Connection attempt {index + 1} failed. Retrying in {delayMilliseconds}ms...");
             }
@@ -308,13 +612,13 @@ internal class S7SocketRx : IDisposable
             SerialDisposable? timer = null;
             timer = new SerialDisposable
             {
-                Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(250)).Subscribe(async _ =>
+                Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(AvailabilityStartupProbeIntervalMilliseconds)).Subscribe(async _ =>
                 {
                     count++;
                     await ProbeAvailabilityAndNotifyAsync(obs).ConfigureAwait(false);
 
                     // After a few quick probes, back off to reduce ping noise.
-                    if (count < 8)
+                    if (count < AvailabilityStartupProbeCount)
                     {
                         return;
                     }
@@ -341,7 +645,7 @@ internal class S7SocketRx : IDisposable
             SerialDisposable? timer = null;
             timer = new SerialDisposable
             {
-                Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(50)).Subscribe(_ =>
+                Disposable = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(ConnectionStartupProbeIntervalMilliseconds)).Subscribe(_ =>
                 {
                     _isConnected = EvaluateConnectionStateWithHysteresis();
                     var isConnectedNow = _initComplete && _isConnected == true;
@@ -431,7 +735,7 @@ internal class S7SocketRx : IDisposable
             }
 
             RecordError();
-            _socketExceptionSubject.OnNext(new S7Exception("Device not connected"));
+            _socketExceptionSubject.OnNext(new S7Exception(DeviceNotConnectedMessage));
         }
         catch (Exception ex)
         {
@@ -461,12 +765,29 @@ internal class S7SocketRx : IDisposable
     internal (byte[] data, ushort size) GetSZLData(ushort szlArea, ushort index = 0)
     {
         // Enhanced SZL communication protocols
-        byte[] s7_SZL1 = [3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 5, 0, 0, 8, 0, 8, 0, 1, 18, 4, 17, 68, 1, 0, 255, 9, 0, 4, 0, 0, 0, 0];
-        byte[] s7_SZL2 = [3, 0, 0, 33, 2, 240, 128, 50, 7, 0, 0, 6, 0, 0, 12, 0, 4, 0, 1, 18, 8, 18, 68, 1, 1, 0, 0, 0, 0, 10, 0, 0, 0];
+        byte[] s7_SZL1 =
+        [
+            TpktVersion, 0, 0, SzlTelegramLength,
+            CotpDataHeaderSize, CotpDataPduType, CotpEndOfTransmissionUnit,
+            S7ProtocolIdentifier, S7UserDataMessageType, 0, 0, SzlFirstPduReference,
+            0, 0, SzlFirstParameterLength, 0, SzlFirstDataLength,
+            0, 1, S7UserDataParameterHead, SzlFirstParameterPayloadLength, SzlReadRequest,
+            SzlFunctionGroup, SzlSubfunction, 0, S7ReturnCodeSuccess, S7OctetStringTransportSize,
+            0, SzlRequestDataLength, 0, 0, 0, 0
+        ];
+        byte[] s7_SZL2 =
+        [
+            TpktVersion, 0, 0, SzlTelegramLength,
+            CotpDataHeaderSize, CotpDataPduType, CotpEndOfTransmissionUnit,
+            S7ProtocolIdentifier, S7UserDataMessageType, 0, 0, SzlContinuationPduReference,
+            0, 0, SzlContinuationParameterLength, 0, SzlContinuationDataLength,
+            0, 1, S7UserDataParameterHead, SzlContinuationParameterPayloadLength, SzlReadResponse,
+            SzlFunctionGroup, SzlSubfunction, SzlContinuationFlag, 0, 0, 0, 0,
+            SzlContinuationDataBitLength, 0, 0, 0
+        ];
 
-        const int bufferSize = 1024;
-        var data = _bufferPool.Rent(bufferSize);
-        var resultData = _bufferPool.Rent(bufferSize);
+        var data = _bufferPool.Rent(SzlBufferSize);
+        var resultData = _bufferPool.Rent(SzlBufferSize);
 
         try
         {
@@ -483,21 +804,21 @@ internal class S7SocketRx : IDisposable
             {
                 if (first)
                 {
-                    Word.ToByteArray(++seqOut, s7_SZL1, 11);
-                    Word.ToByteArray(szlArea, s7_SZL1, 29);
-                    Word.ToByteArray(index, s7_SZL1, 31);
+                    Word.ToByteArray(++seqOut, s7_SZL1, SzlRequestSequenceOffset);
+                    Word.ToByteArray(szlArea, s7_SZL1, SzlAreaOffset);
+                    Word.ToByteArray(index, s7_SZL1, SzlIndexOffset);
                     _ = Send(tag, s7_SZL1, s7_SZL1.Length);
                 }
                 else
                 {
-                    Word.ToByteArray(++seqOut, s7_SZL2, 11);
-                    s7_SZL2[24] = seqIn;
+                    Word.ToByteArray(++seqOut, s7_SZL2, SzlRequestSequenceOffset);
+                    s7_SZL2[SzlContinuationSequenceOffset] = seqIn;
                     _ = Send(tag, s7_SZL2, s7_SZL2.Length);
                 }
 
                 length = ReceiveIsoData(tag, ref data);
 
-                if (length > 32)
+                if (length > MinimumSzlResponseLength)
                 {
                     lastError = ProcessSzlResponse(data, resultData, first, ref done, ref seqIn, ref lengthOfDataRead, ref offset);
                     if (lastError == 0)
@@ -549,13 +870,13 @@ internal class S7SocketRx : IDisposable
         }
 
         // Get PDU Type
-        if (ReceiveExact(tag, bytes, 3, 4) != 3)
+        if (ReceiveExact(tag, bytes, CotpDataHeaderLength, TpktHeaderLength) != CotpDataHeaderLength)
         {
             return 0;
         }
 
         // Receive S7 ISO Payload
-        return ReceiveExact(tag, bytes, size - 7, 7) == size - 7 ? size : 0;
+        return ReceiveExact(tag, bytes, size - IsoDataHeaderLength, IsoDataHeaderLength) == size - IsoDataHeaderLength ? size : 0;
     }
 
     /// <summary>Releases unmanaged and - optionally - managed resources.</summary>
@@ -620,19 +941,21 @@ internal class S7SocketRx : IDisposable
         ref ushort lengthOfDataRead,
         ref int offset)
     {
-        if (Word.FromByteArray(data, 27) != 0 || data[29] != 255)
+        if (Word.FromByteArray(data, SzlErrorCodeOffset) != 0 || data[SzlReturnCodeOffset] != S7ReturnCodeSuccess)
         {
             return (int)ErrorCode.WrongVarFormat;
         }
 
-        var sourceOffset = first ? 41 : 37;
-        var szlDataLength = first ? Word.FromByteArray(data, 31) - 8 : Word.FromByteArray(data, 31);
-        done = data[26] == 0;
-        sequenceIn = data[24];
+        var sourceOffset = first ? SzlFirstPayloadOffset : SzlContinuationPayloadOffset;
+        var szlDataLength = first
+            ? Word.FromByteArray(data, SzlDataLengthOffset) - SzlFirstPacketMetadataLength
+            : Word.FromByteArray(data, SzlDataLengthOffset);
+        done = data[SzlLastDataUnitOffset] == 0;
+        sequenceIn = data[SzlSequenceOffset];
         Array.Copy(data, sourceOffset, resultData, offset, szlDataLength);
         offset += szlDataLength;
         lengthOfDataRead = first
-            ? Word.FromByteArray(data, 37)
+            ? Word.FromByteArray(data, SzlTotalLengthOffset)
             : (ushort)(lengthOfDataRead + szlDataLength);
 
         return 0;
@@ -647,7 +970,7 @@ internal class S7SocketRx : IDisposable
         try
         {
             return socket.Connected &&
-                !(socket.Poll(1000, SelectMode.SelectRead) && socket.Available == 0);
+                !(socket.Poll(SocketPollMicroseconds, SelectMode.SelectRead) && socket.Available == 0);
         }
         catch (SocketException)
         {
@@ -665,13 +988,13 @@ internal class S7SocketRx : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ushort GetOptimalDataReadLength(CpuType plcType) => plcType switch
     {
-        CpuType.Logo0BA8 => 240,
-        CpuType.S7200 => 480,
-        CpuType.S7300 => 480,
-        CpuType.S7400 => 960,
-        CpuType.S71200 => 960,
-        CpuType.S71500 => 1440,
-        _ => 480
+        CpuType.Logo0BA8 => LogoPduLength,
+        CpuType.S7200 => StandardPduLength,
+        CpuType.S7300 => StandardPduLength,
+        CpuType.S7400 => ExtendedPduLength,
+        CpuType.S71200 => ExtendedPduLength,
+        CpuType.S71500 => HighPerformancePduLength,
+        _ => StandardPduLength
     };
 
     /// <summary>Closes and disposes the specified socket.</summary>
@@ -771,14 +1094,14 @@ internal class S7SocketRx : IDisposable
     /// <returns>The total number of bytes read into the buffer, or a value less than 4 if the TPKT header could not be read.</returns>
     private static async Task<int> ReceiveTpktExactModernAsync(Socket socket, byte[] buffer, int expectedMin)
     {
-        var headerRead = await ReceiveExactAsync(socket, buffer, 4, 0).ConfigureAwait(false);
-        if (headerRead != 4)
+        var headerRead = await ReceiveExactAsync(socket, buffer, TpktHeaderLength, 0).ConfigureAwait(false);
+        if (headerRead != TpktHeaderLength)
         {
             return headerRead;
         }
 
-        var length = (buffer[2] << 8) | buffer[3];
-        if (length < 4 || length > buffer.Length)
+        var length = (buffer[TpktLengthHighByteOffset] << BitsPerByte) | buffer[TpktLengthLowByteOffset];
+        if (length < TpktHeaderLength || length > buffer.Length)
         {
             LogWarning($"Invalid TPKT length {length} for receive buffer {buffer.Length}");
             return 0;
@@ -789,13 +1112,13 @@ internal class S7SocketRx : IDisposable
             LogWarning($"TPKT length {length} smaller than expected {expectedMin}");
         }
 
-        var remaining = length - 4;
+        var remaining = length - TpktHeaderLength;
         if (remaining == 0)
         {
             return headerRead;
         }
 
-        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, 4).ConfigureAwait(false);
+        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, TpktHeaderLength).ConfigureAwait(false);
         return bodyRead <= 0 ? headerRead : headerRead + bodyRead;
 
         static async Task<int> ReceiveExactAsync(Socket socket, byte[] buffer, int size, int offset)
@@ -827,18 +1150,18 @@ internal class S7SocketRx : IDisposable
     {
         done = false;
         size = 0;
-        if (ReceiveExact(tag, bytes, 4) != 4)
+        if (ReceiveExact(tag, bytes, TpktHeaderLength) != TpktHeaderLength)
         {
             return false;
         }
 
-        size = Word.FromByteArray(bytes, 2);
-        if (size == 7)
+        size = Word.FromByteArray(bytes, TpktLengthHighByteOffset);
+        if (size == IsoDataHeaderLength)
         {
-            return ReceiveExact(tag, bytes, 3, 4) == 3;
+            return ReceiveExact(tag, bytes, CotpDataHeaderLength, TpktHeaderLength) == CotpDataHeaderLength;
         }
 
-        if (size > DataReadLength + 7 || size < 16)
+        if (size > DataReadLength + IsoDataHeaderLength || size < MinimumIsoPacketLength)
         {
             return false;
         }
@@ -883,7 +1206,7 @@ internal class S7SocketRx : IDisposable
 
                 if (traceOperation && tag is not null && Debugger.IsAttached)
                 {
-                    var result = buffer[21] == 255 ? Success : Failed;
+                    var result = buffer[S7ResponseReturnCodeOffset] == S7ReturnCodeSuccess ? Success : Failed;
                     Debug.WriteLine($"{DateTime.Now} Read Tag: {tag.Name} value: {tag.Value} {result} ({received} bytes, {stopwatch.ElapsedMilliseconds}ms)");
                 }
 
@@ -891,7 +1214,7 @@ internal class S7SocketRx : IDisposable
             }
 
             RecordError();
-            _socketExceptionSubject.OnNext(new S7Exception("Device not connected"));
+            _socketExceptionSubject.OnNext(new S7Exception(DeviceNotConnectedMessage));
         }
         catch (Exception ex)
         {
@@ -937,11 +1260,11 @@ internal class S7SocketRx : IDisposable
                 attemptSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
 
                 // Set optimal buffer sizes based on PLC type
-                var bufferSize = DataReadLength * 2;
+                var bufferSize = DataReadLength * SocketBufferPduMultiplier;
                 attemptSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, bufferSize);
                 attemptSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendBuffer, bufferSize);
 
-                var server = new IPEndPoint(IPAddress.Parse(IP), 102);
+                var server = new IPEndPoint(IPAddress.Parse(IP), S7TcpPort);
 
 #if NETFRAMEWORK
                 var connectTask = Task.Factory.FromAsync(
@@ -1008,7 +1331,7 @@ internal class S7SocketRx : IDisposable
     /// succeeds; otherwise, <see langword="false"/>.</returns>
     private async Task<bool> PerformOptimizedHandshakeAsync(Socket socket, TsapProfile profile)
     {
-        var receiveBuffer = _bufferPool.Rent(256);
+        var receiveBuffer = _bufferPool.Rent(HandshakeReceiveBufferSize);
         try
         {
 #if NETFRAMEWORK
@@ -1034,14 +1357,14 @@ internal class S7SocketRx : IDisposable
         GC.KeepAlive(this);
 
         // Read TPKT header (4 bytes)
-        var read = await ReceiveExactAsync(socket, buffer, 4, 0).ConfigureAwait(false);
-        if (read != 4)
+        var read = await ReceiveExactAsync(socket, buffer, TpktHeaderLength, 0).ConfigureAwait(false);
+        if (read != TpktHeaderLength)
         {
             return read;
         }
 
-        var length = (buffer[2] << 8) | buffer[3];
-        if (length < 4 || length > buffer.Length)
+        var length = (buffer[TpktLengthHighByteOffset] << BitsPerByte) | buffer[TpktLengthLowByteOffset];
+        if (length < TpktHeaderLength || length > buffer.Length)
         {
             LogWarning($"Invalid TPKT length {length} for receive buffer {buffer.Length}");
             return 0;
@@ -1053,13 +1376,13 @@ internal class S7SocketRx : IDisposable
             LogWarning($"TPKT length {length} smaller than expected {expectedMin}");
         }
 
-        var remaining = length - 4;
+        var remaining = length - TpktHeaderLength;
         if (remaining == 0)
         {
             return read;
         }
 
-        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, 4).ConfigureAwait(false);
+        var bodyRead = await ReceiveExactAsync(socket, buffer, remaining, TpktHeaderLength).ConfigureAwait(false);
         return bodyRead <= 0 ? read : read + bodyRead;
 
         static async Task<int> ReceiveExactAsync(Socket socket, byte[] buffer, int size, int offset)
@@ -1107,9 +1430,9 @@ internal class S7SocketRx : IDisposable
             }
 
             // Step 2: Receive connection response (TPKT length based)
-            var received = await ReceiveTpktExactNetStandardAsync(socket, receiveBuffer, 22).ConfigureAwait(false);
+            var received = await ReceiveTpktExactNetStandardAsync(socket, receiveBuffer, ConnectionResponseLength).ConfigureAwait(false);
 
-            if (received < 22)
+            if (received < ConnectionResponseLength)
             {
                 LogError($"Invalid connection response length {received}");
                 return false;
@@ -1129,8 +1452,8 @@ internal class S7SocketRx : IDisposable
             }
 
             // Step 4: Receive communication setup response (TPKT length based)
-            received = await ReceiveTpktExactNetStandardAsync(socket, receiveBuffer, 27).ConfigureAwait(false);
-            if (received < 27)
+            received = await ReceiveTpktExactNetStandardAsync(socket, receiveBuffer, CommunicationSetupResponseLength).ConfigureAwait(false);
+            if (received < CommunicationSetupResponseLength)
             {
                 LogError($"Invalid communication setup response length {received}");
                 return false;
@@ -1172,8 +1495,8 @@ internal class S7SocketRx : IDisposable
             }
 
             // Step 2: Receive connection response (TPKT length based)
-            var received = await ReceiveTpktExactModernAsync(socket, receiveBuffer, 22).ConfigureAwait(false);
-            if (received < 22)
+            var received = await ReceiveTpktExactModernAsync(socket, receiveBuffer, ConnectionResponseLength).ConfigureAwait(false);
+            if (received < ConnectionResponseLength)
             {
                 LogError($"Invalid connection response length {received}");
                 return false;
@@ -1189,8 +1512,8 @@ internal class S7SocketRx : IDisposable
             }
 
             // Step 4: Receive communication setup response (TPKT length based)
-            received = await ReceiveTpktExactModernAsync(socket, receiveBuffer, 27).ConfigureAwait(false);
-            if (received < 27)
+            received = await ReceiveTpktExactModernAsync(socket, receiveBuffer, CommunicationSetupResponseLength).ConfigureAwait(false);
+            if (received < CommunicationSetupResponseLength)
             {
                 LogError($"Invalid communication setup response length {received}");
                 return false;
@@ -1282,13 +1605,13 @@ internal class S7SocketRx : IDisposable
     /// <param name="responseLength">The r es po ns el en g t h value.</param>
     private void UpdateNegotiatedPduLength(byte[] response, int responseLength)
     {
-        if (responseLength < 27)
+        if (responseLength < CommunicationSetupResponseLength)
         {
             return;
         }
 
-        var negotiatedPduLength = Word.FromByteArray(response, 25);
-        if (negotiatedPduLength is < 240 or > 4096)
+        var negotiatedPduLength = Word.FromByteArray(response, NegotiatedPduLengthOffset);
+        if (negotiatedPduLength is < MinimumNegotiatedPduLength or > MaximumNegotiatedPduLength)
         {
             return;
         }
@@ -1334,16 +1657,26 @@ internal class S7SocketRx : IDisposable
     /// profile.</returns>
     private byte[] GetConnectionRequestBytes(TsapProfile profile)
     {
-        byte[] connectionRequest = [3, 0, 0, 22, 17, 224, 0, 0, 0, 46, 0, 193, 2, 1, 0, 194, 2, 3, 0, 192, 1, 9];
+        byte[] connectionRequest =
+        [
+            TpktVersion, 0, 0, ConnectionRequestTelegramLength,
+            CotpConnectionRequestHeaderSize, CotpConnectionRequestPduType,
+            0, 0, 0, CotpSourceReferenceLowByte, 0,
+            CotpSourceTsapParameterCode, CotpTsapParameterLength,
+            ProgrammingDeviceSourceTsapHighByte, DefaultSourceTsapLowByte,
+            CotpDestinationTsapParameterCode, CotpTsapParameterLength,
+            DefaultDestinationTsapHighByte, 0,
+            CotpTpduSizeParameterCode, CotpTpduSizeParameterLength, CotpTpduSize512Bytes
+        ];
 
         // Use TPDU size 512 (0x09) for S7-1200/300/400 compatibility
         // Source TSAP (C1)
-        connectionRequest[13] = profile.SrcHi;
-        connectionRequest[14] = profile.SrcLo;
+        connectionRequest[ConnectionRequestSourceTsapHighOffset] = profile.SrcHi;
+        connectionRequest[ConnectionRequestSourceTsapLowOffset] = profile.SrcLo;
 
         // Destination TSAP (C2)
-        connectionRequest[17] = profile.DstHi;
-        connectionRequest[18] = profile.DstLo(Rack, Slot);
+        connectionRequest[ConnectionRequestDestinationTsapHighOffset] = profile.DstHi;
+        connectionRequest[ConnectionRequestDestinationTsapLowOffset] = profile.DstLo(Rack, Slot);
 
         return connectionRequest;
     }
@@ -1355,10 +1688,17 @@ internal class S7SocketRx : IDisposable
     /// <returns>A byte array representing the communication setup message to be sent to the PLC.</returns>
     private byte[] GetCommunicationSetupBytes()
     {
-        byte[] communicationSetupRequest = [3, 0, 0, 25, 2, 240, 128, 50, 1, 0, 0, 4, 0, 0, 8, 0, 0, 240, 0, 0, 1, 0, 1, 0, 30];
+        byte[] communicationSetupRequest =
+        [
+            TpktVersion, 0, 0, CommunicationSetupTelegramLength,
+            CotpDataHeaderSize, CotpDataPduType, CotpEndOfTransmissionUnit,
+            S7ProtocolIdentifier, S7JobMessageType, 0, 0, CommunicationSetupPduReference,
+            0, 0, CommunicationSetupParameterLength, 0, 0,
+            S7SetupCommunicationFunction, 0, 0, 1, 0, 1, 0, DefaultRequestedPduLengthLowByte
+        ];
 
         // Set optimal PDU length for the specific PLC type
-        Word.ToByteArray(DataReadLength, communicationSetupRequest, 23);
+        Word.ToByteArray(DataReadLength, communicationSetupRequest, CommunicationSetupPduLengthOffset);
 
         return communicationSetupRequest;
     }
@@ -1394,7 +1734,7 @@ internal class S7SocketRx : IDisposable
         _metrics.RecordError();
 
         // Trigger connection restart if too many consecutive errors
-        if (_consecutiveErrors != 6)
+        if (_consecutiveErrors != ConsecutiveErrorRestartThreshold)
         {
             return;
         }
@@ -1430,7 +1770,7 @@ internal class S7SocketRx : IDisposable
                 _isConnected = false;
                 CloseSocketOptimized(socket);
 
-                await Task.Delay(1000).ConfigureAwait(false);
+                await Task.Delay(ConnectionRestartDelayMilliseconds).ConfigureAwait(false);
 
                 if (!_disposedValue)
                 {
@@ -1449,11 +1789,8 @@ internal class S7SocketRx : IDisposable
         });
 
     /// <summary>Reports the current set of collected metrics to subscribed observers.</summary>
-    /// <remarks>This method is typically intended to be used as a callback for timer or scheduling mechanisms
-    /// that require a method signature accepting a state parameter. Any exceptions encountered during reporting are
-    /// logged and do not propagate to the caller.</remarks>
-    /// <param name="state">An optional state object provided by the timer or scheduler. This parameter is not used.</param>
-    private void ReportMetrics(object? state)
+    /// <remarks>Any exceptions encountered during reporting are logged and do not propagate to the caller.</remarks>
+    private void ReportMetrics()
     {
         try
         {
@@ -1512,7 +1849,7 @@ internal class S7SocketRx : IDisposable
 
         try
         {
-            var server = new IPEndPoint(IPAddress.Parse(IP), 102);
+            var server = new IPEndPoint(IPAddress.Parse(IP), S7TcpPort);
 #if NETFRAMEWORK
             var connectTask = Task.Factory.FromAsync(
                 (callback, state) => probeSocket.BeginConnect(server, callback, state),
@@ -1558,9 +1895,9 @@ internal class S7SocketRx : IDisposable
         try
         {
             var isConnected = _socket.Connected &&
-                            !(_socket.Poll(1000, SelectMode.SelectRead) && _socket.Available == 0);
+                            !(_socket.Poll(SocketPollMicroseconds, SelectMode.SelectRead) && _socket.Available == 0);
 
-            return isConnected && DateTime.UtcNow - _lastSuccessfulOperation > TimeSpan.FromMinutes(2)
+            return isConnected && DateTime.UtcNow - _lastSuccessfulOperation > TimeSpan.FromMinutes(ConnectionIdleCheckMinutes)
                 ? PerformLightweightConnectionCheck()
                 : isConnected;
         }
@@ -1610,15 +1947,30 @@ internal class S7SocketRx : IDisposable
         /// <remarks>This profile is typically used when establishing a connection to a PLC as a
         /// programming device. The PG profile may have different access rights or communication behavior compared to
         /// other TSAP profiles, depending on the PLC configuration.</remarks>
-        public static TsapProfile PG => new(0x01, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "PG");
+        public static TsapProfile PG => new(
+            ProgrammingDeviceSourceTsapHighByte,
+            DefaultSourceTsapLowByte,
+            DefaultDestinationTsapHighByte,
+            (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
+            nameof(PG));
 
         /// <summary>Gets the TSAP profile for the "OP" (Operator Panel) communication type.</summary>
         /// <remarks>Use this profile when establishing a connection that requires the Operator Panel TSAP
         /// settings. The profile includes predefined parameters suitable for typical OP communication
         /// scenarios.</remarks>
-        public static TsapProfile OP => new(0x02, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "OP");
+        public static TsapProfile OP => new(
+            OperatorPanelSourceTsapHighByte,
+            DefaultSourceTsapLowByte,
+            DefaultDestinationTsapHighByte,
+            (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
+            nameof(OP));
 
         /// <summary>Gets the TSAP profile for the PGAlt (Programming Device Alternative) connection type.</summary>
-        public static TsapProfile PGAlt => new(0x10, 0x00, 0x03, (rack, slot) => (byte)((rack * 2 * 16) + slot), "PGAlt");
+        public static TsapProfile PGAlt => new(
+            AlternateProgrammingDeviceSourceTsapHighByte,
+            DefaultSourceTsapLowByte,
+            DefaultDestinationTsapHighByte,
+            (rack, slot) => (byte)((rack * RackAddressMultiplier * SlotsPerRackAddressUnit) + slot),
+            nameof(PGAlt));
     }
 }

@@ -21,12 +21,14 @@ namespace S7PlcRx.Production;
 /// <param name="config">The configuration settings that control circuit breaker thresholds, retry behavior, and timeouts.</param>
 public sealed class CircuitBreaker(ProductionErrorConfig config)
 {
+    /// <summary>Defines the multiplier used to express a ratio as a percentage.</summary>
+    private const double PercentageScale = 100;
+
+    /// <summary>Defines the base used to calculate exponential retry delays.</summary>
+    private const double ExponentialBackoffBase = 2;
+
     /// <summary>Stores the lock used to protect circuit state transitions and counters.</summary>
-#if NET8_0
-    private readonly object _lock = new();
-#else
     private readonly Lock _lock = new();
-#endif
 
     /// <summary>Stores the c on se cu ti ve fa il ur e s used by this instance.</summary>
     private int _consecutiveFailures;
@@ -50,7 +52,7 @@ public sealed class CircuitBreaker(ProductionErrorConfig config)
     public long FailedOperations { get; private set; }
 
     /// <summary>Gets the percentage of operations that completed successfully.</summary>
-    public double SuccessRate => TotalOperations > 0 ? (double)SuccessfulOperations / TotalOperations * 100 : 0;
+    public double SuccessRate => TotalOperations > 0 ? (double)SuccessfulOperations / TotalOperations * PercentageScale : 0;
 
     /// <summary>
     /// Executes the specified asynchronous operation within the circuit breaker, applying retry and failure handling
@@ -146,7 +148,7 @@ public sealed class CircuitBreaker(ProductionErrorConfig config)
                 if (attempts <= config.MaxRetryAttempts)
                 {
                     var delay = config.UseExponentialBackoff
-                        ? config.BaseRetryDelayMs * (int)Math.Pow(2, attempts - 1)
+                        ? config.BaseRetryDelayMs * (int)Math.Pow(ExponentialBackoffBase, attempts - 1)
                         : config.BaseRetryDelayMs;
 
                     await Task.Delay(delay);

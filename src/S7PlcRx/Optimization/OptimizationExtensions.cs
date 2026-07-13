@@ -29,11 +29,7 @@ public static class OptimizationExtensions
     private static readonly ConcurrentDictionary<string, CachedTagValue> _valueCache = new();
 
     /// <summary>Stores the lock used to protect shared cache mutations.</summary>
-#if NET8_0
-    private static readonly object _cacheLock = new();
-#else
     private static readonly Lock _cacheLock = new();
-#endif
 
     /// <summary>Provides optimized cache and smart-monitoring extensions for PLC instances.</summary>
     /// <param name="plc">The PLC instance.</param>

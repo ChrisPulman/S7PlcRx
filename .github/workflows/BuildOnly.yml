@@ -9,23 +9,12 @@ jobs:
   windows-latest:
     name: windows-latest
     runs-on: windows-latest
-
-    env:
-      CI: true   # Enables conditional TFMs in test projects if you choose to use them
-
     steps:
-      # -----------------------------
-      # Checkout
-      # -----------------------------
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      # -----------------------------
-      # Install .NET SDKs (8, 9, 10, 11)
-      # Only 8.0 has a runtime on GitHub runners
-      # -----------------------------
-      - name: Setup .NET (With cache)
+      - name: Setup .NET
         uses: actions/setup-dotnet@v5.4.0
         with:
           dotnet-version: |
@@ -35,10 +24,12 @@ jobs:
             11.0.x
           dotnet-quality: 'preview'
 
-      # -----------------------------
-      # Cache NUKE temp + NuGet
-      # -----------------------------
-      - name: Cache NUKE + NuGet
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+        with:
+          vs-prerelease: true
+
+      - name: 'Cache: .nuke/temp, ~/.nuget/packages'
         uses: actions/cache@v6
         with:
           path: |
@@ -46,39 +37,24 @@ jobs:
             ~/.nuget/packages
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
 
-      # -----------------------------
-      # NUKE Build
-      # -----------------------------
-      - name: Run NUKE Compile
+      - name: 'Run: Compile'
         run: ./build.cmd Compile
 
-      # -----------------------------
-      # Test + Coverage (net8 only)
-      # -----------------------------
-      # - name: Test with Microsoft Code Coverage (net8 only)
-      #   run: |
-      #     dotnet tool install --global dotnet-coverage
-      #     dotnet-coverage collect `
-      #       "dotnet test src/S7PlcRx.Tests/S7PlcRx.Tests.csproj -f net8.0 --no-build --configuration Release" `
-      #       -f cobertura `
-      #       -o coverage.cobertura.xml
+      - name: Tests + Coverage (MTP)
+        shell: bash
+        working-directory: 'src'
+        run: |
+          dotnet test --solution S7PlcRx.slnx \
+            --configuration Release \
+            --coverage \
+            --coverage-output-format cobertura \
+            --results-directory ./TestResults
 
-      # -----------------------------
-      # Upload coverage artifact
-      # -----------------------------
-      # - name: Upload coverage artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: coverage-report
-      #     path: coverage.cobertura.xml
-
-      # -----------------------------
-      # Publish coverage summary
-      # # -----------------------------
-      # - name: Publish coverage summary
-      #   uses: irongut/CodeCoverageSummary@v1.3.0
-      #   with:
-      #     filename: coverage.cobertura.xml
-      #     badge: true
-      #     format: markdown
-      #     output: both
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: tmp-coverage
+          path: |
+            ./**/TestResults/**/*.cobertura.xml
+          if-no-files-found: warn
+          retention-days: 3

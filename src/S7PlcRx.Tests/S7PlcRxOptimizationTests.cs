@@ -31,7 +31,7 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
         _server = new MockServer();
         var rc = _server.StartTo(MockServer.Localhost);
         Assert.That(rc, Is.EqualTo(0));
-        _plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, 100);
+        _plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1)));
     }
 
     /// <summary>
@@ -471,11 +471,11 @@ public sealed class S7PlcRxOptimizationTests : IDisposable
     public void CreateHighAvailabilityConnection_ShouldProvideFailover()
     {
         // Arrange
-        var primaryPlc = new RxS7(CpuType.S71500, "192.168.1.100", 0, 1);
+        var primaryPlc = new RxS7(new(new(CpuType.S71500, "192.168.1.100", 0, 1)));
         var backupPlcs = new List<IRxS7>
         {
-            new RxS7(CpuType.S71500, "192.168.1.101", 0, 1),
-            new RxS7(CpuType.S71500, "192.168.1.102", 0, 1)
+            new RxS7(new(new(CpuType.S71500, "192.168.1.101", 0, 1))),
+            new RxS7(new(new(CpuType.S71500, "192.168.1.102", 0, 1)))
         };
 
         // Act

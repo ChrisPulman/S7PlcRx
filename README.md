@@ -188,7 +188,8 @@ using ReactiveUI.Primitives.R3Bridge;
 using S7PlcRx;
 using S7PlcRx.Enums;
 
-using var plc = new RxS7(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1, interval: 100);
+var options = new RxS7Options(new S7ConnectionOptions(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1));
+using var plc = new RxS7(options);
 
 plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
 
@@ -254,7 +255,8 @@ using ReactiveUI.Primitives;
 using S7PlcRx;
 using S7PlcRx.Enums;
 
-using var plc = new RxS7(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1, interval: 100);
+var options = new RxS7Options(new S7ConnectionOptions(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1));
+using var plc = new RxS7(options);
 
 plc.AddUpdateTagItem<float>("Temperature", "DB1.DBD0");
 plc.AddUpdateTagItem<bool>("Running", "DB1.DBX4.0");
@@ -400,15 +402,11 @@ plc.Value("RecipeBytes", new byte[] { 0x01, 0x02, 0x03 });
 Watchdog:
 
 ```csharp
-using var plcWithWatchdog = new RxS7(
-    CpuType.S71500,
-    "192.168.1.100",
-    rack: 0,
-    slot: 1,
-    watchDogAddress: "DB100.DBW0",
-    interval: 100,
-    watchDogValueToWrite: 4500,
-    watchDogInterval: 10);
+var options = new RxS7Options(
+    new S7ConnectionOptions(CpuType.S71500, "192.168.1.100", rack: 0, slot: 1),
+    new S7PollingOptions(intervalMilliseconds: 100),
+    new S7WatchdogOptions("DB100.DBW0", valueToWrite: 4500, intervalSeconds: 10));
+using var plcWithWatchdog = new RxS7(options);
 
 plcWithWatchdog.ShowWatchDogWriting = true;
 ```
@@ -1038,7 +1036,7 @@ Provides an observable, reactive interface for reading from and writing to Sieme
 
 | Member | Summary |
 |---|---|
-| `public RxS7(CpuType type, string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 10)` | Initializes a new instance of the <see cref="RxS7"/> class and establishes a connection to a Siemens S7 PLC with optional. watchdog monitoring and periodic tag reading. <remarks>If a valid watchdog address is provided, the constructor enables periodic writing to the specified address to support external watchdog monitoring. Tag reading and connection status monitoring are started automatically upon construction.</remarks> <param name="type">The type of the PLC CPU to connect to.</param> <param name="ip">The IP address of the PLC to connect to.</param> <param name="rack">The rack number of the PLC hardware configuration.</param> <param name="slot">The slot number of the PLC CPU module.</param> <param name="watchDogAddress">The address of the watchdog tag in the PLC memory. Must be a DBW address or null to disable watchdog monitoring.</param> <param name="interval">The interval, in milliseconds, at which tag values are read from the PLC. Must be greater than 0.</param> <param name="watchDogValueToWrite">The value to write to the watchdog address during each watchdog cycle.</param> <param name="watchDogInterval">The interval, in seconds, at which the watchdog value is written. Must be greater than 0 if watchdog monitoring is enabled.</param> <exception cref="ArgumentException">Thrown if watchDogAddress is provided and is not a valid DBW address.</exception> <exception cref="ArgumentOutOfRangeException">Thrown if watchDogInterval is less than 1 when watchdog monitoring is enabled.</exception> |
+| `public RxS7(RxS7Options options)` | Initializes a new PLC connection from composed endpoint, polling, and optional watchdog settings. |
 | `public IObservable<Tag?> ObserveAll => ...` | Gets an observable sequence that emits all tag updates as they occur. <remarks>Each observer receives tag updates in real time as they are published. The sequence is shared among all subscribers, and subscriptions are managed automatically. Observers may receive null values if a tag is removed or unavailable.</remarks> |
 | `public IObservable<bool> IsPaused => ...` | Gets an observable sequence that indicates whether the operation is currently paused. <remarks>The returned observable emits a value of <see langword="true"/> when the operation enters a paused state, and <see langword="false"/> when it resumes. Subscribers receive updates only when the paused state changes. The sequence is shared among all subscribers.</remarks> |
 | `public string IP get; }` | Gets the IP address associated with the current instance. |
