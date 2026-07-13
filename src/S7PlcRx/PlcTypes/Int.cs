@@ -25,6 +25,12 @@ namespace S7PlcRx.PlcTypes;
 /// not intended for direct use outside of the containing assembly.</remarks>
 public static class Int
 {
+    /// <summary>The serialized signed word width in bytes.</summary>
+    private const int TypeLengthInBytes = sizeof(short);
+
+    /// <summary>The first value above the positive 16-bit signed range.</summary>
+    private const int SignTransition = (int)short.MaxValue + 1;
+
     /// <summary>
     /// Converts a 32-bit signed integer to a 16-bit signed integer, applying a custom transformation for values greater
     /// than 32,767.
@@ -36,10 +42,10 @@ public static class Int
     /// <returns>A 16-bit signed integer representing the converted value.</returns>
     public static short CWord(int value)
     {
-        if (value > 32_767)
+        if (value > short.MaxValue)
         {
-            value -= 32_768;
-            value = 32_768 - value;
+            value -= SignTransition;
+            value = SignTransition - value;
             value *= -1;
         }
 
@@ -70,7 +76,7 @@ public static class Int
     /// <exception cref="ArgumentException">Thrown when the length of <paramref name="bytes"/> is less than 2.</exception>
     public static short FromSpan(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length < 2)
+        if (bytes.Length < TypeLengthInBytes)
         {
             throw new ArgumentException("Wrong number of bytes. Bytes span must contain at least 2 bytes.");
         }
@@ -78,8 +84,8 @@ public static class Int
         // S7 uses big-endian byte order
         if (BitConverter.IsLittleEndian)
         {
-            Span<byte> temp = stackalloc byte[2];
-            bytes.Slice(0, 2).CopyTo(temp);
+            Span<byte> temp = stackalloc byte[TypeLengthInBytes];
+            bytes.Slice(0, TypeLengthInBytes).CopyTo(temp);
             temp.Reverse();
             return MemoryMarshal.Read<short>(temp);
         }
@@ -156,14 +162,14 @@ public static class Int
     /// <exception cref="ArgumentException">Thrown if <paramref name="destination"/> is not large enough to contain the converted bytes.</exception>
     public static void ToSpan(ReadOnlySpan<short> values, Span<byte> destination)
     {
-        if (destination.Length < values.Length * 2)
+        if (destination.Length < values.Length * TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         for (var i = 0; i < values.Length; i++)
         {
-            ToSpan(values[i], destination.Slice(i * 2, 2));
+            ToSpan(values[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
     }
 

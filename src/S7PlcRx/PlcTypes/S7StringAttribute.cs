@@ -22,6 +22,15 @@ namespace S7PlcRx.PlcTypes;
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false)]
 public sealed class S7StringAttribute : Attribute
 {
+    /// <summary>The S7 string header width in bytes.</summary>
+    private const int StringHeaderLengthInBytes = 2;
+
+    /// <summary>The S7 wide-string header width in bytes.</summary>
+    private const int WideStringHeaderLengthInBytes = 4;
+
+    /// <summary>The encoded width of one UTF-16 character.</summary>
+    private const int WideCharacterLengthInBytes = 2;
+
     /// <summary>Initializes a new instance of the <see cref="S7StringAttribute"/> class with the specified string type and reserved length.</summary>
     /// <param name="type">The type of S7 string to use. Must be a defined value of the S7StringType enumeration.</param>
     /// <param name="reservedLength">The reserved length for the string. Specifies the maximum number of characters the string can hold.</param>
@@ -48,5 +57,7 @@ public sealed class S7StringAttribute : Attribute
     /// bytes for header information; for S7WString, it includes 4 bytes for header information and accounts for UTF-16
     /// encoding. This value is typically used to allocate buffers or validate data boundaries when working with S7
     /// string types.</remarks>
-    public int ReservedLengthInBytes => Type == S7StringType.S7String ? ReservedLength + 2 : (ReservedLength * 2) + 4;
+    public int ReservedLengthInBytes => Type == S7StringType.S7String
+        ? ReservedLength + StringHeaderLengthInBytes
+        : (ReservedLength * WideCharacterLengthInBytes) + WideStringHeaderLengthInBytes;
 }

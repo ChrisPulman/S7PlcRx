@@ -26,6 +26,9 @@ namespace S7PlcRx.PlcTypes;
 /// when working with S7 PLC data structures.</remarks>
 public static class DInt
 {
+    /// <summary>The serialized signed double-word width in bytes.</summary>
+    private const int TypeLengthInBytes = sizeof(int);
+
     /// <summary>Converts a 64-bit signed integer to a 32-bit signed integer, applying a custom transformation for values greater than <see cref="int.MaxValue"/>.</summary>
     /// <remarks>If <paramref name="value"/> is greater than <see cref="int.MaxValue"/>, the method applies a
     /// specific transformation before casting to <see cref="int"/>. This is not a standard cast and may produce
@@ -77,8 +80,8 @@ public static class DInt
         // S7 uses big-endian byte order
         if (BitConverter.IsLittleEndian)
         {
-            Span<byte> temp = stackalloc byte[4];
-            bytes.Slice(0, 4).CopyTo(temp);
+            Span<byte> temp = stackalloc byte[TypeLengthInBytes];
+            bytes.Slice(0, TypeLengthInBytes).CopyTo(temp);
             temp.Reverse();
             return MemoryMarshal.Read<int>(temp);
         }
@@ -164,14 +167,14 @@ public static class DInt
     /// values.</exception>
     public static void ToSpan(ReadOnlySpan<int> values, Span<byte> destination)
     {
-        if (destination.Length < values.Length * 4)
+        if (destination.Length < values.Length * TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         for (var i = 0; i < values.Length; i++)
         {
-            ToSpan(values[i], destination.Slice(i * 4, 4));
+            ToSpan(values[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
     }
 

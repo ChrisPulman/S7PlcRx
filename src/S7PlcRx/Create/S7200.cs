@@ -25,5 +25,8 @@ public static class S7200
     /// <returns>An IRxS7 instance configured to communicate with the specified S7-200 PLC, with optional watchdog monitoring
     /// enabled.</returns>
     public static IRxS7 Create(string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100) =>
-        new RxS7(Enums.CpuType.S7200, ip, rack, slot, watchDogAddress, interval, watchDogValueToWrite, watchDogInterval);
+        new RxS7(new RxS7Options(
+            new S7ConnectionOptions(Enums.CpuType.S7200, ip, rack, slot),
+            new S7PollingOptions(interval),
+            watchDogAddress is null ? null : new S7WatchdogOptions(watchDogAddress, watchDogValueToWrite, watchDogInterval)));
 }

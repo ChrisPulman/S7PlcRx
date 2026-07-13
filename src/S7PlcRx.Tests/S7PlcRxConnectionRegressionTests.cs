@@ -118,7 +118,7 @@ public sealed class S7PlcRxConnectionRegressionTests
         server.DefaultDb1Size = 16;
         await TUnitAssert.That(server.Start()).IsEqualTo(0);
 
-        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB1.DBW0", interval: 50, watchdogValue, watchDogInterval: 1);
+        using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), new(50), new("DB1.DBW0", watchdogValue, 1)));
 
         var connected = await plc.IsConnected
             .Where(static x => x)

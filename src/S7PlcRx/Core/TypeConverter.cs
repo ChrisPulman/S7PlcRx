@@ -18,6 +18,9 @@ namespace S7PlcRx.Core;
 /// not thread-safe.</remarks>
 internal static class TypeConverter
 {
+    /// <summary>Defines the allocation size above which a pooled buffer is used.</summary>
+    private const int ArrayPoolThresholdBytes = 1024;
+
     /// <summary>Converts an array of value types to a contiguous byte array using the specified conversion function.</summary>
     /// <remarks>The resulting byte array is constructed by concatenating the byte arrays returned by the
     /// converter for each element in the input array, in order. This method uses pooled buffers for large arrays to
@@ -40,7 +43,7 @@ internal static class TypeConverter
 
         // Use ArrayPool for large allocations
         byte[]? pooledArray = null;
-        var buffer = totalSize > 1024
+        var buffer = totalSize > ArrayPoolThresholdBytes
             ? pooledArray = ArrayPool<byte>.Shared.Rent(totalSize)
             : new byte[totalSize];
 

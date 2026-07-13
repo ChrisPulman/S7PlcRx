@@ -18,6 +18,9 @@ namespace S7PlcRx.Enterprise;
 /// when it is no longer needed to release resources.</remarks>
 public class HighAvailabilityPlcManager : IDisposable
 {
+    /// <summary>Defines the default interval between PLC health checks.</summary>
+    private const int DefaultHealthCheckIntervalSeconds = 30;
+
     /// <summary>Stores the b ac ku pp l c s used by this instance.</summary>
     private readonly IList<IRxS7> _backupPlcs;
 
@@ -56,8 +59,8 @@ public class HighAvailabilityPlcManager : IDisposable
         _backupPlcs.Insert(0, primaryPlc); // Ensure primary is first in the list
         ActivePLC = primaryPlc;
 
-        var interval = healthCheckInterval ?? TimeSpan.FromSeconds(30);
-        _healthCheckTimer = new(PerformHealthCheck, null, interval, interval);
+        var interval = healthCheckInterval ?? TimeSpan.FromSeconds(DefaultHealthCheckIntervalSeconds);
+        _healthCheckTimer = new(_ => PerformHealthCheck(), null, interval, interval);
     }
 
     /// <summary>Gets the currently active PLC connection.</summary>
@@ -101,9 +104,7 @@ public class HighAvailabilityPlcManager : IDisposable
     /// </summary>
     /// <remarks>This method is intended to be used as a callback for timer-based health monitoring. If the
     /// object has been disposed, the method returns immediately without performing any checks.</remarks>
-    /// <param name="state">An optional state object containing information to be used by the health check operation. This parameter is not
-    /// used.</param>
-    private async void PerformHealthCheck(object? state)
+    private async void PerformHealthCheck()
     {
         if (_disposed)
         {

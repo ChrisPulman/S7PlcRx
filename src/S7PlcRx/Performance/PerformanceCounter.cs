@@ -19,11 +19,7 @@ namespace S7PlcRx.Performance;
 internal sealed class PerformanceCounter
 {
     /// <summary>Stores the lock used to protect the collected performance metrics.</summary>
-#if NET8_0
-    private readonly object _lock = new();
-#else
     private readonly Lock _lock = new();
-#endif
 
     /// <summary>Stores the r es po ns et im e s used by this instance.</summary>
     private readonly List<double> _responseTimes = [];

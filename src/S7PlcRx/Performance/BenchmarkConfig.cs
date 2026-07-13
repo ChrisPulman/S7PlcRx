@@ -16,11 +16,14 @@ namespace S7PlcRx.Performance;
 /// evaluations. All properties are configurable to tailor the benchmarking process to specific requirements.</remarks>
 public sealed class BenchmarkConfig
 {
+    /// <summary>Defines the default throughput benchmark duration in seconds.</summary>
+    private const int DefaultThroughputTestDurationSeconds = 10;
+
     /// <summary>Gets or sets the number of latency tests to perform.</summary>
     public int LatencyTestCount { get; set; } = 10;
 
     /// <summary>Gets or sets the duration for throughput testing.</summary>
-    public TimeSpan ThroughputTestDuration { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan ThroughputTestDuration { get; set; } = TimeSpan.FromSeconds(DefaultThroughputTestDurationSeconds);
 
     /// <summary>Gets or sets the number of reliability tests to perform.</summary>
     public int ReliabilityTestCount { get; set; } = 20;

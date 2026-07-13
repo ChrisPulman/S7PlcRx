@@ -17,10 +17,58 @@ public static class DateTimeLong
     public const int TypeLengthInBytes = 12;
 
     /// <summary>The minimum <see cref="T:System.DateTime" /> value supported by the specification.</summary>
-    public static readonly System.DateTime SpecMinimumDateTime = new(1970, 1, 1);
+    public static readonly System.DateTime SpecMinimumDateTime = new(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Unspecified);
 
     /// <summary>The maximum <see cref="T:System.DateTime" /> value supported by the specification.</summary>
-    public static readonly System.DateTime SpecMaximumDateTime = new(2262, 4, 11, 23, 47, 16, 854);
+    public static readonly System.DateTime SpecMaximumDateTime = new(2262, 4, 11, 23, 47, 16, 854, System.DateTimeKind.Unspecified);
+
+    /// <summary>The allocation size above which array pooling is used.</summary>
+    private const int ArrayPoolThresholdInBytes = 1024;
+
+    /// <summary>The encoded year width in bytes.</summary>
+    private const int YearLengthInBytes = sizeof(ushort);
+
+    /// <summary>The byte offset containing the month.</summary>
+    private const int MonthOffset = 2;
+
+    /// <summary>The byte offset containing the day.</summary>
+    private const int DayOffset = 3;
+
+    /// <summary>The byte offset containing the weekday.</summary>
+    private const int WeekdayOffset = 4;
+
+    /// <summary>The byte offset containing the hour.</summary>
+    private const int HourOffset = 5;
+
+    /// <summary>The byte offset containing the minute.</summary>
+    private const int MinuteOffset = 6;
+
+    /// <summary>The byte offset containing the second.</summary>
+    private const int SecondOffset = 7;
+
+    /// <summary>The byte offset at which the nanosecond field begins.</summary>
+    private const int NanosecondsOffset = 8;
+
+    /// <summary>The encoded nanosecond field width in bytes.</summary>
+    private const int NanosecondsLengthInBytes = sizeof(uint);
+
+    /// <summary>The number of nanoseconds represented by one .NET tick.</summary>
+    private const int NanosecondsPerTick = 100;
+
+    /// <summary>The largest nanosecond value within one second.</summary>
+    private const uint MaximumNanoseconds = 999_999_999u;
+
+    /// <summary>The largest valid month value.</summary>
+    private const byte MaximumMonth = 12;
+
+    /// <summary>The largest valid day value in the wire field.</summary>
+    private const byte MaximumDay = 31;
+
+    /// <summary>The largest valid hour value.</summary>
+    private const byte MaximumHour = 23;
+
+    /// <summary>The largest valid minute or second value.</summary>
+    private const byte MaximumMinuteOrSecond = 59;
 
     /// <summary>Parses a <see cref="T:System.DateTime" /> value from bytes.</summary>
     /// <param name="bytes">Input bytes read from PLC.</param>
@@ -97,30 +145,30 @@ public static class DateTimeLong
         }
 
         // Convert Year
-        Word.ToSpan((ushort)dateTime.Year, destination.Slice(0, 2));
+        Word.ToSpan((ushort)dateTime.Year, destination.Slice(0, YearLengthInBytes));
 
         // Convert Month
-        destination[2] = (byte)dateTime.Month;
+        destination[MonthOffset] = (byte)dateTime.Month;
 
         // Convert Day
-        destination[3] = (byte)dateTime.Day;
+        destination[DayOffset] = (byte)dateTime.Day;
 
         // Convert WeekDay. NET DateTime starts with Sunday = 0, while S7DT has Sunday = 1.
-        destination[4] = (byte)(dateTime.DayOfWeek + 1);
+        destination[WeekdayOffset] = (byte)(dateTime.DayOfWeek + 1);
 
         // Convert Hour
-        destination[5] = (byte)dateTime.Hour;
+        destination[HourOffset] = (byte)dateTime.Hour;
 
         // Convert Minutes
-        destination[6] = (byte)dateTime.Minute;
+        destination[MinuteOffset] = (byte)dateTime.Minute;
 
         // Convert Seconds
-        destination[7] = (byte)dateTime.Second;
+        destination[SecondOffset] = (byte)dateTime.Second;
 
         // Convert Nanoseconds. Net DateTime has a representation of 1 Tick = 100ns.
         // Thus First take the ticks Mod 1 Second (1s = 10'000'000 ticks), and then Convert to nanoseconds.
-        var nanoseconds = (uint)((dateTime.Ticks % 10_000_000) * 100);
-        DWord.ToSpan(nanoseconds, destination.Slice(8, 4));
+        var nanoseconds = (uint)(dateTime.Ticks % System.TimeSpan.TicksPerSecond * NanosecondsPerTick);
+        DWord.ToSpan(nanoseconds, destination.Slice(NanosecondsOffset, NanosecondsLengthInBytes));
     }
 
     /// <summary>Converts an array of <see cref="T:System.DateTime" /> values to a byte array.</summary>
@@ -136,7 +184,7 @@ public static class DateTimeLong
         // Use ArrayPool for large allocations
         var totalBytes = dateTimes.Length * TypeLengthInBytes;
         byte[]? pooledArray = null;
-        var buffer = totalBytes > 1024
+        var buffer = totalBytes > ArrayPoolThresholdInBytes
             ? pooledArray = ArrayPool<byte>.Shared.Rent(totalBytes)
             : new byte[totalBytes];
 
@@ -185,17 +233,17 @@ public static class DateTimeLong
             throw new ArgumentOutOfRangeException(nameof(bytes), bytes.Length, $"Parsing a DateTimeLong requires exactly 12 bytes of input data, input data is {bytes.Length} bytes long.");
         }
 
-        var year = AssertRangeInclusive(Word.FromSpan(bytes.Slice(0, 2)), (ushort)1970, (ushort)2262, "year");
-        var month = AssertRangeInclusive(bytes[2], (byte)1, (byte)12, "month");
-        var day = AssertRangeInclusive(bytes[3], (byte)1, (byte)31, "day of month");
-        var hour = AssertRangeInclusive(bytes[5], (byte)0, (byte)23, "hour");
-        var minute = AssertRangeInclusive(bytes[6], (byte)0, (byte)59, "minute");
-        var second = AssertRangeInclusive(bytes[7], (byte)0, (byte)59, "second");
+        var year = AssertRangeInclusive(Word.FromSpan(bytes.Slice(0, YearLengthInBytes)), (ushort)SpecMinimumDateTime.Year, (ushort)SpecMaximumDateTime.Year, "year");
+        var month = AssertRangeInclusive(bytes[MonthOffset], (byte)1, MaximumMonth, "month");
+        var day = AssertRangeInclusive(bytes[DayOffset], (byte)1, MaximumDay, "day of month");
+        var hour = AssertRangeInclusive(bytes[HourOffset], (byte)0, MaximumHour, "hour");
+        var minute = AssertRangeInclusive(bytes[MinuteOffset], (byte)0, MaximumMinuteOrSecond, "minute");
+        var second = AssertRangeInclusive(bytes[SecondOffset], (byte)0, MaximumMinuteOrSecond, "second");
 
-        var nanoseconds = AssertRangeInclusive(DWord.FromSpan(bytes.Slice(8, 4)), 0u, 999_999_999u, "nanoseconds");
+        var nanoseconds = AssertRangeInclusive(DWord.FromSpan(bytes.Slice(NanosecondsOffset, NanosecondsLengthInBytes)), 0u, MaximumNanoseconds, "nanoseconds");
 
-        var time = new System.DateTime(year, month, day, hour, minute, second);
-        return time.AddTicks(nanoseconds / 100);
+        var time = new System.DateTime(year, month, day, hour, minute, second, System.DateTimeKind.Unspecified);
+        return time.AddTicks(nanoseconds / NanosecondsPerTick);
     }
 
     /// <summary>Stores the a ss er tr an ge in cl us i v e value.</summary>

@@ -20,6 +20,45 @@ namespace S7PlcRx.PlcTypes;
 /// cannot be instantiated.</remarks>
 public static class Timer
 {
+    /// <summary>The serialized timer width in bytes.</summary>
+    private const int TypeLengthInBytes = sizeof(ushort);
+
+    /// <summary>The first bit of the time-base selector.</summary>
+    private const int TimeBaseStartBit = 2;
+
+    /// <summary>The exclusive end bit of the time-base selector.</summary>
+    private const int TimeBaseEndBit = 4;
+
+    /// <summary>The first bit of the hundreds digit.</summary>
+    private const int HundredsDigitStartBit = 4;
+
+    /// <summary>The exclusive end bit of the hundreds digit.</summary>
+    private const int HundredsDigitEndBit = 8;
+
+    /// <summary>The first bit of the tens digit.</summary>
+    private const int TensDigitStartBit = 8;
+
+    /// <summary>The exclusive end bit of the tens digit.</summary>
+    private const int TensDigitEndBit = 12;
+
+    /// <summary>The first bit of the units digit.</summary>
+    private const int UnitsDigitStartBit = 12;
+
+    /// <summary>The exclusive end bit of the units digit.</summary>
+    private const int UnitsDigitEndBit = 16;
+
+    /// <summary>The multiplier for the hundredths-of-a-second time base.</summary>
+    private const double HundredthsScale = 0.01;
+
+    /// <summary>The multiplier for the tenths-of-a-second time base.</summary>
+    private const double TenthsScale = 0.1;
+
+    /// <summary>The multiplier for the ten-second time base and tens digit.</summary>
+    private const double TensScale = 10.0;
+
+    /// <summary>The multiplier for the hundreds digit.</summary>
+    private const double HundredsScale = 100.0;
+
     /// <summary>Converts a byte array to a double-precision floating-point number.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert. Must represent a valid double value in the expected byte order.</param>
     /// <returns>A double-precision floating-point number represented by the specified byte array.</returns>
@@ -56,27 +95,27 @@ public static class Timer
     /// <exception cref="ArgumentException">Thrown if the span does not contain at least 2 bytes starting from the specified position.</exception>
     public static double FromByteArray(ReadOnlySpan<byte> bytes, int start)
     {
-        if (bytes.Length < start + 2)
+        if (bytes.Length < start + TypeLengthInBytes)
         {
             throw new ArgumentException("Bytes span must contain at least 2 bytes from start position");
         }
 
         var value = (short)Word.FromBytes(bytes[start + 1], bytes[start]);
         var txt = value.ValToBinString();
-        var wert = txt[4..8].BinStringToInt32() * 100.0;
-        wert += txt[8..12].BinStringToInt32() * 10.0;
-        wert += txt[12..16].BinStringToInt32();
-        switch (txt[2..4])
+        var wert = txt[HundredsDigitStartBit..HundredsDigitEndBit].BinStringToInt32() * HundredsScale;
+        wert += txt[TensDigitStartBit..TensDigitEndBit].BinStringToInt32() * TensScale;
+        wert += txt[UnitsDigitStartBit..UnitsDigitEndBit].BinStringToInt32();
+        switch (txt[TimeBaseStartBit..TimeBaseEndBit])
         {
             case "00":
                 {
-                    wert *= 0.01;
+                    wert *= HundredthsScale;
                     break;
                 }
 
             case "01":
                 {
-                    wert *= 0.1;
+                    wert *= TenthsScale;
                     break;
                 }
 
@@ -88,7 +127,7 @@ public static class Timer
 
             case "11":
                 {
-                    wert *= 10.0;
+                    wert *= TensScale;
                     break;
                 }
         }
@@ -143,21 +182,12 @@ public static class Timer
     /// <exception cref="ArgumentException">Thrown if the length of destination is less than 2.</exception>
     public static void ToSpan(ushort value, Span<byte> destination)
     {
-        if (destination.Length < 2)
+        if (destination.Length < TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span must be at least 2 bytes", nameof(destination));
         }
 
-        // Convert using the same logic as original but more efficiently
-        const int x = 2;
-        long valLong = value;
-        for (var cnt = 0; cnt < x; cnt++)
-        {
-            var x1 = 1L << (cnt * 8); // More efficient than Math.Pow(256, cnt)
-            var x3 = valLong / x1;
-            destination[x - cnt - 1] = (byte)(x3 & 255);
-            valLong -= destination[x - cnt - 1] * x1;
-        }
+        Word.ToSpan(value, destination);
     }
 
     /// <summary>
@@ -170,14 +200,14 @@ public static class Timer
     /// <exception cref="ArgumentException">Thrown when <paramref name="destination"/> is not large enough to contain the converted bytes.</exception>
     public static void ToSpan(ReadOnlySpan<ushort> values, Span<byte> destination)
     {
-        if (destination.Length < values.Length * 2)
+        if (destination.Length < values.Length * TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         for (var i = 0; i < values.Length; i++)
         {
-            ToSpan(values[i], destination.Slice(i * 2, 2));
+            ToSpan(values[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
     }
 

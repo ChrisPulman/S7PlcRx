@@ -26,6 +26,84 @@ namespace S7PlcRx.Core;
 /// operations. All members are static and thread-safe.</remarks>
 internal static class S7MultiVar
 {
+    /// <summary>Defines the maximum number of variable items in one S7 PDU.</summary>
+    private const int MaximumItemsPerPdu = byte.MaxValue;
+
+    /// <summary>Defines the fixed length of an S7 multi-variable read request header.</summary>
+    private const int ReadRequestHeaderLength = 19;
+
+    /// <summary>Defines the fixed length of an S7 multi-variable write request header.</summary>
+    private const int WriteRequestHeaderLength = 17;
+
+    /// <summary>Defines the encoded length of one S7 variable specification.</summary>
+    private const int VariableSpecificationLength = 12;
+
+    /// <summary>Defines the fixed parameter header length.</summary>
+    private const int ParameterHeaderLength = 2;
+
+    /// <summary>Defines the fixed header length of one item in the response data section.</summary>
+    private const int ItemDataHeaderLength = 4;
+
+    /// <summary>Defines the response offset of the parameter length high byte.</summary>
+    private const int ResponseParameterLengthHighOffset = 13;
+
+    /// <summary>Defines the response offset of the parameter length low byte.</summary>
+    private const int ResponseParameterLengthLowOffset = 14;
+
+    /// <summary>Defines the response offset from which the parameter section is measured.</summary>
+    private const int ResponseDataBaseOffset = 17;
+
+    /// <summary>Defines the number of bits contained in one byte.</summary>
+    private const int BitsPerByte = 8;
+
+    /// <summary>Defines the rounding offset used to convert bit lengths to byte lengths.</summary>
+    private const int BitLengthRoundingOffset = BitsPerByte - 1;
+
+    /// <summary>Defines the item-header offset of the transport-size field.</summary>
+    private const int ResultTransportSizeOffset = 1;
+
+    /// <summary>Defines the item-header offset of the bit-length high byte.</summary>
+    private const int ResultBitLengthHighOffset = 2;
+
+    /// <summary>Defines the item-header offset of the bit-length low byte.</summary>
+    private const int ResultBitLengthLowOffset = 3;
+
+    /// <summary>Defines the TPKT protocol version.</summary>
+    private const byte TpktVersion = 3;
+
+    /// <summary>Defines the encoded COTP header length.</summary>
+    private const byte CotpHeaderLength = 2;
+
+    /// <summary>Defines the COTP data PDU type.</summary>
+    private const byte CotpDataPduType = 0xF0;
+
+    /// <summary>Defines the COTP end-of-transmission flag.</summary>
+    private const byte CotpEndOfTransmission = 0x80;
+
+    /// <summary>Defines the S7 protocol identifier.</summary>
+    private const byte S7ProtocolId = 0x32;
+
+    /// <summary>Defines the S7 job message type.</summary>
+    private const byte S7JobMessageType = 1;
+
+    /// <summary>Defines the S7 Read Var function code.</summary>
+    private const byte ReadVariableFunction = 4;
+
+    /// <summary>Defines the S7 Write Var function code.</summary>
+    private const byte WriteVariableFunction = 5;
+
+    /// <summary>Defines the S7 variable-specification marker.</summary>
+    private const byte VariableSpecificationMarker = 0x12;
+
+    /// <summary>Defines the encoded S7 variable-specification payload length.</summary>
+    private const byte VariableSpecificationPayloadLength = 0x0A;
+
+    /// <summary>Defines the S7ANY addressing syntax identifier.</summary>
+    private const byte S7AnySyntaxId = 0x10;
+
+    /// <summary>Defines the S7ANY byte transport-size code.</summary>
+    private const byte S7AnyTransportSizeByte = 2;
+
     /// <summary>Stores the b ui ld re ad va rr eq ue s t value.</summary>
     /// <param name="items">The i te m s value.</param>
     /// <returns>The resulting value.</returns>
@@ -41,30 +119,30 @@ internal static class S7MultiVar
             return [];
         }
 
-        if (items.Count > 255)
+        if (items.Count > MaximumItemsPerPdu)
         {
             throw new ArgumentOutOfRangeException(nameof(items), items.Count, "S7 ReadVar supports up to 255 items per PDU.");
         }
 
         // Header is 19 bytes, each item 12 bytes.
-        var size = 19 + (12 * items.Count);
+        var size = ReadRequestHeaderLength + (VariableSpecificationLength * items.Count);
         var package = new ByteArray(size);
 
         // TPKT
-        package.Add([3, 0, 0]);
+        package.Add([TpktVersion, 0, 0]);
         package.Add((byte)size);
 
         // COTP + S7 header start
-        package.Add([2, 240, 128, 50, 1, 0, 0, 0, 0]);
+        package.Add([CotpHeaderLength, CotpDataPduType, CotpEndOfTransmission, S7ProtocolId, S7JobMessageType, 0, 0, 0, 0]);
 
         // Parameter length = 2 + 12*n
-        package.Add(Word.ToByteArray((ushort)(2 + (items.Count * 12))));
+        package.Add(Word.ToByteArray((ushort)(ParameterHeaderLength + (items.Count * VariableSpecificationLength))));
 
         // Data length = 0 for read request
         package.Add([0, 0]);
 
         // Function = Read Var (0x04)
-        package.Add(4);
+        package.Add(ReadVariableFunction);
 
         // Item count
         package.Add((byte)items.Count);
@@ -104,14 +182,14 @@ internal static class S7MultiVar
             throw new ArgumentNullException(nameof(pool));
         }
 
-        if (items.Count == 0 || response.Length < 17)
+        if (items.Count == 0 || response.Length < ResponseDataBaseOffset)
         {
             return [];
         }
 
         // Parameter length is a big-endian ushort at offset 13/14 in the full frame.
-        var paramLength = (ushort)((response[13] << 8) | response[14]);
-        var dataStart = 17 + paramLength;
+        var paramLength = (ushort)((response[ResponseParameterLengthHighOffset] << BitsPerByte) | response[ResponseParameterLengthLowOffset]);
+        var dataStart = ResponseDataBaseOffset + paramLength;
         if ((uint)dataStart >= (uint)response.Length)
         {
             return [];
@@ -154,34 +232,34 @@ internal static class S7MultiVar
             return [];
         }
 
-        if (items.Count > 255)
+        if (items.Count > MaximumItemsPerPdu)
         {
             throw new ArgumentOutOfRangeException(nameof(items), items.Count, "S7 WriteVar supports up to 255 items per PDU.");
         }
 
-        var paramLength = 2 + (items.Count * 12);
+        var paramLength = ParameterHeaderLength + (items.Count * VariableSpecificationLength);
         var dataLength = 0;
         for (var i = 0; i < items.Count; i++)
         {
             var len = items[i].Data.Length;
-            dataLength += 4 + len + ((len & 1) == 1 ? 1 : 0);
+            dataLength += ItemDataHeaderLength + len + ((len & 1) == 1 ? 1 : 0);
         }
 
-        var size = 17 + paramLength + dataLength;
+        var size = WriteRequestHeaderLength + paramLength + dataLength;
         var package = new ByteArray(size);
 
         // TPKT
-        package.Add([3, 0, 0]);
+        package.Add([TpktVersion, 0, 0]);
         package.Add((byte)size);
 
         // COTP + S7 header start
-        package.Add([2, 240, 128, 50, 1, 0, 0, 0, 0]);
+        package.Add([CotpHeaderLength, CotpDataPduType, CotpEndOfTransmission, S7ProtocolId, S7JobMessageType, 0, 0, 0, 0]);
 
         package.Add(Word.ToByteArray((ushort)paramLength));
         package.Add(Word.ToByteArray((ushort)dataLength));
 
         // Function = Write Var (0x05)
-        package.Add(5);
+        package.Add(WriteVariableFunction);
         package.Add((byte)items.Count);
 
         foreach (var item in items)
@@ -198,7 +276,7 @@ internal static class S7MultiVar
             package.Add(item.TransportSize);
 
             // Length in bits
-            package.Add(Word.ToByteArray((ushort)(item.Data.Length * 8)));
+            package.Add(Word.ToByteArray((ushort)(item.Data.Length * BitsPerByte)));
 
             // Data
             package.Add(item.Data);
@@ -222,13 +300,13 @@ internal static class S7MultiVar
     /// may be empty if the response is invalid or contains no results.</returns>
     internal static IReadOnlyList<WriteResult> ParseWriteVarResponse(ReadOnlySpan<byte> response, int expectedItemCount)
     {
-        if (expectedItemCount <= 0 || response.Length < 17)
+        if (expectedItemCount <= 0 || response.Length < ResponseDataBaseOffset)
         {
             return [];
         }
 
-        var paramLength = (ushort)((response[13] << 8) | response[14]);
-        var dataStart = 17 + paramLength;
+        var paramLength = (ushort)((response[ResponseParameterLengthHighOffset] << BitsPerByte) | response[ResponseParameterLengthLowOffset]);
+        var dataStart = ResponseDataBaseOffset + paramLength;
         if ((uint)dataStart >= (uint)response.Length)
         {
             return [];
@@ -269,8 +347,8 @@ internal static class S7MultiVar
     /// <returns>A byte array containing the constructed variable specification suitable for use in S7 protocol requests.</returns>
     private static byte[] BuildVarSpec(DataType dataType, int db, int startByteAdr, int count)
     {
-        var package = new ByteArray(12);
-        package.Add([18, 10, 16]);
+        var package = new ByteArray(VariableSpecificationLength);
+        package.Add([VariableSpecificationMarker, VariableSpecificationPayloadLength, S7AnySyntaxId]);
 
         switch (dataType)
         {
@@ -282,7 +360,7 @@ internal static class S7MultiVar
 
             default:
                 {
-                    package.Add(2);
+                    package.Add(S7AnyTransportSizeByte);
                     break;
                 }
         }
@@ -291,7 +369,7 @@ internal static class S7MultiVar
         package.Add(Word.ToByteArray((ushort)db));
         package.Add((byte)dataType);
 
-        var overflow = (int)(startByteAdr * 8 / 65_535U);
+        var overflow = startByteAdr * BitsPerByte / ushort.MaxValue;
         package.Add((byte)overflow);
 
         switch (dataType)
@@ -304,7 +382,7 @@ internal static class S7MultiVar
 
             default:
                 {
-                    package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
+                    package.Add(Word.ToByteArray((ushort)(startByteAdr * BitsPerByte)));
                     break;
                 }
         }
@@ -327,17 +405,17 @@ internal static class S7MultiVar
         out ReadResult result)
     {
         result = default;
-        if (offset + 4 > response.Length)
+        if (offset + ItemDataHeaderLength > response.Length)
         {
             return false;
         }
 
         var returnCode = response[offset];
-        var transportSize = response[offset + 1];
-        var bitLength = (response[offset + 2] << 8) | response[offset + 3];
-        offset += 4;
+        var transportSize = response[offset + ResultTransportSizeOffset];
+        var bitLength = (response[offset + ResultBitLengthHighOffset] << BitsPerByte) | response[offset + ResultBitLengthLowOffset];
+        offset += ItemDataHeaderLength;
 
-        var byteLen = (bitLength + 7) / 8;
+        var byteLen = (bitLength + BitLengthRoundingOffset) / BitsPerByte;
         if (offset + byteLen > response.Length)
         {
             return false;

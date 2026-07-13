@@ -1,0 +1,29 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/ProjectConfig/">
+    <File Path="../.editorconfig" />
+    <File Path="../.github/dependabot.yml" />
+    <File Path="../.gitignore" />
+    <File Path="../Directory.Build.props" />
+    <File Path="../Directory.Build.targets" />
+    <File Path="../Directory.Packages.props" />
+    <File Path="../Images/S7PlcRx.ico" />
+    <File Path="../Images/S7PlcRx.png" />
+    <File Path="../LICENSE" />
+    <File Path="../README.md" />
+  </Folder>
+  <Project Path="../build/_build.csproj">
+    <Build Solution="*|Any CPU" Project="false" />
+  </Project>
+  <Project Path="MockS7Plc/MockS7Plc.csproj" />
+  <Project Path="S7PlcRx.Benchmarks/S7PlcRx.Benchmarks.csproj" />
+  <Project Path="S7PlcRx.Reactive/S7PlcRx.Reactive.csproj" />
+  <Project Path="S7PlcRx.SourceGenerators/S7PlcRx.SourceGenerators.csproj" />
+  <Project Path="S7PlcRx.TestApp/S7PlcRx.TestApp.csproj" />
+  <Project Path="S7PlcRx.Tests/S7PlcRx.Tests.csproj" />
+  <Project Path="S7PlcRx/S7PlcRx.csproj" />
+</Solution>

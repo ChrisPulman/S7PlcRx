@@ -26,11 +26,7 @@ internal class ConnectionMetrics
     private readonly Queue<TimeSpan> _receiveTimes = new();
 
     /// <summary>Stores the lock used to protect the rolling timing queues.</summary>
-#if NET8_0
-    private readonly object _lock = new();
-#else
     private readonly Lock _lock = new();
-#endif
 
     /// <summary>Stores the b yt es se n t used by this instance.</summary>
     private long _bytesSent;

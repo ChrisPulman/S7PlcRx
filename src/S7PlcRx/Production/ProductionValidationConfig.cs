@@ -14,8 +14,11 @@ namespace S7PlcRx.Production;
 /// the requirements of different production environments.</remarks>
 public sealed class ProductionValidationConfig
 {
+    /// <summary>Defines the default maximum acceptable response time in milliseconds.</summary>
+    private const int DefaultMaximumResponseTimeMilliseconds = 500;
+
     /// <summary>Gets or sets the maximum acceptable response time.</summary>
-    public TimeSpan MaxAcceptableResponseTime { get; set; } = TimeSpan.FromMilliseconds(500);
+    public TimeSpan MaxAcceptableResponseTime { get; set; } = TimeSpan.FromMilliseconds(DefaultMaximumResponseTimeMilliseconds);
 
     /// <summary>Gets or sets the minimum reliability rate (0.0 to 1.0).</summary>
     public double MinimumReliabilityRate { get; set; } = 0.95;

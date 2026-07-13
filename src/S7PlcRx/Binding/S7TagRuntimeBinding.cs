@@ -19,6 +19,27 @@ namespace S7PlcRx.Binding;
 /// <summary>Runtime engine used by generated tag bindings to poll and write PLC DB values in byte-array batches.</summary>
 public sealed class S7TagRuntimeBinding : IDisposable
 {
+    /// <summary>Defines the length of the DB address prefix.</summary>
+    private const int DataBlockPrefixLength = 2;
+
+    /// <summary>Defines the length of an S7 data-block type prefix.</summary>
+    private const int DataBlockTypePrefixLength = 3;
+
+    /// <summary>Defines the minimum length of an S7 data-block address component.</summary>
+    private const int MinimumDataBlockAddressLength = 4;
+
+    /// <summary>Defines the highest valid zero-based bit offset.</summary>
+    private const int MaximumBitOffset = 7;
+
+    /// <summary>Defines the size of an S7 word in bytes.</summary>
+    private const int WordByteLength = 2;
+
+    /// <summary>Defines the size of an S7 double word in bytes.</summary>
+    private const int DoubleWordByteLength = 4;
+
+    /// <summary>Defines the size of a double-precision value in bytes.</summary>
+    private const int DoubleByteLength = 8;
+
     /// <summary>Defines the a xr ea dg ap by t e s value.</summary>
     private const int MaxReadGapBytes = 16;
 
@@ -127,8 +148,8 @@ public sealed class S7TagRuntimeBinding : IDisposable
     /// <returns>The generated internal tag name.</returns>
     private static string RangeTagName(S7TagRange range) => $"__s7_binding_db{range.Db}_{range.StartByte}_{range.Length}";
 
-    /// <summary>Stores the p ar se ad dr e s s value.</summary>
-    /// <param name="definition">The d ef in it i o n value.</param>
+    /// <summary>Parses a tag definition into its runtime address.</summary>
+    /// <param name="definition">The tag definition.</param>
     /// <returns>The resulting value.</returns>
     private static S7TagRuntimeAddress ParseAddress(S7TagDefinition definition)
     {
@@ -139,7 +160,7 @@ public sealed class S7TagRuntimeBinding : IDisposable
         }
 
         var parts = address.Split(['.']);
-        if (parts.Length < 2 || !int.TryParse(parts[0][2..], out var db))
+        if (parts.Length < DataBlockPrefixLength || !int.TryParse(parts[0][DataBlockPrefixLength..], out var db))
         {
             throw new ArgumentException($"Invalid S7 DB address '{definition.Address}'.", nameof(definition));
         }
@@ -150,29 +171,29 @@ public sealed class S7TagRuntimeBinding : IDisposable
             return ParseBitAddress(definition, parts, dbPart, db);
         }
 
-        if (dbPart.Length < 4 || !int.TryParse(dbPart[3..], out var startByte))
+        if (dbPart.Length < MinimumDataBlockAddressLength || !int.TryParse(dbPart[DataBlockTypePrefixLength..], out var startByte))
         {
             throw new ArgumentException($"Invalid S7 DB address '{definition.Address}'.", nameof(definition));
         }
 
-        var byteLength = GetByteLength(definition, dbPart[..3]);
+        var byteLength = GetByteLength(definition, dbPart[..DataBlockTypePrefixLength]);
         return new S7TagRuntimeAddress(db, startByte, null, byteLength);
     }
 
-    /// <summary>Stores the p ar se bi ta dd re s s value.</summary>
-    /// <param name="definition">The d ef in it i o n value.</param>
-    /// <param name="parts">The p ar t s value.</param>
-    /// <param name="dbPart">The d bp ar t value.</param>
-    /// <param name="db">The d b value.</param>
+    /// <summary>Parses a bit tag definition into its runtime address.</summary>
+    /// <param name="definition">The tag definition.</param>
+    /// <param name="parts">The address components.</param>
+    /// <param name="dbPart">The data-block address component.</param>
+    /// <param name="db">The data-block number.</param>
     /// <returns>The resulting value.</returns>
     private static S7TagRuntimeAddress ParseBitAddress(S7TagDefinition definition, string[] parts, string dbPart, int db)
     {
-        if (parts.Length < 3 || !int.TryParse(dbPart[3..], out var byteOffset) || !int.TryParse(parts[2], out var bitOffset))
+        if (parts.Length < DataBlockTypePrefixLength || !int.TryParse(dbPart[DataBlockTypePrefixLength..], out var byteOffset) || !int.TryParse(parts[DataBlockPrefixLength], out var bitOffset))
         {
             throw new ArgumentException($"Invalid S7 DB bit address '{definition.Address}'.", nameof(definition));
         }
 
-        if ((uint)bitOffset > 7)
+        if ((uint)bitOffset > MaximumBitOffset)
         {
             throw new ArgumentOutOfRangeException(nameof(definition), "DBX bit offset must be between 0 and 7.");
         }
@@ -201,9 +222,9 @@ public sealed class S7TagRuntimeBinding : IDisposable
         return dbType switch
         {
             "DBB" => Math.Max(1, multiplier),
-            "DBW" => 2 * multiplier,
-            "DBD" when elementType == typeof(double) => 8 * multiplier,
-            "DBD" => 4 * multiplier,
+            "DBW" => WordByteLength * multiplier,
+            "DBD" when elementType == typeof(double) => DoubleByteLength * multiplier,
+            "DBD" => DoubleWordByteLength * multiplier,
             _ => throw new ArgumentException($"Unsupported S7 DB address type '{dbType}'.", nameof(definition)),
         };
     }
@@ -239,11 +260,11 @@ public sealed class S7TagRuntimeBinding : IDisposable
         return ranges;
     }
 
-    /// <summary>Stores the d ec o d e value.</summary>
-    /// <param name="definition">The d ef in it i o n value.</param>
-    /// <param name="address">The a dd re s s value.</param>
-    /// <param name="buffer">The b uf f e r value.</param>
-    /// <param name="rangeStart">The r an ge st a r t value.</param>
+    /// <summary>Decodes a tag value from a byte buffer.</summary>
+    /// <param name="definition">The tag definition.</param>
+    /// <param name="address">The runtime tag address.</param>
+    /// <param name="buffer">The source byte buffer.</param>
+    /// <param name="rangeStart">The first byte represented by the buffer.</param>
     /// <returns>The resulting value.</returns>
     private static object? Decode(S7TagDefinition definition, S7TagRuntimeAddress address, byte[] buffer, int rangeStart)
     {
@@ -312,12 +333,12 @@ public sealed class S7TagRuntimeBinding : IDisposable
         return valueType == typeof(double[]) ? LReal.ToArray(span) : null;
     }
 
-    /// <summary>Stores the e nc o d e value.</summary>
-    /// <param name="definition">The d ef in it i o n value.</param>
-    /// <param name="address">The a dd re s s value.</param>
-    /// <param name="value">The v al u e value.</param>
-    /// <param name="buffer">The b uf f e r value.</param>
-    /// <param name="rangeStart">The r an ge st a r t value.</param>
+    /// <summary>Encodes a tag value into a byte buffer.</summary>
+    /// <param name="definition">The tag definition.</param>
+    /// <param name="address">The runtime tag address.</param>
+    /// <param name="value">The value to encode.</param>
+    /// <param name="buffer">The destination byte buffer.</param>
+    /// <param name="rangeStart">The first byte represented by the buffer.</param>
     private static void Encode(S7TagDefinition definition, S7TagRuntimeAddress address, object? value, byte[] buffer, int rangeStart)
     {
         if (value is null)
@@ -548,7 +569,7 @@ public sealed class S7TagRuntimeBinding : IDisposable
         return _plc.Value<byte[]>(tagName);
     }
 
-    /// <summary>Represents the s 7 ta gr un ti me ad dr e s s data used by S7 PLC operations.</summary>
+    /// <summary>Represents the runtime address of an S7 tag.</summary>
     private readonly struct S7TagRuntimeAddress
     {
         /// <summary>Initializes a new instance of the <see cref="S7TagRuntimeAddress"/> struct.</summary>

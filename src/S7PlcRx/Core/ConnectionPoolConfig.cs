@@ -14,6 +14,9 @@ namespace S7PlcRx.Core;
 /// applications that manage multiple concurrent connections.</remarks>
 public sealed class ConnectionPoolConfig
 {
+    /// <summary>Defines the default connection timeout in seconds.</summary>
+    private const int DefaultConnectionTimeoutSeconds = 30;
+
     /// <summary>Gets or sets the maximum pool size.</summary>
     public int MaxPoolSize { get; set; } = 10;
 
@@ -21,7 +24,7 @@ public sealed class ConnectionPoolConfig
     public int MaxConnections { get; set; } = 10;
 
     /// <summary>Gets or sets the connection timeout.</summary>
-    public TimeSpan ConnectionTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan ConnectionTimeout { get; set; } = TimeSpan.FromSeconds(DefaultConnectionTimeoutSeconds);
 
     /// <summary>Gets or sets a value indicating whether to enable load balancing.</summary>
     public bool EnableLoadBalancing { get; set; } = true;

@@ -13,6 +13,12 @@ namespace S7PlcRx.PlcTypes;
 /// <summary>Provides extension methods for binary and numeric conversion helpers.</summary>
 internal static class ConversionExtensions
 {
+    /// <summary>Defines the highest zero-based bit index in a byte.</summary>
+    private const int MaximumBitIndex = 7;
+
+    /// <summary>Defines the radix used for binary conversion.</summary>
+    private const int BinaryRadix = 2;
+
     /// <summary>Provides bit-selection and bit-update extensions for bytes.</summary>
     /// <param name="data">The byte value.</param>
     extension(ref byte data)
@@ -33,7 +39,7 @@ internal static class ConversionExtensions
         /// <param name="value">The Boolean value to assign to the bit.</param>
         public void SetBit(int index, bool value)
         {
-            if ((uint)index > 7)
+            if ((uint)index > MaximumBitIndex)
             {
                 return;
             }
@@ -86,7 +92,7 @@ internal static class ConversionExtensions
 
             for (var bit = 15; bit >= 0; bit += -1)
             {
-                text += (longValue & (long)Math.Pow(2, bit)) > 0 ? "1" : "0";
+                text += (longValue & (long)Math.Pow(BinaryRadix, bit)) > 0 ? "1" : "0";
             }
 
             return text;

@@ -1,12 +1,17 @@
 using System.ComponentModel;
 using Nuke.Common.Tooling;
 
+namespace S7PlcRx.Building;
+
 [TypeConverter(typeof(TypeConverter<Configuration>))]
 public class Configuration : Enumeration
 {
-    public static Configuration Debug = new() { Value = nameof(Debug) };
-    public static Configuration Release = new() { Value = nameof(Release) };
+    public static readonly Configuration Debug = new() { Value = nameof(Debug) };
+    public static readonly Configuration Release = new() { Value = nameof(Release) };
+
+    public static string FromConfiguration(Configuration configuration) =>
+        configuration?.Value;
 
     public static implicit operator string(Configuration configuration) =>
-        configuration?.Value;
+        FromConfiguration(configuration);
 }

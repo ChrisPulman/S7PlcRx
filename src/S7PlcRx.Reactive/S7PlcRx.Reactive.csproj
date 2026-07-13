@@ -10,18 +10,18 @@
   </PropertyGroup>
 
   <ItemGroup Condition=" $([System.String]::new('$(TargetFramework)').StartsWith('net4')) ">
-    <PackageReference Include="System.Text.Json" Version="10.0.9" />
-    <PackageReference Include="Polyfill" Version="10.11.2">
+    <PackageReference Include="System.Text.Json" />
+    <PackageReference Include="Polyfill">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="System.Memory" Version="4.6.3" />
+    <PackageReference Include="System.Memory" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ReactiveUI.Primitives.Reactive" Version="6.0.0" ExcludeAssets="analyzers" />
-    <PackageReference Include="ReactiveUI.Primitives.Async.Reactive" Version="6.0.0" ExcludeAssets="analyzers" />
-    <PackageReference Include="ReactiveUI.Primitives.Extensions.Reactive" Version="6.0.0" ExcludeAssets="analyzers" />
+    <PackageReference Include="ReactiveUI.Primitives.Reactive" ExcludeAssets="analyzers" />
+    <PackageReference Include="ReactiveUI.Primitives.Async.Reactive" ExcludeAssets="analyzers" />
+    <PackageReference Include="ReactiveUI.Primitives.Extensions.Reactive" ExcludeAssets="analyzers" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,6 +38,7 @@
     <Using Include="ReactiveUI.Primitives.Extensions.Reactive" />
     <Using Include="ReactiveUI.Primitives.Reactive.Signals" />
     <Using Include="System.Threading" />
+    <Using Include="System.Reactive.Disposables.ICancelable" Alias="ICancelable" />
     <Using Include="ReactiveUI.Primitives.Disposables.Scope" Alias="Disposable" />
     <Using Include="ReactiveUI.Primitives.Disposables.MultipleDisposable" Alias="CompositeDisposable" />
     <Using Include="ReactiveUI.Primitives.Disposables.SwapDisposable" Alias="SerialDisposable" />

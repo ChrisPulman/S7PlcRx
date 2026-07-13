@@ -19,11 +19,7 @@ internal class BatchRequestQueue
     private readonly ConcurrentQueue<BatchRequest> _requests = new();
 
     /// <summary>Stores the lock used to synchronize queue draining.</summary>
-#if NET8_0
-    private readonly object _lockObject = new();
-#else
     private readonly Lock _lockObject = new();
-#endif
 
     /// <summary>Gets the count of pending requests.</summary>
     public int Count => _requests.Count;

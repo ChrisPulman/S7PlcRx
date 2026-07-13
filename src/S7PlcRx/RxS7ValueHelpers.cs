@@ -20,25 +20,37 @@ namespace S7PlcRx;
 /// <summary>Provides static value conversion helpers for <see cref="RxS7"/>.</summary>
 internal static class RxS7ValueHelpers
 {
+    /// <summary>Defines the fixed read-response header length.</summary>
+    private const int ReadResponseHeaderLength = 25;
+
+    /// <summary>Defines the offset of the read-response data length field.</summary>
+    private const int ReadResponseDataLengthOffset = 23;
+
+    /// <summary>Defines the number of bits contained in one byte.</summary>
+    private const int BitsPerByte = 8;
+
+    /// <summary>Defines the highest valid zero-based bit offset in one byte.</summary>
+    private const int MaximumBitOffset = BitsPerByte - 1;
+
     /// <summary>Gets the response payload length in bytes.</summary>
     /// <param name="response">The S7 response buffer.</param>
     /// <param name="responseLength">The response length in bytes.</param>
     /// <returns>The response payload length in bytes.</returns>
     internal static int GetReadResponseDataLengthBytes(byte[] response, int responseLength)
     {
-        if (responseLength <= 25)
+        if (responseLength <= ReadResponseHeaderLength)
         {
             return 0;
         }
 
-        var fallbackLength = responseLength - 25;
-        var dataLength = Word.FromByteArray(response, 23);
+        var fallbackLength = responseLength - ReadResponseHeaderLength;
+        var dataLength = Word.FromByteArray(response, ReadResponseDataLengthOffset);
         if (dataLength <= 0)
         {
             return fallbackLength;
         }
 
-        var parsedLength = (dataLength + 7) / 8;
+        var parsedLength = (dataLength + MaximumBitOffset) / BitsPerByte;
 
         return Math.Min(parsedLength, fallbackLength);
     }
@@ -63,7 +75,7 @@ internal static class RxS7ValueHelpers
     /// <param name="tag">The related tag.</param>
     internal static void EnsureBitOffsetIsValid(int bitOffset, Tag tag)
     {
-        if (bitOffset <= 7)
+        if (bitOffset <= MaximumBitOffset)
         {
             return;
         }

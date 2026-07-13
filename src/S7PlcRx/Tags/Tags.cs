@@ -23,11 +23,7 @@ namespace S7PlcRx;
 public class Tags : Hashtable
 {
     /// <summary>Stores the lock used to protect collection mutations.</summary>
-#if NET8_0
-    private readonly object _lockObject = new();
-#else
     private readonly Lock _lockObject = new();
-#endif
 
     /// <summary>Gets or sets the value associated with the specified key.</summary>
     /// <remarks>Access to this indexer is thread-safe for set operations.</remarks>

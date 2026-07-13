@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Text;
+using TUnitAssert = TUnit.Assertions.Assert;
 
 namespace S7PlcRx.Tests;
 
@@ -20,6 +21,8 @@ public class S7PlcRxDecodeTagNamesLivePlcTests
     private const string PlcIp = "172.16.13.1";
     private const string TagNames1 = nameof(TagNames1);
     private const int HeaderByteCount = 4;
+    private const byte FirstValidIsLoggingState = 1;
+    private const byte LastValidIsLoggingState = 3;
     private const int BytesPerTagName = 32;
     private const int TagNameReservedLength = BytesPerTagName - 2;
     private const int TotalTagCount = 64;
@@ -113,35 +116,31 @@ public class S7PlcRxDecodeTagNamesLivePlcTests
             .Timeout(TimeSpan.FromSeconds(30))
             .FirstAsync();
 
-        Assert.That(connected, Is.True, "PLC did not connect within 30 seconds.");
+        await TUnitAssert.That(connected).IsTrue();
 
         // Allow a brief settle time before reading.
         await Task.Delay(500);
 
         var bytes = await ReadTagNameBytesAsync(plc);
-        Assert.That(bytes, Is.Not.Null, "Tag name bytes should be available from the PLC.");
-        Assert.That(bytes!.Length, Is.GreaterThanOrEqualTo(TotalTagNameBytes), $"Expected at least {TotalTagNameBytes} bytes but got {bytes.Length}.");
+        await TUnitAssert.That(bytes).IsNotNull();
+        await TUnitAssert.That(bytes!.Length).IsGreaterThanOrEqualTo(TotalTagNameBytes);
 
-        Assert.That(bytes[0], Is.EqualTo((byte)'S'), "Byte 0 should be 'S'.");
-        Assert.That(bytes[1], Is.EqualTo((byte)'T'), "Byte 1 should be 'T'.");
-        Assert.That(bytes[2], Is.EqualTo((byte)'X'), "Byte 2 should be 'X'.");
-        Assert.That(bytes[3], Is.EqualTo((byte)2), "Byte 3 should contain the PLC payload marker.");
+        await TUnitAssert.That(bytes[0]).IsEqualTo((byte)'S');
+        await TUnitAssert.That(bytes[1]).IsEqualTo((byte)'T');
+        await TUnitAssert.That(bytes[2]).IsEqualTo((byte)'X');
+        // Byte 3 is the PLC's IsLogging runtime state, not a fixed protocol marker.
+        var hasValidIsLoggingState = bytes[3] is >= FirstValidIsLoggingState and <= LastValidIsLoggingState;
+        await TUnitAssert.That(hasValidIsLoggingState).IsTrue();
 
-        AssertTagNameBytes(bytes);
+        await AssertTagNameBytesAsync(bytes);
 
         var tagNames = GetTagNames(bytes, BytesPerTagName, TotalTagNameBytes).ToList();
 
-        Assert.That(
-            tagNames,
-            Has.Count.EqualTo(ExpectedTagNames.Length),
-            $"Expected {ExpectedTagNames.Length} tag names but got {tagNames.Count}.");
+        await TUnitAssert.That(tagNames.Count).IsEqualTo(ExpectedTagNames.Length);
 
         for (var i = 0; i < ExpectedTagNames.Length; i++)
         {
-            Assert.That(
-                tagNames[i],
-                Is.EqualTo(ExpectedTagNames[i]),
-                $"Tag name at index {i} is incorrect.");
+            await TUnitAssert.That(tagNames[i]).IsEqualTo(ExpectedTagNames[i]);
         }
     }
 
@@ -183,7 +182,7 @@ public class S7PlcRxDecodeTagNamesLivePlcTests
         return default;
     }
 
-    private static void AssertTagNameBytes(byte[] bytes)
+    private static async Task AssertTagNameBytesAsync(byte[] bytes)
     {
         for (var i = 0; i < ExpectedTagNames.Length; i++)
         {
@@ -193,13 +192,13 @@ public class S7PlcRxDecodeTagNamesLivePlcTests
 
             Array.Copy(bytes, slotStart + 2, actualBytes, 0, expectedBytes.Length);
 
-            Assert.That(bytes[slotStart], Is.EqualTo(TagNameReservedLength), $"Tag slot {i} should declare the reserved S7 string length.");
-            Assert.That(bytes[slotStart + 1], Is.EqualTo((byte)expectedBytes.Length), $"Tag slot {i} should declare the expected string length.");
-            Assert.That(actualBytes, Is.EqualTo(expectedBytes), $"Raw bytes for tag slot {i} are incorrect.");
+            await TUnitAssert.That(bytes[slotStart]).IsEqualTo((byte)TagNameReservedLength);
+            await TUnitAssert.That(bytes[slotStart + 1]).IsEqualTo((byte)expectedBytes.Length);
+            await TUnitAssert.That(actualBytes.SequenceEqual(expectedBytes)).IsTrue();
 
             for (var j = slotStart + 2 + expectedBytes.Length; j < slotStart + BytesPerTagName; j++)
             {
-                Assert.That(bytes[j], Is.EqualTo((byte)0), $"Unused bytes in tag slot {i} should be zero padded.");
+                await TUnitAssert.That(bytes[j]).IsEqualTo((byte)0);
             }
         }
     }

@@ -11,6 +11,12 @@ namespace S7PlcRx;
 /// <summary>Provides factory methods for creating S7-400 PLC connections.</summary>
 public static class S7400
 {
+    /// <summary>Defines the highest supported PLC rack number.</summary>
+    private const short MaximumRack = 7;
+
+    /// <summary>Defines the highest supported PLC slot number.</summary>
+    private const short MaximumSlot = 31;
+
     /// <summary>
     /// Creates a new instance of an S7 PLC client configured for the specified IP address, rack, slot, and optional
     /// watchdog monitoring parameters.
@@ -30,16 +36,19 @@ public static class S7400
     /// <exception cref="ArgumentOutOfRangeException">Thrown if rack is not between 0 and 7, or if slot is not between 1 and 31.</exception>
     public static IRxS7 Create(string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 100)
     {
-        if (rack < 0 || rack > 7)
+        if (rack < 0 || rack > MaximumRack)
         {
             throw new ArgumentOutOfRangeException(nameof(rack), "Rack must be between 0 and 7");
         }
 
-        if (slot < 1 || slot > 31)
+        if (slot < 1 || slot > MaximumSlot)
         {
             throw new ArgumentOutOfRangeException(nameof(slot), "Slot must be between 1 and 31");
         }
 
-        return new RxS7(Enums.CpuType.S7400, ip, rack, slot, watchDogAddress, interval, watchDogValueToWrite, watchDogInterval);
+        return new RxS7(new RxS7Options(
+            new S7ConnectionOptions(Enums.CpuType.S7400, ip, rack, slot),
+            new S7PollingOptions(interval),
+            watchDogAddress is null ? null : new S7WatchdogOptions(watchDogAddress, watchDogValueToWrite, watchDogInterval)));
     }
 }

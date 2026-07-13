@@ -3,8 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
-using System.Collections;
-using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 #if REACTIVE_SHIM
@@ -38,6 +36,183 @@ namespace S7PlcRx;
 /// resources and terminate background operations.</remarks>
 public class RxS7 : IRxS7
 {
+    /// <summary>Diagnostic name for the primary synchronization semaphore.</summary>
+    private const string LockName = "Lock";
+
+    /// <summary>Maximum attempts used by direct value reads.</summary>
+    private const int ValueReadMaxAttempts = 3;
+
+    /// <summary>Delay between direct value-read attempts.</summary>
+    private const int ValueReadRetryDelayMilliseconds = 20;
+
+    /// <summary>SZL identifier containing CPU identity data.</summary>
+    private const int CpuInformationSzlId = 28;
+
+    /// <summary>SZL identifier containing the CPU order code.</summary>
+    private const int CpuOrderCodeSzlId = 17;
+
+    /// <summary>Delay before retrying an SZL read.</summary>
+    private const int SzlRetryDelayMilliseconds = 10;
+
+    /// <summary>Minimum CPU-information payload length.</summary>
+    private const int CpuInformationMinimumLength = 204;
+
+    /// <summary>Minimum order-code payload length.</summary>
+    private const int CpuOrderCodeMinimumLength = 25;
+
+    /// <summary>Offset of the AS name in the CPU-information payload.</summary>
+    private const int CpuAsNameOffset = 2;
+
+    /// <summary>Length of the AS name in the CPU-information payload.</summary>
+    private const int CpuAsNameLength = 24;
+
+    /// <summary>Offset of the module name in the CPU-information payload.</summary>
+    private const int CpuModuleNameOffset = 36;
+
+    /// <summary>Length of the module name in the CPU-information payload.</summary>
+    private const int CpuModuleNameLength = 24;
+
+    /// <summary>Offset of the copyright text in the CPU-information payload.</summary>
+    private const int CpuCopyrightOffset = 104;
+
+    /// <summary>Length of the copyright text in the CPU-information payload.</summary>
+    private const int CpuCopyrightLength = 26;
+
+    /// <summary>Offset of the serial number in the CPU-information payload.</summary>
+    private const int CpuSerialNumberOffset = 138;
+
+    /// <summary>Length of the serial number in the CPU-information payload.</summary>
+    private const int CpuSerialNumberLength = 24;
+
+    /// <summary>Offset of the module type in the CPU-information payload.</summary>
+    private const int CpuModuleTypeOffset = 172;
+
+    /// <summary>Length of the module type in the CPU-information payload.</summary>
+    private const int CpuModuleTypeLength = 32;
+
+    /// <summary>Offset of the order code in its SZL payload.</summary>
+    private const int CpuOrderCodeOffset = 2;
+
+    /// <summary>Length of the order code in its SZL payload.</summary>
+    private const int CpuOrderCodeLength = 20;
+
+    /// <summary>Distance from the payload end to the first version component.</summary>
+    private const int CpuVersionMajorDistanceFromEnd = 3;
+
+    /// <summary>Distance from the payload end to the second version component.</summary>
+    private const int CpuVersionMinorDistanceFromEnd = 2;
+
+    /// <summary>Additional receive capacity reserved for protocol framing.</summary>
+    private const int ProtocolReceivePadding = 256;
+
+    /// <summary>Transport-size code used for byte writes.</summary>
+    private const byte ByteTransportSize = 2;
+
+    /// <summary>Minimum number of components in a data-block address.</summary>
+    private const int DataBlockAddressComponentCount = 2;
+
+    /// <summary>Length of the DB address prefix.</summary>
+    private const int DataBlockPrefixLength = 2;
+
+    /// <summary>Length of an S7 address type code such as DBB.</summary>
+    private const int AddressTypeCodeLength = 3;
+
+    /// <summary>Index containing a bit offset in a split DBX address.</summary>
+    private const int BitAddressComponentIndex = 2;
+
+    /// <summary>Length of an area address code such as EB or MW.</summary>
+    private const int AreaAddressCodeLength = 2;
+
+    /// <summary>Number of bits represented by one byte.</summary>
+    private const int BitsPerByte = 8;
+
+    /// <summary>Size of one S7 read request item.</summary>
+    private const int ReadRequestItemSize = 12;
+
+    /// <summary>Transport-size code used by standard read request items.</summary>
+    private const byte StandardReadTransportSize = 2;
+
+    /// <summary>Size of the fixed read request header.</summary>
+    private const int ReadRequestHeaderSize = 19;
+
+    /// <summary>Fixed size preceding read request items in the parameter block.</summary>
+    private const int ReadParameterBaseSize = 2;
+
+    /// <summary>Number of bytes occupied by a word-like value.</summary>
+    private const int WordByteLength = 2;
+
+    /// <summary>Number of bytes occupied by a double-word value.</summary>
+    private const int DoubleWordByteLength = 4;
+
+    /// <summary>Number of bytes occupied by a long-real value.</summary>
+    private const int LongRealByteLength = 8;
+
+    /// <summary>Fixed size of an S7 write package before its payload.</summary>
+    private const int WriteRequestBaseSize = 35;
+
+    /// <summary>Size of the write request parameter block.</summary>
+    private const int WriteParameterSize = 14;
+
+    /// <summary>Fixed bytes added to the write payload length.</summary>
+    private const int WriteDataLengthOverhead = 4;
+
+    /// <summary>Receive buffer size used for write acknowledgements.</summary>
+    private const int WriteResponseBufferSize = 1024;
+
+    /// <summary>Offset containing the S7 response return code.</summary>
+    private const int ResponseReturnCodeOffset = 21;
+
+    /// <summary>Total size of a single-item S7 read package.</summary>
+    private const int SingleReadPackageSize = 31;
+
+    /// <summary>Minimum valid size of an S7 read response.</summary>
+    private const int ReadResponseMinimumSize = 25;
+
+    /// <summary>Offset at which read response data begins.</summary>
+    private const int ReadResponseDataOffset = 25;
+
+    /// <summary>Protocol overhead reserved when calculating a safe read chunk.</summary>
+    private const int ReadChunkProtocolOverhead = 32;
+
+    /// <summary>Maximum byte-array payload requested in one read.</summary>
+    private const int MaximumByteArrayReadChunk = 480;
+
+    /// <summary>Divisor used to halve a failed read chunk.</summary>
+    private const int ReadChunkReductionDivisor = 2;
+
+    /// <summary>Maximum attempts made for one read chunk.</summary>
+    private const int ReadChunkMaxAttempts = 3;
+
+    /// <summary>Grace period after connecting before polling begins.</summary>
+    private const int ConnectionPollingGraceMilliseconds = 250;
+
+    /// <summary>Delay while waiting for the PLC connection.</summary>
+    private const int ConnectionWaitDelayMilliseconds = 10;
+
+    /// <summary>Maximum payload written in one S7 request.</summary>
+    private const int MaximumWriteChunkSize = 200;
+
+    /// <summary>Fixed prefix of an S7 read request item.</summary>
+    private static readonly byte[] ReadRequestItemPrefix = [18, 10, 16];
+
+    /// <summary>TPKT prefix shared by S7 read and write requests.</summary>
+    private static readonly byte[] TpktHeaderPrefix = [3, 0, 0];
+
+    /// <summary>Fixed body of an S7 read request header.</summary>
+    private static readonly byte[] ReadRequestHeaderBody = [2, 240, 128, 50, 1, 0, 0, 0, 0];
+
+    /// <summary>Function bytes terminating an S7 read request header.</summary>
+    private static readonly byte[] ReadRequestFunction = [0, 0, 4];
+
+    /// <summary>Fixed body of an S7 write request header.</summary>
+    private static readonly byte[] WriteRequestHeaderBody = [2, 240, 128, 50, 1, 0, 0];
+
+    /// <summary>Function and item prefix for an S7 write request.</summary>
+    private static readonly byte[] WriteRequestItemPrefix = [5, 1, 18, 10, 16, 2];
+
+    /// <summary>Data transport prefix for an S7 write request.</summary>
+    private static readonly byte[] WriteDataTransportPrefix = [0, 4];
+
     /// <summary>Stores the s oc ke t r x used by this instance.</summary>
     private readonly S7SocketRx _socketRx;
 
@@ -69,11 +244,7 @@ public class RxS7 : IRxS7
     private readonly SemaphoreSlim _lockTagList = new(1);
 
     /// <summary>Stores the lock used to serialize direct socket interactions.</summary>
-#if NET8_0
-    private readonly object _socketLock = new();
-#else
     private readonly Lock _socketLock = new();
-#endif
 
     /// <summary>Stores the s to pw at c h used by this instance.</summary>
     private readonly Stopwatch _stopwatch = new();
@@ -87,33 +258,40 @@ public class RxS7 : IRxS7
     /// <summary>Stores the p au s e used by this instance.</summary>
     private bool _pause;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RxS7"/> class and establishes a connection to a Siemens S7 PLC with optional.
-    /// watchdog monitoring and periodic tag reading.
-    /// </summary>
-    /// <remarks>If a valid watchdog address is provided, the constructor enables periodic writing to the
-    /// specified address to support external watchdog monitoring. Tag reading and connection status monitoring are
-    /// started automatically upon construction.</remarks>
-    /// <param name="type">The type of the PLC CPU to connect to.</param>
-    /// <param name="ip">The IP address of the PLC to connect to.</param>
-    /// <param name="rack">The rack number of the PLC hardware configuration.</param>
-    /// <param name="slot">The slot number of the PLC CPU module.</param>
-    /// <param name="watchDogAddress">The address of the watchdog tag in the PLC memory. Must be a DBW address or null to disable watchdog monitoring.</param>
-    /// <param name="interval">The interval, in milliseconds, at which tag values are read from the PLC. Must be greater than 0.</param>
-    /// <param name="watchDogValueToWrite">The value to write to the watchdog address during each watchdog cycle.</param>
-    /// <param name="watchDogInterval">The interval, in seconds, at which the watchdog value is written. Must be greater than 0 if watchdog monitoring
-    /// is enabled.</param>
-    /// <exception cref="ArgumentException">Thrown if watchDogAddress is provided and is not a valid DBW address.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if watchDogInterval is less than 1 when watchdog monitoring is enabled.</exception>
-    public RxS7(CpuType type, string ip, short rack, short slot, string? watchDogAddress = null, double interval = 100, ushort watchDogValueToWrite = 4500, int watchDogInterval = 10)
+    /// <summary>Initializes a new instance of the <see cref="RxS7"/> class from composed connection settings.</summary>
+    /// <param name="options">The composed PLC connection settings.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> or its connection settings are null.</exception>
+    /// <exception cref="ArgumentException">Thrown when the configured watchdog address is not a DBW address.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the configured watchdog interval is less than one second.</exception>
+    public RxS7(RxS7Options options)
     {
-        PLCType = type;
-        IP = ip;
-        Rack = rack;
-        Slot = slot;
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        var connection = options.Connection ?? throw new ArgumentNullException(nameof(options), "Connection options cannot be null.");
+        var watchdog = options.Watchdog;
+        if (watchdog is not null)
+        {
+            if (!watchdog.Address.Contains("DBW", StringComparison.Ordinal))
+            {
+                throw new ArgumentException("WatchDogAddress must be a DBW address.", nameof(options));
+            }
+
+            if (watchdog.IntervalSeconds < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(options), "WatchDogInterval must be greater than 0.");
+            }
+        }
+
+        PLCType = connection.CpuType;
+        IP = connection.IpAddress;
+        Rack = connection.Rack;
+        Slot = connection.Slot;
 
         // Create an observable socket
-        _socketRx = new(IP, type, rack, slot);
+        _socketRx = new(IP, PLCType, Rack, Slot);
 
         IsConnected = _socketRx.IsConnected;
 
@@ -129,25 +307,15 @@ public class RxS7 : IRxS7
             _status.OnNext($"{DateTime.Now} - PLC Connected Status: {x}");
         }));
 
-        if (!string.IsNullOrWhiteSpace(watchDogAddress))
+        if (watchdog is not null)
         {
-            if (!watchDogAddress.Contains("DBW", StringComparison.Ordinal))
-            {
-                throw new ArgumentException("WatchDogAddress must be a DBW address.", nameof(watchDogAddress));
-            }
-
-            WatchDogAddress = watchDogAddress;
-            if (watchDogInterval < 1)
-            {
-                throw new ArgumentOutOfRangeException(nameof(watchDogInterval), "WatchDogInterval must be greater than 0.");
-            }
-
-            WatchDogWritingTime = watchDogInterval;
-            WatchDogValueToWrite = watchDogValueToWrite;
+            WatchDogAddress = watchdog.Address;
+            WatchDogWritingTime = watchdog.IntervalSeconds;
+            WatchDogValueToWrite = watchdog.ValueToWrite;
             _disposables.Add(WatchDogObservable().Subscribe());
         }
 
-        _disposables.Add(TagReaderObservable(interval).Subscribe());
+        _disposables.Add(TagReaderObservable(options.Polling.IntervalMilliseconds).Subscribe());
 
         _disposables.Add(_plcRequestSubject.Subscribe(request =>
         {
@@ -222,10 +390,10 @@ public class RxS7 : IRxS7
     public string? WatchDogAddress { get; }
 
     /// <summary>Gets or sets the value to be written to the watchdog timer.</summary>
-    public ushort WatchDogValueToWrite { get; set; } = 4500;
+    public ushort WatchDogValueToWrite { get; set; } = S7WatchdogOptions.DefaultValueToWrite;
 
     /// <summary>Gets the interval, in seconds, that the watchdog uses when writing status updates.</summary>
-    public int WatchDogWritingTime { get; } = 10;
+    public int WatchDogWritingTime { get; } = S7WatchdogOptions.DefaultIntervalSeconds;
 
     /// <summary>Gets a value indicating whether gets a value that indicates whether the object is disposed.</summary>
     public bool IsDisposed { get; private set; }
@@ -275,7 +443,7 @@ public class RxS7 : IRxS7
                 tag.Type = typeof(T);
             }
 
-            for (var attempt = 0; attempt < 3; attempt++)
+            for (var attempt = 0; attempt < ValueReadMaxAttempts; attempt++)
             {
                 GetTagValue(tag);
                 if (TagValueIsValid<T>(tag))
@@ -283,7 +451,7 @@ public class RxS7 : IRxS7
                     return (T?)tag?.Value;
                 }
 
-                await Task.Delay(20).ConfigureAwait(false);
+                await Task.Delay(ValueReadRetryDelayMilliseconds).ConfigureAwait(false);
             }
 
             return default;
@@ -327,7 +495,10 @@ public class RxS7 : IRxS7
 #else
                 using var reg = cancellationToken.Register(() => tcs.TrySetCanceled());
 #endif
-                using var sub = _paused.Where(x => x).Take(1).Subscribe(_ => tcs.TrySetResult(true), ex => tcs.TrySetException(ex));
+                void SetResult(bool result) => tcs.TrySetResult(result);
+                void SetException(Exception exception) => tcs.TrySetException(exception);
+
+                using var sub = _paused.Where(x => x).Take(1).Subscribe(SetResult, SetException);
                 await tcs.Task.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -352,7 +523,7 @@ public class RxS7 : IRxS7
                 tag.Type = typeof(T);
             }
 
-            for (var attempt = 0; attempt < 3; attempt++)
+            for (var attempt = 0; attempt < ValueReadMaxAttempts; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 GetTagValue(tag);
@@ -361,7 +532,7 @@ public class RxS7 : IRxS7
                     return (T?)tag?.Value;
                 }
 
-                await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(ValueReadRetryDelayMilliseconds, cancellationToken).ConfigureAwait(false);
             }
 
             return default;
@@ -415,33 +586,33 @@ public class RxS7 : IRxS7
                 Disposable = IsConnected.Where(x => x).Take(1).Subscribe(async _ =>
                 {
                     errorCpuData:
-                    var cpuData = _socketRx.GetSZLData(28);
+                    var cpuData = _socketRx.GetSZLData(CpuInformationSzlId);
                     if (cpuData.data.Length == 0 && !d!.IsDisposed)
                     {
-                        await Task.Delay(10).ConfigureAwait(true);
+                        await Task.Delay(SzlRetryDelayMilliseconds).ConfigureAwait(true);
                         goto errorCpuData;
                     }
 
                     errororder:
-                    var orderCode = _socketRx.GetSZLData(17);
+                    var orderCode = _socketRx.GetSZLData(CpuOrderCodeSzlId);
                     if (orderCode.data.Length == 0 && !d!.IsDisposed)
                     {
-                        await Task.Delay(10).ConfigureAwait(true);
+                        await Task.Delay(SzlRetryDelayMilliseconds).ConfigureAwait(true);
                         goto errororder;
                     }
 
-                    if (cpuData.data.Length >= 204 && orderCode.data.Length >= 25)
+                    if (cpuData.data.Length >= CpuInformationMinimumLength && orderCode.data.Length >= CpuOrderCodeMinimumLength)
                     {
                         var l = new List<string>
                         {
-                            PlcTypes.String.FromByteArray(cpuData.data, 2, 24).Replace("\0", string.Empty), // AS Name
-                            PlcTypes.String.FromByteArray(cpuData.data, 36, 24).Replace("\0", string.Empty), // Module Name
-                            PlcTypes.String.FromByteArray(cpuData.data, 104, 26).Replace("\0", string.Empty), // Copyright
-                            PlcTypes.String.FromByteArray(cpuData.data, 138, 24).Replace("\0", string.Empty), // Serial Number
-                            PlcTypes.String.FromByteArray(cpuData.data, 172, 32).Replace("\0", string.Empty), // Module Type Name
-                            PlcTypes.String.FromByteArray(orderCode.data, 2, 20).Replace("\0", string.Empty), // Order Code
-                            $"V1: {orderCode.data[orderCode.size - 3]}", // Version 1
-                            $"V2: {orderCode.data[orderCode.size - 2]}", // Version 2
+                            PlcTypes.String.FromByteArray(cpuData.data, CpuAsNameOffset, CpuAsNameLength).Replace("\0", string.Empty),
+                            PlcTypes.String.FromByteArray(cpuData.data, CpuModuleNameOffset, CpuModuleNameLength).Replace("\0", string.Empty),
+                            PlcTypes.String.FromByteArray(cpuData.data, CpuCopyrightOffset, CpuCopyrightLength).Replace("\0", string.Empty),
+                            PlcTypes.String.FromByteArray(cpuData.data, CpuSerialNumberOffset, CpuSerialNumberLength).Replace("\0", string.Empty),
+                            PlcTypes.String.FromByteArray(cpuData.data, CpuModuleTypeOffset, CpuModuleTypeLength).Replace("\0", string.Empty),
+                            PlcTypes.String.FromByteArray(orderCode.data, CpuOrderCodeOffset, CpuOrderCodeLength).Replace("\0", string.Empty),
+                            $"V1: {orderCode.data[orderCode.size - CpuVersionMajorDistanceFromEnd]}",
+                            $"V2: {orderCode.data[orderCode.size - CpuVersionMinorDistanceFromEnd]}",
                             $"V3: {orderCode.data[orderCode.size - 1]}", // Version 3
                         };
                         obs.OnNext([.. l]);
@@ -449,7 +620,7 @@ public class RxS7 : IRxS7
                         return;
                     }
 
-                    if (cpuData.data.Length < 204)
+                    if (cpuData.data.Length < CpuInformationMinimumLength)
                     {
                         goto errorCpuData;
                     }
@@ -566,7 +737,7 @@ public class RxS7 : IRxS7
         lock (_socketLock)
         {
             var pool = ArrayPool<byte>.Shared;
-            var receiveBuffer = pool.Rent(_socketRx.DataReadLength + 256);
+            var receiveBuffer = pool.Rent(_socketRx.DataReadLength + ProtocolReceivePadding);
             var parsed = new List<S7MultiVar.ReadResult>();
             try
             {
@@ -658,7 +829,7 @@ public class RxS7 : IRxS7
         }
 
         _disposables.Dispose();
-        DisposeSemaphore(_lock, "Lock");
+        DisposeSemaphore(_lock, LockName);
         DisposeSemaphore(_lockTagList, "Tag list lock");
         _dataRead.Dispose();
         _lastError.Dispose();
@@ -859,7 +1030,7 @@ public class RxS7 : IRxS7
     /// <returns>true if the tag's new value was successfully serialized; otherwise, false.</returns>
     private static bool TrySerializeTagNewValue(Tag tag, out byte transportSize, out byte[] data)
     {
-        transportSize = 2;
+        transportSize = ByteTransportSize;
         data = [];
 
         return tag.NewValue is not null &&
@@ -1083,18 +1254,18 @@ public class RxS7 : IRxS7
         }
 
         var parts = normalized.Split(['.']);
-        if (parts.Length < 2 || !TryParseInt(parts[0].AsSpan(2), out db))
+        if (parts.Length < DataBlockAddressComponentCount || !TryParseInt(parts[0].AsSpan(DataBlockPrefixLength), out db))
         {
             return false;
         }
 
         var item = parts[1];
-        if (item.Length < 3 || !TryParseInt(item.AsSpan(3), out startByte))
+        if (item.Length < AddressTypeCodeLength || !TryParseInt(item.AsSpan(AddressTypeCodeLength), out startByte))
         {
             return false;
         }
 
-        dbType = item[..3];
+        dbType = item[..AddressTypeCodeLength];
         return true;
     }
 
@@ -1147,9 +1318,8 @@ public class RxS7 : IRxS7
     /// <returns>A ByteArray containing the constructed request package to be sent to the PLC for reading the specified data.</returns>
     private static ByteArray CreateReadDataRequestPackage(DataType dataType, int db, int startByteAdr, int count = 1)
     {
-        // single data register = 12
-        var package = new ByteArray(12);
-        package.Add([18, 10, 16]);
+        var package = new ByteArray(ReadRequestItemSize);
+        package.Add(ReadRequestItemPrefix);
         switch (dataType)
         {
             case DataType.Timer or DataType.Counter:
@@ -1160,7 +1330,7 @@ public class RxS7 : IRxS7
 
             default:
                 {
-                    package.Add(2);
+                    package.Add(StandardReadTransportSize);
                     break;
                 }
         }
@@ -1168,7 +1338,7 @@ public class RxS7 : IRxS7
         package.Add(Word.ToByteArray((ushort)count));
         package.Add(Word.ToByteArray((ushort)db));
         package.Add((byte)dataType);
-        var overflow = (int)(startByteAdr * 8 / 65_535U); // handles words with address bigger than 8191
+        var overflow = startByteAdr * BitsPerByte / ushort.MaxValue;
         package.Add((byte)overflow);
         switch (dataType)
         {
@@ -1180,7 +1350,7 @@ public class RxS7 : IRxS7
 
             default:
                 {
-                    package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
+                    package.Add(Word.ToByteArray((ushort)(startByteAdr * BitsPerByte)));
                     break;
                 }
         }
@@ -1197,17 +1367,16 @@ public class RxS7 : IRxS7
     /// <returns>A ByteArray containing the constructed header package for the specified number of requests.</returns>
     private static ByteArray ReadHeaderPackage(int amount = 1)
     {
-        // header size = 19 bytes
-        var package = new ByteArray(19);
-        package.Add([3, 0, 0]);
+        var package = new ByteArray(ReadRequestHeaderSize);
+        package.Add(TpktHeaderPrefix);
 
         // complete package size
-        package.Add((byte)(19 + (12 * amount)));
-        package.Add([2, 240, 128, 50, 1, 0, 0, 0, 0]);
+        package.Add((byte)(ReadRequestHeaderSize + (ReadRequestItemSize * amount)));
+        package.Add(ReadRequestHeaderBody);
 
         // data part size
-        package.Add(Word.ToByteArray((ushort)(2 + (amount * 12))));
-        package.Add([0, 0, 4]);
+        package.Add(Word.ToByteArray((ushort)(ReadParameterBaseSize + (amount * ReadRequestItemSize))));
+        package.Add(ReadRequestFunction);
 
         // amount of requests
         package.Add((byte)amount);
@@ -1228,9 +1397,9 @@ public class RxS7 : IRxS7
         VarType.Bit => varCount, // TODO
         VarType.Byte => (varCount < 1) ? 1 : varCount,
         VarType.String => varCount,
-        VarType.Word or VarType.Timer or VarType.Int or VarType.Counter => varCount * 2,
-        VarType.DWord or VarType.DInt or VarType.Real => varCount * 4,
-        VarType.LReal => varCount * 8,
+        VarType.Word or VarType.Timer or VarType.Int or VarType.Counter => varCount * WordByteLength,
+        VarType.DWord or VarType.DInt or VarType.Real => varCount * DoubleWordByteLength,
+        VarType.LReal => varCount * LongRealByteLength,
         _ => 0,
     };
 
@@ -1284,30 +1453,30 @@ public class RxS7 : IRxS7
     {
         lock (_socketLock)
         {
-            var receiveBuffer = new byte[1024];
+            var receiveBuffer = new byte[WriteResponseBufferSize];
             try
             {
                 var varCount = value.Length;
 
                 // first create the header
-                var packageSize = 35 + value.Length;
+                var packageSize = WriteRequestBaseSize + value.Length;
                 var package = new ByteArray(packageSize);
 
-                package.Add([3, 0, 0]);
+                package.Add(TpktHeaderPrefix);
                 package.Add((byte)packageSize);
-                package.Add([2, 240, 128, 50, 1, 0, 0]);
+                package.Add(WriteRequestHeaderBody);
                 package.Add(Word.ToByteArray((ushort)(varCount - 1)));
-                package.Add([0, 14]);
-                package.Add(Word.ToByteArray((ushort)(varCount + 4)));
-                package.Add([5, 1, 18, 10, 16, 2]);
+                package.Add(Word.ToByteArray(WriteParameterSize));
+                package.Add(Word.ToByteArray((ushort)(varCount + WriteDataLengthOverhead)));
+                package.Add(WriteRequestItemPrefix);
                 package.Add(Word.ToByteArray((ushort)varCount));
                 package.Add(Word.ToByteArray((ushort)db));
                 package.Add((byte)dataType);
-                var overflow = (int)(startByteAdr * 8 / 0xffffU); // handles words with address bigger than 8191
+                var overflow = startByteAdr * BitsPerByte / ushort.MaxValue;
                 package.Add((byte)overflow);
-                package.Add(Word.ToByteArray((ushort)(startByteAdr * 8)));
-                package.Add([0, 4]);
-                package.Add(Word.ToByteArray((ushort)(varCount * 8)));
+                package.Add(Word.ToByteArray((ushort)(startByteAdr * BitsPerByte)));
+                package.Add(WriteDataTransportPrefix);
+                package.Add(Word.ToByteArray((ushort)(varCount * BitsPerByte)));
 
                 // now join the header and the data
                 package.Add(value);
@@ -1318,12 +1487,12 @@ public class RxS7 : IRxS7
                     return false;
                 }
 
-                var result = _socketRx.Receive(tag, receiveBuffer, 1024);
+                var result = _socketRx.Receive(tag, receiveBuffer, WriteResponseBufferSize);
 
-                if (receiveBuffer[21] != 0xff)
+                if (receiveBuffer[ResponseReturnCodeOffset] != 0xff)
                 {
                     _lastErrorCode.OnNext(ErrorCode.WriteData);
-                    _lastError.OnNext($"Tag {tag.Name} failed to write - {nameof(ErrorCode.WrongNumberReceivedBytes)} code {receiveBuffer[21]}");
+                    _lastError.OnNext($"Tag {tag.Name} failed to write - {nameof(ErrorCode.WrongNumberReceivedBytes)} code {receiveBuffer[ResponseReturnCodeOffset]}");
                     return false;
                 }
 
@@ -1456,18 +1625,18 @@ public class RxS7 : IRxS7
 
         try
         {
-            return correctVariable[..2] switch
+            return correctVariable[..AreaAddressCodeLength] switch
             {
                 "DB" => ReadDataBlockAddress(tag, correctVariable),
-                "EB" => ReadByteAddress(tag, DataType.Input, int.Parse(correctVariable[2..])),
-                "EW" => ReadWordAddress(tag, DataType.Input, int.Parse(correctVariable[2..]), VarType.Word, VarType.Word),
-                "ED" => ReadAreaDWordAddress(tag, DataType.Input, int.Parse(correctVariable[2..])),
-                "AB" => ReadByteAddress(tag, DataType.Output, int.Parse(correctVariable[2..])),
-                "AW" => ReadWordAddress(tag, DataType.Output, int.Parse(correctVariable[2..]), VarType.Word, VarType.Word),
-                "AD" => ReadAreaDWordAddress(tag, DataType.Output, int.Parse(correctVariable[2..])),
-                "MB" => ReadByteAddress(tag, DataType.Memory, int.Parse(correctVariable[2..])),
-                "MW" => ReadWordAddress(tag, DataType.Memory, int.Parse(correctVariable[2..]), VarType.Word, VarType.Word),
-                "MD" => ReadMemoryDWordAddress(tag, int.Parse(correctVariable[2..])),
+                "EB" => ReadByteAddress(tag, DataType.Input, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "EW" => ReadWordAddress(tag, DataType.Input, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Word, VarType.Word),
+                "ED" => ReadAreaDWordAddress(tag, DataType.Input, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "AB" => ReadByteAddress(tag, DataType.Output, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "AW" => ReadWordAddress(tag, DataType.Output, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Word, VarType.Word),
+                "AD" => ReadAreaDWordAddress(tag, DataType.Output, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "MB" => ReadByteAddress(tag, DataType.Memory, int.Parse(correctVariable[AreaAddressCodeLength..])),
+                "MW" => ReadWordAddress(tag, DataType.Memory, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Word, VarType.Word),
+                "MD" => ReadMemoryDWordAddress(tag, int.Parse(correctVariable[AreaAddressCodeLength..])),
                 _ => ReadSpecialOrBitAddress(tag, correctVariable),
             };
         }
@@ -1486,14 +1655,14 @@ public class RxS7 : IRxS7
     private object? ReadDataBlockAddress(Tag tag, string correctVariable)
     {
         var strings = correctVariable.Split(['.']);
-        if (strings.Length < 2)
+        if (strings.Length < DataBlockAddressComponentCount)
         {
             throw new ArgumentException($"Cannot parse DB address '{correctVariable}'.", nameof(tag));
         }
 
-        var dbNumber = int.Parse(strings[0][2..]);
-        var dbType = strings[1][..3];
-        var dbIndex = int.Parse(strings[1][3..]);
+        var dbNumber = int.Parse(strings[0][DataBlockPrefixLength..]);
+        var dbType = strings[1][..AddressTypeCodeLength];
+        var dbIndex = int.Parse(strings[1][AddressTypeCodeLength..]);
         return dbType switch
         {
             "DBB" => ReadByteAddress(tag, DataType.DataBlock, dbIndex, dbNumber),
@@ -1621,7 +1790,7 @@ public class RxS7 : IRxS7
     /// <returns>The bit value.</returns>
     private bool ReadDataBlockBitAddress(Tag tag, string[] strings, int db, int byteOffset)
     {
-        var bitOffset = int.Parse(strings[2]);
+        var bitOffset = int.Parse(strings[BitAddressComponentIndex]);
         RxS7ValueHelpers.EnsureBitOffsetIsValid(bitOffset, tag);
         var value = Read<byte>(tag, DataType.DataBlock, db, byteOffset, VarType.Byte);
         return RxS7ValueHelpers.GetBit(value, bitOffset);
@@ -1671,7 +1840,7 @@ public class RxS7 : IRxS7
     /// <returns>The timer value or array.</returns>
     private object? ReadTimerAddress(Tag tag, string correctVariable) =>
         tag.Type == typeof(double[])
-            ? Read<double[]>(tag, DataType.Timer, 0, int.Parse(correctVariable[2..]), VarType.Timer)
+            ? Read<double[]>(tag, DataType.Timer, 0, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Timer)
             : Read<double>(tag, DataType.Timer, 0, int.Parse(correctVariable[1..]), VarType.Timer);
 
     /// <summary>Reads a counter address.</summary>
@@ -1682,16 +1851,16 @@ public class RxS7 : IRxS7
     {
         if (tag.Type == typeof(ushort[]))
         {
-            return Read<ushort[]>(tag, DataType.Counter, 0, int.Parse(correctVariable[2..]), VarType.Counter);
+            return Read<ushort[]>(tag, DataType.Counter, 0, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Counter);
         }
 
         if (tag.Type == typeof(short[]))
         {
-            return Read<short[]>(tag, DataType.Counter, 0, int.Parse(correctVariable[2..]), VarType.Counter);
+            return Read<short[]>(tag, DataType.Counter, 0, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Counter);
         }
 
         return tag.Type == typeof(short)
-            ? Read<short>(tag, DataType.Counter, 0, int.Parse(correctVariable[2..]), VarType.Counter)
+            ? Read<short>(tag, DataType.Counter, 0, int.Parse(correctVariable[AreaAddressCodeLength..]), VarType.Counter)
             : Read<ushort>(tag, DataType.Counter, 0, int.Parse(correctVariable[1..]), VarType.Counter);
     }
 
@@ -1711,8 +1880,7 @@ public class RxS7 : IRxS7
             try
             {
                 var bytes = new byte[count];
-                const int packageSize = 31;
-                var package = new ByteArray(packageSize);
+                var package = new ByteArray(SingleReadPackageSize);
                 package.Add(ReadHeaderPackage());
                 package.Add(CreateReadDataRequestPackage(dataType, db, startByteAdr, count));
 
@@ -1722,15 +1890,15 @@ public class RxS7 : IRxS7
                     return default;
                 }
 
-                var receiveSize = Math.Max(_socketRx.DataReadLength + 256, count + 256);
+                var receiveSize = Math.Max(_socketRx.DataReadLength + ProtocolReceivePadding, count + ProtocolReceivePadding);
                 var receiveBuffer = new byte[receiveSize];
                 var result = _socketRx.ReceiveIsoData(tag, ref receiveBuffer);
-                if (result < 25)
+                if (result < ReadResponseMinimumSize)
                 {
                     return default;
                 }
 
-                if (receiveBuffer[21] != 0xFF)
+                if (receiveBuffer[ResponseReturnCodeOffset] != 0xFF)
                 {
                     return default;
                 }
@@ -1742,7 +1910,7 @@ public class RxS7 : IRxS7
                 }
 
                 var bytesToCopy = Math.Min(count, availableDataLength);
-                Array.Copy(receiveBuffer, 25, bytes, 0, bytesToCopy);
+                Array.Copy(receiveBuffer, ReadResponseDataOffset, bytes, 0, bytesToCopy);
                 if (bytesToCopy == count)
                 {
                     return bytes;
@@ -1778,8 +1946,8 @@ public class RxS7 : IRxS7
         {
             var resultBytes = new List<byte>();
             var index = startByteAdr;
-            var maxChunkSize = Math.Max(1, _socketRx.DataReadLength - 32);
-            var chunkSize = tag.Type == typeof(byte[]) ? Math.Min(480, maxChunkSize) : maxChunkSize;
+            var maxChunkSize = Math.Max(1, _socketRx.DataReadLength - ReadChunkProtocolOverhead);
+            var chunkSize = tag.Type == typeof(byte[]) ? Math.Min(MaximumByteArrayReadChunk, maxChunkSize) : maxChunkSize;
             while (numBytes > 0)
             {
                 var maxToRead = Math.Min(numBytes, chunkSize);
@@ -1789,7 +1957,7 @@ public class RxS7 : IRxS7
                 {
                     if (maxToRead > 1)
                     {
-                        chunkSize = Math.Max(1, maxToRead / 2);
+                        chunkSize = Math.Max(1, maxToRead / ReadChunkReductionDivisor);
                         continue;
                     }
 
@@ -1825,7 +1993,7 @@ public class RxS7 : IRxS7
     /// <returns>The read bytes, or null when all attempts fail.</returns>
     private byte[]? ReadBytesWithRetries(Tag tag, DataType dataType, int db, int index, int maxToRead)
     {
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i < ReadChunkMaxAttempts; i++)
         {
             var bytes = ReadBytes(tag, dataType, db, index, maxToRead);
             if (bytes?.Length > 0)
@@ -1859,7 +2027,7 @@ public class RxS7 : IRxS7
                             return;
                         }
 
-                        if (DateTime.UtcNow - _lastConnectedAtUtc < TimeSpan.FromMilliseconds(250))
+                        if (DateTime.UtcNow - _lastConnectedAtUtc < TimeSpan.FromMilliseconds(ConnectionPollingGraceMilliseconds))
                         {
                             NotifyPaused(true);
                             return;
@@ -1890,7 +2058,7 @@ public class RxS7 : IRxS7
                                 {
                                     while (!IsConnectedValue)
                                     {
-                                        await Task.Delay(10);
+                                        await Task.Delay(ConnectionWaitDelayMilliseconds);
                                     }
 
                                     _plcRequestSubject.OnNext(new PLCRequest(PLCRequestType.Read, tag));
@@ -2024,7 +2192,7 @@ public class RxS7 : IRxS7
         {
             while (bytes.Count > 0)
             {
-                var maxToWrite = Math.Min(bytes.Count, 200);
+                var maxToWrite = Math.Min(bytes.Count, MaximumWriteChunkSize);
                 var part = new byte[maxToWrite];
                 bytes.CopyTo(0, part, 0, maxToWrite);
                 errCode = WriteBytes(tag, DataType.DataBlock, db, index, part);
@@ -2065,12 +2233,12 @@ public class RxS7 : IRxS7
 
         try
         {
-            return tagAddress[..2] switch
+            return tagAddress[..AreaAddressCodeLength] switch
             {
                 "DB" => WriteDataBlockAddress(tag, tagAddress),
-                "EB" or "EW" or "ED" => Write(tag, DataType.Input, 0, int.Parse(tagAddress[2..])),
-                "AB" or "AW" or "AD" => Write(tag, DataType.Output, 0, int.Parse(tagAddress[2..])),
-                "MB" or "MW" or "MD" => Write(tag, DataType.Memory, 0, int.Parse(tagAddress[2..])),
+                "EB" or "EW" or "ED" => Write(tag, DataType.Input, 0, int.Parse(tagAddress[AreaAddressCodeLength..])),
+                "AB" or "AW" or "AD" => Write(tag, DataType.Output, 0, int.Parse(tagAddress[AreaAddressCodeLength..])),
+                "MB" or "MW" or "MD" => Write(tag, DataType.Memory, 0, int.Parse(tagAddress[AreaAddressCodeLength..])),
                 _ => WriteSpecialOrBitAddress(tag, tagAddress),
             };
         }
@@ -2089,14 +2257,14 @@ public class RxS7 : IRxS7
     private bool WriteDataBlockAddress(Tag tag, string tagAddress)
     {
         var strings = tagAddress.Split(['.']);
-        if (strings.Length < 2)
+        if (strings.Length < DataBlockAddressComponentCount)
         {
             throw new ArgumentException($"Cannot parse DB address '{tagAddress}'.", nameof(tag));
         }
 
-        var dbNumber = int.Parse(strings[0][2..]);
-        var dbType = strings[1][..3];
-        var dbIndex = int.Parse(strings[1][3..]);
+        var dbNumber = int.Parse(strings[0][DataBlockPrefixLength..]);
+        var dbType = strings[1][..AddressTypeCodeLength];
+        var dbIndex = int.Parse(strings[1][AddressTypeCodeLength..]);
         return dbType switch
         {
             "DBB" or "DBW" or "DBD" or "DBS" => Write(tag, DataType.DataBlock, dbNumber, dbIndex),
@@ -2113,7 +2281,7 @@ public class RxS7 : IRxS7
     /// <returns>true if the write succeeds; otherwise, false.</returns>
     private bool WriteDataBlockBitAddress(Tag tag, string[] strings, int dbNumber, int byteOffset)
     {
-        var bitOffset = int.Parse(strings[2]);
+        var bitOffset = int.Parse(strings[BitAddressComponentIndex]);
         RxS7ValueHelpers.EnsureBitOffsetIsValid(bitOffset, tag);
         var value = Read<byte>(tag, DataType.DataBlock, dbNumber, byteOffset, VarType.Byte);
         tag.NewValue = RxS7ValueHelpers.SetBit(value, bitOffset, Convert.ToInt32(tag.NewValue, CultureInfo.InvariantCulture) == 1);

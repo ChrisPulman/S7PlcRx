@@ -26,22 +26,22 @@ public class S7PlcRxIntegrationTests
         Assert.That(plc1500.PLCType, Is.EqualTo(CpuType.S71500));
 
         // Test S7400 creation
-        using var plc400 = new RxS7(CpuType.S7400, MockServer.Localhost, 0, 1, null, 100);
+        using var plc400 = new RxS7(new(new(CpuType.S7400, MockServer.Localhost, 0, 1)));
         Assert.That(plc400, Is.Not.Null);
         Assert.That(plc400.PLCType, Is.EqualTo(CpuType.S7400));
 
         // Test S7300 creation
-        using var plc300 = new RxS7(CpuType.S7300, MockServer.Localhost, 0, 1, null, 100);
+        using var plc300 = new RxS7(new(new(CpuType.S7300, MockServer.Localhost, 0, 1)));
         Assert.That(plc300, Is.Not.Null);
         Assert.That(plc300.PLCType, Is.EqualTo(CpuType.S7300));
 
         // Test S71200 creation
-        using var plc1200 = new RxS7(CpuType.S71200, MockServer.Localhost, 0, 1, null, 100);
+        using var plc1200 = new RxS7(new(new(CpuType.S71200, MockServer.Localhost, 0, 1)));
         Assert.That(plc1200, Is.Not.Null);
         Assert.That(plc1200.PLCType, Is.EqualTo(CpuType.S71200));
 
         // Test S7200 creation
-        using var plc200 = new RxS7(CpuType.S7200, MockServer.Localhost, 0, 1, null, 100);
+        using var plc200 = new RxS7(new(new(CpuType.S7200, MockServer.Localhost, 0, 1)));
         Assert.That(plc200, Is.Not.Null);
         Assert.That(plc200.PLCType, Is.EqualTo(CpuType.S7200));
     }
@@ -150,7 +150,7 @@ public class S7PlcRxIntegrationTests
     public void WatchdogConfiguration_ShouldWorkCorrectly()
     {
         // Arrange & Act
-        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBW100", 100, 4500, 10);
+        using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), watchdog: new("DB10.DBW100")));
 
         // Assert
         Assert.That(plc.WatchDogAddress, Is.EqualTo("DB10.DBW100"));
@@ -158,7 +158,7 @@ public class S7PlcRxIntegrationTests
         Assert.That(plc.WatchDogWritingTime, Is.EqualTo(10));
 
         // Test invalid watchdog address
-        var ex = Assert.Throws<ArgumentException>(() => new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, "DB10.DBB100", 100, 4500, 10));
+        var ex = Assert.Throws<ArgumentException>(() => new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1), watchdog: new("DB10.DBB100"))));
         Assert.That(ex?.Message, Does.Contain("WatchDogAddress must be a DBW address"));
     }
 
@@ -368,7 +368,7 @@ public class S7PlcRxIntegrationTests
     public void PLCTypeSupport_ShouldCoverAllTypes(CpuType cpuType)
     {
         // Arrange & Act
-        using var plc = new RxS7(cpuType, MockServer.Localhost, 0, 1, null, 100);
+        using var plc = new RxS7(new(new(cpuType, MockServer.Localhost, 0, 1)));
 
         // Assert
         Assert.That(plc, Is.Not.Null);

@@ -18,7 +18,7 @@ public class S7PlcRxCancellationTests
     [Test]
     public void ValueAsync_WhenCanceled_ShouldThrowOperationCanceledException()
     {
-        using var plc = new RxS7(CpuType.S71500, MockServer.Localhost, 0, 1, null, interval: 100);
+        using var plc = new RxS7(new(new(CpuType.S71500, MockServer.Localhost, 0, 1)));
         plc.AddUpdateTagItem<ushort>("T0", "DB1.DBW0").SetTagPollIng(false);
 
         using var cts = new CancellationTokenSource();

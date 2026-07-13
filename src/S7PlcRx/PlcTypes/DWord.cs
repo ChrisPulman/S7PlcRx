@@ -22,6 +22,9 @@ namespace S7PlcRx.PlcTypes;
 /// format. Methods throw exceptions if provided buffers are too small to contain a DWord value.</remarks>
 public static class DWord
 {
+    /// <summary>The serialized unsigned double-word width in bytes.</summary>
+    private const int TypeLengthInBytes = sizeof(uint);
+
     /// <summary>Creates a 32-bit unsigned integer from a byte array.</summary>
     /// <param name="bytes">The byte array containing the bytes to convert. Must contain at least four bytes starting at the beginning of
     /// the array.</param>
@@ -55,7 +58,7 @@ public static class DWord
         if (BitConverter.IsLittleEndian)
         {
             Span<byte> temp = stackalloc byte[4];
-            bytes.Slice(0, 4).CopyTo(temp);
+            bytes.Slice(0, TypeLengthInBytes).CopyTo(temp);
             temp.Reverse();
             return MemoryMarshal.Read<uint>(temp);
         }
@@ -139,14 +142,14 @@ public static class DWord
     /// elements in <paramref name="values"/>.</exception>
     public static void ToSpan(ReadOnlySpan<uint> values, Span<byte> destination)
     {
-        if (destination.Length < values.Length * 4)
+        if (destination.Length < values.Length * TypeLengthInBytes)
         {
             throw new ArgumentException("Destination span is too small", nameof(destination));
         }
 
         for (var i = 0; i < values.Length; i++)
         {
-            ToSpan(values[i], destination.Slice(i * 4, 4));
+            ToSpan(values[i], destination.Slice(i * TypeLengthInBytes, TypeLengthInBytes));
         }
     }
 
