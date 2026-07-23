@@ -13,7 +13,7 @@
     <PackageVersion Include="Nuke.Common" Version="10.1.0" />
     <PackageVersion Include="NuGet.Packaging" Version="7.6.0" />
     <PackageVersion Include="Polyfill" Version="10.11.2" />
-    <PackageVersion Include="ReactiveUI.Primitives" Version="6.0.0" />
+    <PackageVersion Include="ReactiveUI.Primitives" Version="7.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Async" Version="6.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="6.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Extensions" Version="6.0.0" />
