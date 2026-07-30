@@ -18,7 +18,7 @@
     <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="6.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Extensions" Version="6.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Extensions.Reactive" Version="6.0.0" />
-    <PackageVersion Include="ReactiveUI.Primitives.Reactive" Version="6.0.0" />
+    <PackageVersion Include="ReactiveUI.Primitives.Reactive" Version="7.1.0" />
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
     <PackageVersion Include="StyleSharp.Analyzers" Version="3.23.1" />
     <PackageVersion Include="System.Memory" Version="4.6.3" />
