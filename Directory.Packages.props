@@ -15,7 +15,7 @@
     <PackageVersion Include="Polyfill" Version="11.0.1" />
     <PackageVersion Include="ReactiveUI.Primitives" Version="6.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Async" Version="6.0.0" />
-    <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="6.0.0" />
+    <PackageVersion Include="ReactiveUI.Primitives.Async.Reactive" Version="7.1.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Extensions" Version="6.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Extensions.Reactive" Version="6.0.0" />
     <PackageVersion Include="ReactiveUI.Primitives.Reactive" Version="6.0.0" />
